@@ -1,0 +1,2702 @@
+:root {
+  --color-neutral-0: #ffffff;
+  --color-neutral-1: #fafafb;
+  --color-neutral-2: #f5f6f8;
+  --color-neutral-3: #eeeeee;
+  --color-neutral-4: #dedede;
+  --color-neutral-5: #b0b0b0;
+  --color-neutral-6: #a0a0a0;
+  --color-neutral-7: #666666;
+  --color-neutral-8: #4a4a4a;
+  --color-neutral-9: #333333;
+  --color-neutral-10: #1a1a1a;
+  --color-primary: #1068eb;
+  --color-primary-selected: #e7f0fd;
+  --color-primary-hover: #0d52ba;
+  --color-secondary: #4a5673;
+  --color-error: #db3c3c;
+  --color-success: #2e7d32;
+  --color-warning: #f9a825;
+  --space-base: 16px;
+  --border-radius-soft: 8px;
+  --border-radius-pill: 50px;
+  /* Playground UI Variables (Premium Dark Mode Dashboard Frame) */
+  --pg-bg: #f3f4f6;
+  --pg-panel-bg: rgba(20, 26, 42, 0.7);
+  --pg-border: rgba(255, 255, 255, 0.08);
+  --pg-text-primary: #f3f4f6;
+  --pg-text-secondary: #9ca3af;
+  --pg-glow: rgba(16, 104, 235, 0.15);
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* ==========================================================================
+ OpenForms Builder (3-Column Layout Canvas Frame)
+ ========================================================================== */
+.builder-layout {
+  display: grid;
+  grid-template-columns: 1fr 3fr 2fr;
+  flex: 1;
+  overflow: hidden;
+  height: 100%;
+}
+
+/* 1. Palette Panel (Left Column) */
+.builder-palette {
+  background-color: var(--color-neutral-0);
+  border: 1px solid var(--color-neutral-4);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-neutral-7);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+
+.palette-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Drag Item Tiles */
+.palette-item {
+  background-color: var(--color-neutral-2);
+  border: 1px solid var(--color-neutral-4);
+  border-radius: var(--border-radius-soft);
+  padding: 10px 12px;
+  color: var(--color-neutral-10);
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: grab;
+  user-select: none;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.palette-item:hover {
+  background-color: var(--color-primary-selected);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+}
+
+.palette-item:active {
+  cursor: grabbing;
+}
+
+.palette-item svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+/* 2. Workspace Canvas (Center Column) */
+.builder-canvas {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.canvas-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.canvas-title {
+  color: var(--color-neutral-10);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* Canvas Drop Empty state */
+.canvas-empty-state {
+  border: 2px dashed var(--color-neutral-4);
+  border-radius: var(--border-radius-soft);
+  background-color: var(--color-neutral-0);
+  padding: 48px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--color-neutral-7);
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.canvas-empty-state svg {
+  width: 48px;
+  height: 48px;
+  color: var(--color-neutral-5);
+}
+
+.canvas-empty-state h3 {
+  font-size: 15px;
+  color: var(--color-neutral-10);
+  font-weight: 600;
+}
+
+.canvas-empty-state p {
+  font-size: 13px;
+  max-width: 300px;
+}
+
+.canvas-empty-state.drag-over {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-selected);
+  color: var(--color-primary);
+}
+
+/* ==========================================================================
+ Canvas Section & Row Card Nesting Styling
+ ========================================================================== */
+.canvas-section {
+  background-color: var(--color-neutral-1);
+  border: 1.5px dashed var(--color-neutral-5);
+  border-radius: var(--border-radius-soft);
+  padding: 18px;
+  margin-bottom: 24px;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.canvas-section:hover {
+  border-color: var(--color-neutral-7);
+}
+
+.canvas-section.selected {
+  border-color: var(--color-primary);
+  border-style: solid;
+  box-shadow: 0 4px 16px rgba(var(--color-primary), 0.08);
+}
+
+.canvas-section-header {
+  display: flex;
+  flex-flow: wrap;
+  gap: 8px;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-neutral-3);
+}
+
+.section-drag-handle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.section-title-input:focus {
+  border-bottom: 1px solid var(--color-primary) !important;
+}
+
+.canvas-section-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 40px;
+}
+
+.empty-section-drop-zone {
+  padding: 8px 0;
+}
+
+.canvas-section.drag-over-section {
+  border-top: 3px solid var(--color-primary);
+  background-color: var(--color-primary-selected);
+}
+
+.canvas-section.dragging-section {
+  opacity: 0.4;
+  border: 1.5px dashed var(--color-primary);
+  background-color: var(--color-neutral-2);
+}
+
+/* ==========================================================================
+ Advanced Business Rules Builder Styling
+ ========================================================================== */
+.business-rules-panel {
+  padding: 8px 0;
+  border-top: 1px solid var(--color-neutral-4);
+  margin-top: 16px;
+}
+
+.business-rules-title {
+  color: var(--color-neutral-8);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.business-rules-title i,
+.business-rules-title svg {
+  color: var(--color-primary);
+  width: 14px;
+  height: 14px;
+}
+
+.rules-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rule-card {
+  border: 1px solid var(--color-neutral-4);
+  border-radius: var(--border-radius-soft);
+  padding: 12px;
+  background-color: var(--color-neutral-1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  transition: all 0.2s ease-in-out;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rule-card:hover {
+  border-color: var(--color-neutral-5);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.rule-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+  gap: 8px;
+}
+
+.rule-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-neutral-8);
+}
+
+.rule-target-prop {
+  font-size: 11px;
+  font-weight: 600;
+  width: auto;
+  flex: 1;
+  padding: 4px 8px;
+  height: 28px;
+}
+
+.and-groups-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.and-group-card {
+  background-color: var(--color-neutral-0);
+  border: 1px solid var(--color-neutral-3);
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.and-group-card:hover {
+  border-color: var(--color-neutral-4);
+  background-color: var(--color-neutral-1);
+}
+
+.and-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.and-group-title {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--color-primary);
+  letter-spacing: 0.5px;
+}
+
+.rules-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  width: 100%;
+}
+
+.rules-row select,
+.rules-row input {
+  padding: 5px 8px;
+  font-size: 11px;
+  height: 28px;
+  border-radius: 4px;
+}
+
+.rules-row .rule-cond-field {
+  flex: 2;
+  min-width: 70px;
+  width: 0;
+  /* allows flex basis to govern width */
+}
+
+.rules-row .rule-cond-operator {
+  flex: 1;
+  min-width: 50px;
+  width: 0;
+}
+
+.rules-row .rule-cond-value {
+  flex: 1.5;
+  min-width: 60px;
+  width: 0;
+}
+
+/* Custom Outlined Style Buttons in Business Rules Editor */
+.business-rules-panel .pg-btn-secondary {
+  background: var(--color-neutral-0);
+  border: 1px solid var(--color-neutral-4);
+  color: var(--color-neutral-8);
+  padding: 4px 8px;
+  font-size: 10px;
+  font-weight: 500;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.business-rules-panel .pg-btn-secondary:hover {
+  background: var(--color-neutral-2);
+  border-color: var(--color-neutral-5);
+  color: var(--color-neutral-10);
+  transform: none;
+}
+
+.business-rules-panel .pg-btn-secondary svg {
+  width: 10px;
+  height: 10px;
+}
+
+/* Action Specific Buttons overrides */
+.business-rules-panel .rule-delete-rule,
+.business-rules-panel .rule-delete-group,
+.business-rules-panel .rule-delete-cond {
+  color: var(--color-error);
+  border-color: rgba(219, 60, 60, 0.15);
+  background: rgba(219, 60, 60, 0.02);
+}
+
+.business-rules-panel .rule-delete-rule:hover,
+.business-rules-panel .rule-delete-group:hover,
+.business-rules-panel .rule-delete-cond:hover {
+  background: rgba(219, 60, 60, 0.08);
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+
+.business-rules-panel .rule-delete-cond {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.business-rules-panel .rule-delete-cond i,
+.business-rules-panel .rule-delete-cond svg {
+  width: 12px;
+  height: 12px;
+}
+
+.business-rules-panel .rule-add-cond,
+.business-rules-panel .rule-add-group {
+  border-style: dashed;
+  width: 100%;
+  justify-content: center;
+}
+
+.business-rules-panel .btn-add-rule {
+  margin-top: 12px;
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-neutral-0);
+  font-weight: 600;
+  font-size: 11px;
+  height: 32px;
+  width: 100%;
+  justify-content: center;
+}
+
+.business-rules-panel .btn-add-rule:hover {
+  background: var(--color-primary-selected);
+  border-color: var(--color-primary);
+  color: var(--color-primary-hover);
+}
+
+/* Empty states */
+.rules-empty-state {
+  font-size: 10px;
+  color: var(--color-neutral-5);
+  text-align: center;
+  font-style: italic;
+  padding: 6px 0;
+}
+
+.rules-empty-panel {
+  padding: 20px;
+  border: 1px dashed var(--color-neutral-4);
+  border-radius: var(--border-radius-soft);
+  background: var(--color-neutral-1);
+}
+
+/* ==========================================================================
+ Repeatable List (Master-Detail) Designer & Player Styles
+ ========================================================================== */
+/* Canvas Designer Preview Styles */
+.canvas-field-repeater-wrapper {
+  background-color: var(--color-neutral-0);
+  border: 1px solid var(--color-neutral-3);
+  border-radius: var(--border-radius-soft);
+  padding: 10px;
+  width: 100%;
+}
+
+.canvas-repeater-subfields-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  padding-top: 4px;
+}
+
+.canvas-repeater-subfield-tag {
+  background: var(--color-neutral-2);
+  border: 1px solid var(--color-neutral-4);
+  border-radius: 4px;
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--color-neutral-8);
+  font-weight: 500;
+}
+
+.canvas-repeater-subfield-tag i,
+.canvas-repeater-subfield-tag svg {
+  width: 11px;
+  height: 11px;
+  color: var(--color-neutral-7);
+}
+
+.canvas-repeater-empty-subfields {
+  font-size: 11px;
+  color: var(--color-neutral-5);
+  font-style: italic;
+  padding: 6px;
+  width: 100%;
+}
+
+/* Runtime Player Repeater Styles */
+.form-repeater-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.form-repeater-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.form-repeater-card {
+  background-color: var(--color-neutral-0);
+  border: 1px solid var(--color-neutral-4);
+  border-radius: var(--border-radius-soft);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: all 0.2s ease-in-out;
+}
+
+.form-repeater-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  border-color: var(--color-neutral-5);
+}
+
+.form-repeater-card-header {
+  background-color: var(--color-neutral-1);
+  border-bottom: 1px solid var(--color-neutral-3);
+  padding: 8px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.form-repeater-card-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-neutral-8);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.form-repeater-card-delete {
+  background: transparent;
+  border: none;
+  color: var(--color-error);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.15s ease-in-out;
+}
+
+.form-repeater-card-delete:hover {
+  background-color: rgba(219, 60, 60, 0.08);
+  transform: scale(1.1);
+}
+
+.form-repeater-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  padding: 16px;
+}
+
+/* Sub field grid responsive wrapping */
+@media (max-width: 768px) {
+  .form-repeater-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .form-repeater-grid .span-2 {
+    grid-column: span 1 !important;
+  }
+}
+
+.form-repeater-grid .span-2 {
+  grid-column: span 2;
+}
+
+.form-sub-field-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.form-sub-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-neutral-8);
+}
+
+.form-sub-label.required::after {
+  content: " *";
+  color: var(--color-error);
+}
+
+.form-sub-input-container {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.form-sub-input-container .form-input {
+  padding-left: 28px !important;
+  font-size: 12px;
+  /* height: 32px; */
+}
+
+.form-sub-input-container textarea.form-input {
+  padding-left: 10px !important;
+  height: auto;
+}
+
+.form-sub-input-container select.form-input {
+  padding-left: 28px !important;
+  padding-right: 20px !important;
+}
+
+.form-sub-input-container .form-input-icon {
+  position: absolute;
+  left: 8px;
+  color: var(--color-neutral-5);
+  width: 13px;
+  height: 13px;
+  pointer-events: none;
+}
+
+.form-sub-field-wrapper.is-invalid .form-input {
+  border-color: var(--color-error) !important;
+  background-color: rgba(219, 60, 60, 0.02) !important;
+}
+
+.form-sub-field-wrapper.is-invalid .form-error-message {
+  display: flex !important;
+  margin-top: 2px;
+}
+
+.form-repeater-add-btn {
+  margin-top: 4px;
+  align-self: flex-start;
+  font-weight: 600 !important;
+  border-color: var(--color-primary) !important;
+  color: var(--color-primary) !important;
+  background-color: var(--color-neutral-0) !important;
+  height: 32px !important;
+  padding: 0 16px !important;
+  border-radius: var(--border-radius-soft) !important;
+  font-size: 12px !important;
+}
+
+.form-repeater-add-btn:hover {
+  background-color: var(--color-primary-selected) !important;
+  border-color: var(--color-primary-hover) !important;
+  color: var(--color-primary-hover) !important;
+}
+
+/* ==========================================================================
+ Live Form Player (Renderer) Section Styles
+ ========================================================================== */
+.renderer-section {
+  background-color: var(--color-neutral-0);
+  border: 1px solid var(--color-neutral-4);
+  border-radius: var(--border-radius-soft);
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+  transition: all 0.3s ease;
+}
+
+.renderer-section-header {
+  margin-bottom: 18px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--color-primary-selected);
+  text-align: left;
+}
+
+.renderer-section-header h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-primary);
+  margin: 0;
+}
+
+.renderer-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.is-disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Grid Layout rows and columns styling */
+.canvas-row {
+  background-color: var(--color-neutral-0);
+  border: 1px solid var(--color-neutral-4);
+  border-radius: var(--border-radius-soft);
+  padding: 16px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: all 0.2s ease;
+}
+
+.canvas-row:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.canvas-row.dragging {
+  opacity: 0.4;
+  border: 1.5px dashed var(--color-primary);
+  background-color: var(--color-neutral-2);
+}
+
+.canvas-row.drag-over-row {
+  border-top: 3px solid var(--color-primary);
+  background-color: var(--color-primary-selected);
+  transform: translateY(2px);
+}
+
+.canvas-field.dragging {
+  opacity: 0.4;
+  border: 1px dashed var(--color-primary);
+}
+
+/* Drag handles and operations on Rows */
+.row-actions-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed var(--color-neutral-3);
+  margin-bottom: 4px;
+}
+
+.row-drag-handle {
+  cursor: move;
+  color: var(--color-neutral-5);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.row-drag-handle:hover {
+  color: var(--color-neutral-7);
+}
+
+.row-drag-handle svg {
+  width: 14px;
+  height: 14px;
+}
+
+.row-operations {
+  display: flex;
+  gap: 8px;
+}
+
+.row-op-btn {
+  background: none;
+  border: none;
+  color: var(--color-neutral-7);
+  cursor: pointer;
+  border-radius: 4px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.row-op-btn:hover {
+  background-color: var(--color-neutral-2);
+  color: var(--color-neutral-10);
+}
+
+.row-op-btn.delete:hover {
+  background-color: #fee2e2;
+  color: var(--color-error);
+}
+
+.row-op-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Column Grid */
+.canvas-row-columns {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 16px;
+  min-height: 80px;
+}
+
+/* Columns cells styling */
+.canvas-column-cell {
+  background-color: var(--color-neutral-2);
+  border: 1px dashed var(--color-neutral-4);
+  border-radius: var(--border-radius-soft);
+  position: relative;
+  min-height: 72px;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  transition: all 0.2s ease;
+}
+
+.canvas-column-cell.drag-over {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-selected);
+}
+
+/* Column resizing & actions on Canvas Cell */
+.column-controls {
+  position: absolute;
+  top: -10px;
+  right: 6px;
+  display: flex;
+  background-color: var(--color-neutral-0);
+  border: 1px solid var(--color-neutral-4);
+  border-radius: var(--border-radius-pill);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  padding: 1px 3px;
+  gap: 1px;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.canvas-column-cell:hover .column-controls {
+  opacity: 1;
+}
+
+.col-btn {
+  background: none;
+  border: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--color-neutral-7);
+}
+
+.col-btn:hover {
+  background-color: var(--color-neutral-2);
+  color: var(--color-neutral-10);
+}
+
+.col-badge {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--color-neutral-7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+}
+
+/* Dropped Fields in Columns */
+.canvas-field {
+  background-color: var(--color-neutral-0);
+  border: 1px solid var(--color-neutral-4);
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex: 1;
+  position: relative;
+  min-height: 48px;
+}
+
+.canvas-field:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 2px 8px rgba(16, 104, 235, 0.05);
+}
+
+.canvas-field.selected {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-selected);
+  background-color: var(--color-primary-selected);
+}
+
+.canvas-field-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.canvas-field-icon {
+  color: var(--color-neutral-7);
+}
+
+.canvas-field.selected .canvas-field-icon {
+  color: var(--color-primary);
+}
+
+.canvas-field-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-neutral-10);
+}
+
+.canvas-field-key {
+  font-size: 10px;
+  color: var(--color-neutral-7);
+  background-color: var(--color-neutral-3);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+.canvas-field-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.canvas-field-btn {
+  background: none;
+  border: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-neutral-7);
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+.canvas-field-btn:hover {
+  opacity: 1;
+  background-color: var(--color-neutral-3);
+}
+
+.canvas-field-btn.delete:hover {
+  background-color: #fee2e2;
+  color: var(--color-error);
+}
+
+.canvas-field-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* Empty column cell drag help */
+.column-empty-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  color: var(--color-neutral-5);
+  font-size: 11px;
+  text-align: center;
+  border: 1px dashed var(--color-neutral-4);
+  border-radius: 4px;
+  pointer-events: none;
+  min-height: 48px;
+}
+
+/* Column Grid Width Overrides */
+.col-1 {
+  grid-column: span 1;
+}
+
+.col-2 {
+  grid-column: span 2;
+}
+
+.col-3 {
+  grid-column: span 3;
+}
+
+.col-4 {
+  grid-column: span 4;
+}
+
+.col-5 {
+  grid-column: span 5;
+}
+
+.col-6 {
+  grid-column: span 6;
+}
+
+.col-7 {
+  grid-column: span 7;
+}
+
+.col-8 {
+  grid-column: span 8;
+}
+
+.col-9 {
+  grid-column: span 9;
+}
+
+.col-10 {
+  grid-column: span 10;
+}
+
+.col-11 {
+  grid-column: span 11;
+}
+
+.col-12 {
+  grid-column: span 12;
+}
+
+/* Canvas Drop Indicator on Bottom */
+.canvas-add-row-zone {
+  border: 2px dashed var(--color-neutral-4);
+  border-radius: var(--border-radius-soft);
+  padding: 12px;
+  text-align: center;
+  color: var(--color-neutral-7);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  background-color: var(--color-neutral-0);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.canvas-add-row-zone:hover {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-selected);
+  color: var(--color-primary);
+}
+
+.canvas-add-row-zone svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* 3. Properties Panel (Right Column) */
+.builder-properties {
+  background-color: var(--color-neutral-0);
+  border: 1px solid var(--color-neutral-4);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.properties-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 100%;
+  color: var(--color-neutral-5);
+  text-align: center;
+  padding: 24px;
+}
+
+.properties-empty svg {
+  width: 40px;
+  height: 40px;
+}
+
+.properties-empty p {
+  font-size: 13px;
+}
+
+.properties-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.prop-header {
+  border-bottom: 1px solid var(--color-neutral-4);
+  padding-bottom: 12px;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.prop-header svg {
+  width: 16px;
+  height: 16px;
+  color: var(--color-primary);
+}
+
+.prop-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-neutral-10);
+}
+
+.prop-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.prop-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-neutral-8);
+}
+
+.prop-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--color-neutral-4);
+  border-radius: 6px;
+  /* font-size: 13px; */
+  font-family: inherit;
+  color: var(--color-neutral-10);
+  outline: none;
+}
+
+.prop-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-selected);
+}
+
+.prop-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-neutral-10);
+  cursor: pointer;
+  padding: 4px 0;
+  user-select: none;
+}
+
+.prop-checkbox-label input[type="checkbox"],
+input[type="checkbox"]:not(.form-switch input) {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--color-neutral-4);
+  border-radius: 4px;
+  background-color: var(--color-neutral-1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  margin: 0;
+  vertical-align: middle;
+}
+
+.prop-checkbox-label input[type="checkbox"]:hover,
+input[type="checkbox"]:not(.form-switch input):hover {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-selected);
+}
+
+.prop-checkbox-label input[type="checkbox"]:checked,
+input[type="checkbox"]:not(.form-switch input):checked {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+/* Premium checkmark overlay */
+.prop-checkbox-label input[type="checkbox"]:checked::after,
+input[type="checkbox"]:not(.form-switch input):checked::after {
+  content: "";
+  position: absolute;
+  width: 4px;
+  height: 8px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  top: 1px;
+  left: 4.5px;
+}
+
+.prop-checkbox-label input[type="checkbox"]:focus,
+input[type="checkbox"]:not(.form-switch input):focus {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-primary-selected);
+}
+
+.nested-prop-box {
+  background-color: var(--color-neutral-2);
+  border: 1px solid var(--color-neutral-4);
+  border-radius: 6px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+/* ==========================================================================
+ OpenForms Renderer (The Active Form Component in Light Mode Card)
+ ========================================================================== */
+.renderer-sandbox {
+  /* padding: 24px; */
+  overflow-y: auto;
+  flex: 1;
+  /* background-color: #f3f4f6; */
+  /* Contrasting light background for form view */
+  display: flex;
+  justify-content: center;
+}
+
+.renderer-form-card {
+  background-color: var(--color-neutral-0);
+  border: 1px solid var(--color-neutral-4);
+  border-radius: var(--border-radius-soft);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+  width: 100%;
+  /* max-width: 700px; */
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  height: fit-content;
+}
+
+.renderer-form-header {
+  border-bottom: 2px solid var(--color-neutral-2);
+  padding-bottom: 16px;
+}
+
+.renderer-form-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-neutral-10);
+  margin-bottom: 4px;
+}
+
+.renderer-form-desc {
+  font-size: 13px;
+  color: var(--color-neutral-7);
+}
+
+.renderer-form-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Dynamic Rows and Columns inside Renderer */
+.renderer-row {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 20px;
+}
+
+/* Form inputs matching OpenForms reference */
+.form-input-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: var(--font-family);
+  width: 100%;
+}
+
+.form-label {
+  color: var(--color-neutral-10);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.form-label.required::after {
+  content: " *";
+  color: var(--color-error);
+}
+
+.form-input-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.form-input-container.is-repeater-container {
+  flex-direction: column-reverse;
+  gap: var(--space-base);
+}
+
+.form-input-container.is-signature-container {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+}
+
+.form-input-icon {
+  position: absolute;
+  left: 12px;
+  width: 16px;
+  height: 16px;
+  color: var(--color-neutral-7);
+  pointer-events: none;
+  display: none;
+}
+
+.form-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-neutral-4);
+  border-radius: var(--border-radius-soft);
+  background-color: var(--color-neutral-0);
+  color: var(--color-neutral-10);
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+  outline: none;
+}
+
+.form-input-container .form-input {
+  /* padding-left: 36px; */
+}
+
+.form-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-selected);
+}
+
+/* Textarea override */
+textarea.form-input {
+  min-height: 100px;
+  resize: vertical;
+}
+
+/* Select dropdown */
+select.form-input {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23666666' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7' /%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
+  padding-right: 36px;
+}
+
+/* Toggle / Switch styling */
+.form-switch-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+  padding: 6px 0;
+}
+
+.form-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+
+.form-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.form-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--color-neutral-4);
+  transition: .2s;
+  border-radius: 24px;
+}
+
+.form-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .2s;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.form-switch input:checked+.form-slider {
+  background-color: var(--color-primary);
+}
+
+.form-switch input:checked+.form-slider:before {
+  transform: translateX(20px);
+}
+
+.form-switch input:focus+.form-slider {
+  box-shadow: 0 0 0 3px var(--color-primary-selected);
+}
+
+/* File Upload drag area */
+.form-file-uploader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 120px;
+  border: 2px dashed var(--color-neutral-4);
+  border-radius: var(--border-radius-soft);
+  padding: 24px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  background-color: var(--color-neutral-1);
+}
+
+.form-file-uploader:hover {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-selected);
+}
+
+.form-file-uploader svg {
+  width: 32px;
+  height: 32px;
+  color: var(--color-neutral-5);
+  transition: transform 0.2s ease-in-out, color 0.2s ease-in-out;
+}
+
+.form-file-uploader:hover svg {
+  color: var(--color-primary);
+  transform: translateY(-4px);
+}
+
+.form-file-uploader.drag-over {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-selected);
+}
+
+.form-file-uploader.drag-over svg {
+  color: var(--color-primary);
+  transform: scale(1.15);
+}
+
+.form-file-details {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: var(--color-neutral-2);
+  border: 1px solid var(--color-neutral-4);
+  border-radius: var(--border-radius-soft);
+  padding: 8px 12px;
+  margin-top: 8px;
+  font-size: 13px;
+  max-width: 100%;
+}
+
+.form-file-details-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-neutral-10);
+  font-weight: 500;
+}
+
+.form-file-details-left svg {
+  width: 16px;
+  height: 16px;
+  color: var(--color-primary);
+}
+
+.form-file-delete-btn {
+  background: none;
+  border: none;
+  color: var(--color-neutral-7);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: var(--border-radius-soft);
+  transition: all 0.2s ease-in-out;
+}
+
+.form-file-delete-btn svg {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.2s ease-in-out, color 0.2s ease-in-out;
+}
+
+.form-file-delete-btn:hover {
+  color: var(--color-error);
+  background-color: var(--color-neutral-3);
+}
+
+.form-file-delete-btn:hover svg {
+  transform: scale(1.15);
+}
+
+/* Signature Drawing Canvas */
+.form-signature-box {
+  background-color: var(--color-neutral-2);
+  border: 1px solid var(--color-neutral-4);
+  border-radius: var(--border-radius-soft);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.form-signature-canvas {
+  width: 100%;
+  height: 150px;
+  background-color: var(--color-neutral-0);
+  cursor: crosshair;
+  display: block;
+}
+
+.form-signature-bar {
+  padding: 8px 12px;
+  border-top: 1px solid var(--color-neutral-4);
+  background-color: var(--color-neutral-2);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.form-signature-indicator {
+  font-size: 11px;
+  color: var(--color-neutral-7);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.form-signature-indicator svg {
+  width: 12px;
+  height: 12px;
+}
+
+.form-signature-clear {
+  background: none;
+  border: none;
+  color: var(--color-neutral-8);
+  font-size: 12px;
+  cursor: pointer;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.form-signature-clear:hover {
+  color: var(--color-error);
+}
+
+/* Invalid state inputs styling */
+.form-input-wrapper.is-invalid .form-input,
+.form-input-wrapper.is-invalid input,
+.form-input-wrapper.is-invalid textarea,
+.form-input-wrapper.is-invalid select {
+  border-color: var(--color-error) !important;
+  background-color: rgba(219, 60, 60, 0.02) !important;
+  box-shadow: 0 0 0 3px rgba(219, 60, 60, 0.12) !important;
+}
+
+.form-input-wrapper.is-invalid .form-label {
+  color: var(--color-error) !important;
+}
+
+.form-input-wrapper.is-invalid .form-input-icon {
+  color: var(--color-error) !important;
+}
+
+.form-error-message {
+  display: none;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-error);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.form-input-wrapper.is-invalid .form-error-message {
+  display: flex !important;
+}
+
+.form-error-message svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* Submit Actions */
+.renderer-actions {
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid var(--color-neutral-3);
+  padding-top: 20px;
+  margin-top: 8px;
+}
+
+/* ==========================================================================
+ Section Headers (Visual SubsecÃƒÂ§ÃƒÂµes)
+ ========================================================================== */
+.form-section-header {
+  display: flex;
+  flex-direction: column;
+  padding-top: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1.5px solid var(--color-neutral-3);
+  margin-bottom: 12px;
+  margin-top: 16px;
+  width: 100%;
+}
+
+.form-section-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-neutral-10);
+  margin-bottom: 2px;
+  text-transform: none;
+}
+
+.form-section-subtitle {
+  font-size: 12px;
+  color: var(--color-neutral-7);
+  font-weight: 400;
+  margin: 0;
+}
+
+/* Hide standard label for headers */
+.form-input-wrapper.is-header .form-label {
+  display: none;
+}
+
+/* ==========================================================================
+ Designer Page Tabs System
+ ========================================================================== */
+.canvas-pages-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--color-neutral-4);
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.canvas-page-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: var(--color-neutral-0);
+  border: 1px solid var(--color-neutral-4);
+  border-radius: var(--border-radius-soft);
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-neutral-8);
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  user-select: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.canvas-page-tab:hover {
+  background-color: var(--color-neutral-2);
+  border-color: var(--color-neutral-5);
+  color: var(--color-neutral-10);
+}
+
+.canvas-page-tab.active {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-selected);
+  color: var(--color-primary);
+  box-shadow: 0 2px 6px rgba(16, 104, 235, 0.08);
+}
+
+.canvas-page-tab-delete {
+  background: none;
+  border: none;
+  color: var(--color-neutral-5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 50%;
+  transition: all 0.15s ease;
+  margin-left: 4px;
+}
+
+.canvas-page-tab-delete:hover {
+  background-color: rgba(219, 60, 60, 0.1);
+  color: var(--color-error);
+}
+
+.canvas-page-tab-delete svg {
+  width: 10px;
+  height: 10px;
+}
+
+.canvas-page-add-btn {
+  background: none;
+  border: 1px dashed var(--color-neutral-5);
+  border-radius: var(--border-radius-soft);
+  color: var(--color-neutral-8);
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.canvas-page-add-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background-color: var(--color-primary-selected);
+}
+
+.canvas-page-add-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* ==========================================================================
+ Renderer Steps Progress Bar
+ ========================================================================== */
+.renderer-steps-container {
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  width: 100%;
+}
+
+.renderer-steps-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  width: 100%;
+}
+
+/* Connector Line behind bubbles */
+.renderer-steps-line-bg {
+  position: absolute;
+  top: 15px;
+  left: 20px;
+  right: 20px;
+  height: 2px;
+  background-color: var(--color-neutral-3);
+  z-index: 1;
+}
+
+.renderer-steps-line-progress {
+  position: absolute;
+  top: 15px;
+  left: 20px;
+  height: 2px;
+  background-color: var(--color-primary);
+  z-index: 2;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.renderer-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+  z-index: 3;
+  cursor: pointer;
+  flex: 1;
+}
+
+.renderer-step-bubble {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background-color: var(--color-neutral-0);
+  border: 2px solid var(--color-neutral-4);
+  color: var(--color-neutral-7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+}
+
+.renderer-step.active .renderer-step-bubble {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary);
+  color: var(--color-neutral-0);
+  box-shadow: 0 0 0 4px var(--color-primary-selected);
+}
+
+.renderer-step.completed .renderer-step-bubble {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-selected);
+  color: var(--color-primary);
+}
+
+.renderer-step-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-neutral-7);
+  transition: color 0.2s ease;
+  text-align: center;
+  max-width: 120px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.renderer-step.active .renderer-step-label {
+  color: var(--color-primary);
+}
+
+.renderer-step.completed .renderer-step-label {
+  color: var(--color-neutral-10);
+}
+
+/* ==========================================================================
+ Renderer Footer Navigation Bar
+ ========================================================================== */
+.renderer-navigation-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1.5px solid var(--color-neutral-2);
+  padding-top: 20px;
+  margin-top: 8px;
+  width: 100%;
+}
+
+/* Base style for the mobile dynamic step header (hidden by default in desktop) */
+.renderer-mobile-step-header {
+  display: none;
+}
+
+/* ==========================================================================
+ Responsive Mobile Improvements (OpenForms Renderer)
+ ========================================================================== */
+@media (max-width: 768px) {
+
+  /* Reduced padding inside the renderer card */
+  .renderer-form-card {
+    padding: 20px 16px !important;
+    border-radius: var(--border-radius-soft) !important;
+  }
+
+  /* Grid collapse - Force columns to stacked full width */
+  .renderer-row {
+    gap: 16px !important;
+  }
+
+  .renderer-row .form-column {
+    grid-column: span 12 !important;
+    width: 100% !important;
+  }
+
+  /* Compact navigation steps bar for mobile */
+  .renderer-steps-container {
+    padding-bottom: 8px !important;
+    margin-bottom: 8px !important;
+  }
+
+  .renderer-steps-line-bg,
+  .renderer-steps-line-progress {
+    top: 14px !important;
+    left: 15px !important;
+    right: 15px !important;
+  }
+
+  .renderer-step-bubble {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 12px !important;
+  }
+
+  .renderer-step-label {
+    display: none !important;
+    /* Hide individual labels below bubbles to prevent overlap */
+  }
+
+  /* Compact dynamic step title exclusive for mobile */
+  .renderer-mobile-step-header {
+    display: block !important;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--color-primary);
+    text-align: center;
+    margin: 8px auto 16px auto;
+    padding: 6px 14px;
+    background-color: var(--color-primary-selected);
+    border-radius: 20px;
+    font-family: var(--font-family);
+    width: fit-content;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+  }
+
+  /* Touch-friendly full-width navigation bar */
+  .renderer-navigation-bar {
+    flex-direction: column-reverse !important;
+    gap: 12px !important;
+    padding-top: 16px !important;
+  }
+
+  .renderer-navigation-bar button {
+    width: 100% !important;
+    margin: 0 !important;
+    height: 44px !important;
+    /* Premium WCAG standard touch target */
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px !important;
+  }
+
+  /* Touch signature box sizing */
+  .form-signature-container {
+    height: 160px !important;
+    /* slightly more compact height on mobile */
+  }
+
+  .form-signature-container canvas {
+    width: 100% !important;
+    height: 100% !important;
+  }
+}
+
+/* ==========================================================================
+ OpenForms-styled Radio Buttons and Checkbox Groups
+ ========================================================================== */
+.form-radio-group,
+.form-checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 4px 0;
+}
+
+.form-radio-item,
+.form-checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.15s ease;
+}
+
+.form-radio-item:hover,
+.form-checkbox-item:hover {
+  transform: translateX(2px);
+}
+
+.form-radio-label,
+.form-checkbox-label {
+  font-size: 14px;
+  color: var(--color-neutral-8);
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.form-radio-item:hover .form-radio-label,
+.form-checkbox-item:hover .form-checkbox-label {
+  color: var(--color-neutral-10);
+}
+
+/* Custom OpenForms Radio Buttons */
+input[type="radio"].form-radio-input {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--color-neutral-4);
+  border-radius: 50%;
+  background-color: var(--color-neutral-0);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  margin: 0;
+  vertical-align: middle;
+}
+
+input[type="radio"].form-radio-input:hover {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-selected);
+}
+
+input[type="radio"].form-radio-input:checked {
+  border-color: var(--color-primary);
+  background-color: var(--color-neutral-0);
+}
+
+input[type="radio"].form-radio-input:checked::after {
+  content: "";
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--color-primary);
+  display: block;
+}
+
+input[type="radio"].form-radio-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-primary-selected);
+}
+
+/* Checkbox group spacing override to match the Radio inputs */
+.form-checkbox-group input[type="checkbox"].form-checkbox-input {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--color-neutral-4);
+  border-radius: 4px;
+  background-color: var(--color-neutral-0);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  margin: 0;
+  vertical-align: middle;
+}
+
+.form-checkbox-group input[type="checkbox"].form-checkbox-input:hover {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-selected);
+}
+
+.form-checkbox-group input[type="checkbox"].form-checkbox-input:checked {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.form-checkbox-group input[type="checkbox"].form-checkbox-input:checked::after {
+  content: "";
+  position: absolute;
+  width: 5px;
+  height: 9px;
+  border: solid white;
+  border-width: 0 2.5px 2.5px 0;
+  transform: rotate(45deg);
+  top: 1.5px;
+  left: 5px;
+}
+
+.form-checkbox-group input[type="checkbox"].form-checkbox-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-primary-selected);
+}
+
+/* Empty or Loading Options indicators */
+.form-options-empty,
+.form-options-loading {
+  font-size: 13px;
+  color: var(--color-neutral-5);
+  font-style: italic;
+  padding: 4px 0;
+}
+
+/* Accessibility outline focus styling */
+.form-input:focus,
+.pg-btn:focus,
+.pg-select:focus,
+.pg-tab:focus,
+.renderer-step:focus,
+.form-switch input:focus+.form-slider,
+input[type="checkbox"]:focus,
+input[type="radio"]:focus,
+.signature-mode-tab:focus,
+.form-signature-clear:focus {
+  outline: 2px solid var(--color-primary) !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 3px var(--color-primary-selected) !important;
+}
+
+/* ==========================================================================
+ Question Matrix Designer & Player Styles
+ ========================================================================== */
+
+/* Designer Canvas Preview Styles */
+.canvas-field-matrix-wrapper {
+  background-color: var(--color-neutral-0);
+  border: 1px solid var(--color-neutral-3);
+  border-radius: var(--border-radius-soft);
+  padding: 10px;
+  width: 100%;
+}
+
+.canvas-matrix-rows-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  padding-top: 4px;
+}
+
+.canvas-matrix-row-tag {
+  background: var(--color-neutral-2);
+  border: 1px solid var(--color-neutral-4);
+  border-radius: 4px;
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--color-neutral-8);
+  font-weight: 500;
+}
+
+.canvas-matrix-row-tag i,
+.canvas-matrix-row-tag svg {
+  width: 11px;
+  height: 11px;
+  color: var(--color-neutral-7);
+}
+
+.canvas-matrix-empty-rows {
+  font-size: 11px;
+  color: var(--color-neutral-5);
+  font-style: italic;
+  padding: 6px;
+  width: 100%;
+}
+
+/* Runtime Player Matrix Styles */
+.form-matrix-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  margin-top: 8px;
+  border: 1px solid var(--color-neutral-4);
+  border-radius: 6px;
+  background: var(--color-neutral-0);
+}
+
+.form-matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.form-matrix-table th,
+.form-matrix-table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--color-neutral-3);
+  text-align: center;
+}
+
+.form-matrix-table th {
+  font-weight: 600;
+  color: var(--color-neutral-9);
+  background: var(--color-neutral-2);
+}
+
+.form-matrix-table td.form-matrix-row-label {
+  text-align: left;
+  font-weight: 500;
+  color: var(--color-neutral-8);
+  min-width: 160px;
+}
+
+.form-matrix-cell {
+  vertical-align: middle;
+}
+
+.form-matrix-radio-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+  min-height: 24px;
+}
+
+.matrix-cell-mobile-text {
+  display: none;
+  /* Hidden on desktop viewports */
+}
+
+/* Responsive Matrix Card folding for Mobile (max-width: 768px) */
+@media (max-width: 768px) {
+  .form-matrix-wrapper {
+    border: none;
+    background: transparent;
+  }
+
+  .form-matrix-table,
+  .form-matrix-table thead,
+  .form-matrix-table tbody,
+  .form-matrix-table th,
+  .form-matrix-table td,
+  .form-matrix-table tr {
+    display: block;
+    width: 100%;
+  }
+
+  .form-matrix-table thead {
+    display: none;
+    /* Hide wide column headers */
+  }
+
+  .form-matrix-table tr {
+    margin-bottom: 16px;
+    border: 1px solid var(--color-neutral-4);
+    border-radius: 8px;
+    background: var(--color-neutral-0);
+    padding: 14px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  }
+
+  .form-matrix-table td {
+    border-bottom: none;
+    padding: 8px 0;
+    text-align: left;
+  }
+
+  .form-matrix-table td.form-matrix-row-label {
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--color-neutral-10);
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--color-neutral-3);
+    margin-bottom: 10px;
+  }
+
+  .form-matrix-cell {
+    display: flex;
+    align-items: center;
+  }
+
+  .form-matrix-radio-label {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+  }
+
+  .matrix-cell-mobile-text {
+    display: inline;
+    /* Visible option name on mobile */
+    font-size: 13px;
+    color: var(--color-neutral-8);
+  }
+}
+
+/* Layout insertion dividers */
+.row-insertion-divider,
+.section-insertion-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  height: 20px;
+  margin: -10px 0;
+  z-index: 10;
+  opacity: 0.12;
+  transition: opacity 0.2s ease, height 0.2s ease, margin 0.2s ease;
+}
+
+.row-insertion-divider::before,
+.section-insertion-divider::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  border-top: 1px dashed var(--color-neutral-5);
+  pointer-events: none;
+}
+
+.row-insertion-divider:hover,
+.section-insertion-divider:hover {
+  opacity: 1;
+  height: 26px;
+  margin: -7px 0;
+}
+
+.row-insertion-divider:hover::before,
+.section-insertion-divider:hover::before {
+  border-top-color: var(--color-primary);
+  border-top-style: solid;
+}
+
+.insertion-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--color-neutral-4);
+  background-color: var(--color-neutral-0);
+  color: var(--color-neutral-7);
+  cursor: pointer;
+  z-index: 11;
+  padding: 0;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.insertion-btn:hover {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-neutral-0);
+  transform: scale(1.15);
+}
+
+/* Paragraph field text blocks */
+.form-paragraph-text {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-neutral-8);
+  /* white-space: pre-wrap; */
+  word-break: break-word;
+}
+
+.builder-layout {
+  display: grid !important;
+  grid-template-columns: 1fr 3fr 2fr !important;
+  transition: grid-template-columns 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.builder-palette {
+  min-width: 200px;
+}
+
+.builder-properties {
+  min-width: 300px;
+}
+
+.palette-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, 1fr) !important;
+  gap: 8px !important;
+}
+
+.palette-item {
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  padding: 8px 4px !important;
+  font-size: 11px !important;
+  gap: 6px !important;
+  border-radius: 6px !important;
+  height: 64px !important;
+}
+
+.palette-item svg {
+  width: 16px !important;
+  height: 16px !important;
+  margin: 0 !important;
+}
+
+/* ==========================================================================
+   Image Lightbox / Attachment Preview Modal
+   ========================================================================== */
+.lightbox-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(11, 15, 25, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+.lightbox-container {
+  position: relative;
+  max-width: 90%;
+  max-height: 85%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  animation: scaleUp 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.lightbox-img {
+  max-width: 100%;
+  max-height: 80vh;
+  border-radius: 8px;
+  border: 1px solid var(--pg-border);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 30px rgba(16, 104, 235, 0.15);
+  object-fit: contain;
+  background-color: rgba(0, 0, 0, 0.4);
+}
+
+.lightbox-close-btn {
+  position: absolute;
+  top: -45px;
+  right: 0;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--pg-text-primary);
+  font-size: 24px;
+  cursor: pointer;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  line-height: 1;
+}
+
+.lightbox-close-btn:hover {
+  background: var(--color-error);
+  border-color: var(--color-error);
+  color: #fff;
+  transform: rotate(90deg);
+}
+
+.lightbox-caption {
+  color: var(--pg-text-secondary);
+  font-size: 13px;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--pg-border);
+  max-width: 300px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Mobile Responsive Optimization for Lightbox Modal */
+@media (max-width: 768px) {
+  .lightbox-container {
+    max-width: 95%;
+    max-height: 90%;
+    width: 100%;
+    padding: 20px;
+    box-sizing: border-box;
+  }
+
+  .lightbox-img {
+    max-height: 70vh;
+    border-radius: 6px;
+  }
+
+  /* Place close button inside the overlay space but easily clickable on mobile */
+  .lightbox-close-btn {
+    top: 15px;
+    right: 15px;
+    position: fixed;
+    width: 44px;
+    /* WCAG touch target */
+    height: 44px;
+    /* WCAG touch target */
+    background: rgba(11, 15, 25, 0.8);
+    border: 1px solid var(--pg-border);
+    font-size: 28px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    z-index: 1001;
+  }
+}
+
+@keyframes scaleUp {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.pg-header {
+  background-color: #0b0f19d9;
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--pg-border);
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 100;
+  box-shadow: 0 4px 20px #0003
+}
+
+.pg-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px
+}
+
+.pg-logo-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px
+}
+
+.pg-logo-icon {
+  background: linear-gradient(135deg, var(--color-primary), #3b82f6);
+  color: var(--color-neutral-0);
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 15px var(--pg-glow)
+}
+
+.pg-logo-icon svg {
+  width: 18px;
+  height: 18px
+}
+
+.pg-logo-title {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -.5px;
+  background: linear-gradient(to right, #fff, #cbd5e1);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent
+}
+
+.pg-tag {
+  background-color: var(--color-primary-selected);
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+  letter-spacing: .5px;
+  text-transform: uppercase
+}
+
+.pg-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px
+}
+
+.pg-select-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center
+}
+
+.pg-select-icon {
+  position: absolute;
+  left: 12px;
+  width: 16px;
+  height: 16px;
+  color: var(--pg-text-secondary);
+  pointer-events: none
+}
+
+.pg-select {
+  background-color: #ffffff0d;
+  border: 1px solid var(--pg-border);
+  color: var(--pg-text-primary);
+  border-radius: var(--border-radius-soft);
+  padding: 8px 32px 8px 36px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+  transition: all .2s ease;
+  appearance: none
+}
+
+.pg-select:hover {
+  background-color: #ffffff14;
+  border-color: #fff3
+}
+
+.pg-select:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--pg-glow)
+}
+
+.pg-select-arrow {
+  position: absolute;
+  right: 12px;
+  width: 14px;
+  height: 14px;
+  color: var(--pg-text-secondary);
+  pointer-events: none
+}
+
+.pg-btn {
+  background: var(--color-primary);
+  color: var(--color-neutral-0);
+  border: none;
+  border-radius: var(--border-radius-soft);
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all .2s ease-in-out;
+  font-family: inherit
+}
+
+.pg-btn:hover {
+  background: var(--color-primary-hover);
+  transform: translateY(-1px)
+}
+
+.pg-btn:active {
+  transform: translateY(0)
+}
+
+.pg-btn-secondary {
+  background: var(--color-secondary);
+  border: 1px solid var(--pg-border);
+  color: var(--pg-text-primary)
+}
+
+.pg-btn-secondary:hover {
+  border-color: #fff3
+}
