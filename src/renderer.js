@@ -1848,7 +1848,7 @@ class OpenFormRenderer {
   /**
    * Initializes high-fidelity touch canvas for Signature widgets
    */
-  initSignatureCanvas(field) {
+  initSignatureCanvas(field, parentEl = null) {
     // Dynamic loading of Caveat handwriting font for accessibility fallback typed signatures
     if (!document.getElementById('form-handwriting-font')) {
       const link = document.createElement('link');
@@ -1858,9 +1858,11 @@ class OpenFormRenderer {
       document.head.appendChild(link);
     }
 
-    const canvas = this.formEl.querySelector(`#canvas-${field.id}`);
-    const clearBtn = this.formEl.querySelector(`#clear-${field.id}`);
-    const hiddenInput = this.formEl.querySelector(`#input-${field.id}`);
+    const searchRoot = parentEl || this.formEl;
+    if (!searchRoot) return;
+    const canvas = searchRoot.querySelector(`#canvas-${field.id}`);
+    const clearBtn = searchRoot.querySelector(`#clear-${field.id}`);
+    const hiddenInput = searchRoot.querySelector(`#input-${field.id}`);
 
     if (!canvas) return;
 
@@ -1992,11 +1994,11 @@ class OpenFormRenderer {
       });
 
       // Bind accessible draw vs type mode switchers
-      const modeDrawBtn = this.formEl.querySelector(`#mode-draw-${field.id}`);
-      const modeTypeBtn = this.formEl.querySelector(`#mode-type-${field.id}`);
-      const typeContainer = this.formEl.querySelector(`#type-container-${field.id}`);
-      const typeInput = this.formEl.querySelector(`#type-input-${field.id}`);
-      const indicator = this.formEl.querySelector(`#indicator-${field.id}`);
+      const modeDrawBtn = searchRoot.querySelector(`#mode-draw-${field.id}`);
+      const modeTypeBtn = searchRoot.querySelector(`#mode-type-${field.id}`);
+      const typeContainer = searchRoot.querySelector(`#type-container-${field.id}`);
+      const typeInput = searchRoot.querySelector(`#type-input-${field.id}`);
+      const indicator = searchRoot.querySelector(`#indicator-${field.id}`);
 
       if (modeDrawBtn && modeTypeBtn && typeContainer && typeInput) {
         modeDrawBtn.addEventListener('click', () => {
@@ -2067,11 +2069,13 @@ class OpenFormRenderer {
   /**
    * Initializes drag & drop interfaces for File Upload widgets
    */
-  initFileUploader(field) {
-    const uploader = this.formEl.querySelector(`#uploader-${field.id}`);
-    const picker = this.formEl.querySelector(`#filepicker-${field.id}`);
-    const details = this.formEl.querySelector(`#filedetails-${field.id}`);
-    const hiddenInput = this.formEl.querySelector(`#input-${field.id}`);
+  initFileUploader(field, parentEl = null) {
+    const searchRoot = parentEl || this.formEl;
+    if (!searchRoot) return;
+    const uploader = searchRoot.querySelector(`#uploader-${field.id}`);
+    const picker = searchRoot.querySelector(`#filepicker-${field.id}`);
+    const details = searchRoot.querySelector(`#filedetails-${field.id}`);
+    const hiddenInput = searchRoot.querySelector(`#input-${field.id}`);
 
     if (!uploader || !picker) return;
 
@@ -2801,12 +2805,12 @@ class OpenFormRenderer {
 
               // Initialize nested Signature widget
               if (subField.type === 'signature') {
-                this.initSignatureCanvas(scopedField);
+                this.initSignatureCanvas(scopedField, widgetWrapper);
               }
 
               // Initialize nested File Uploaders
               if (subField.type === 'file') {
-                this.initFileUploader(scopedField);
+                this.initFileUploader(scopedField, widgetWrapper);
               }
             });
 

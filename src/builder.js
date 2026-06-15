@@ -1288,6 +1288,26 @@ class OpenFormBuilder {
     return null;
   }
 
+  isFieldInsideRepeater(id) {
+    for (const page of this.schema.pages) {
+      if (page.sections) {
+        for (const section of page.sections) {
+          for (const row of section.rows) {
+            for (const col of row.columns) {
+              if (col.field && col.field.type === 'repeater') {
+                const found = this._getFieldByIdRecursive(col.field, id);
+                if (found && col.field.id !== id) {
+                  return true;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    return false;
+  }
+
   getAllFields() {
     const list = [];
     this.schema.pages.forEach(page => {
@@ -2720,8 +2740,10 @@ class OpenFormBuilder {
         ` : ''}
 
         <!-- Advanced Business Rules Panel -->
+        ${this.isFieldInsideRepeater(field.id) ? '' : `
         <hr style="border: none; border-top: 1px solid var(--color-neutral-4); margin: 16px 0;" />
         ${this.renderBusinessRulesEditorHTML(field, true)}
+        `}
 
       </div>
     `;
@@ -2731,7 +2753,9 @@ class OpenFormBuilder {
     }
 
     this.bindPropertiesEvents(field);
-    this.bindBusinessRulesEvents(field);
+    if (!this.isFieldInsideRepeater(field.id)) {
+      this.bindBusinessRulesEvents(field);
+    }
   }
 
   /**
