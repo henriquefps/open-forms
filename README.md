@@ -1,6 +1,6 @@
 # Why OpenForms?
 
-🚀 **Try the Interactive Sandbox & Documentation:** [openforms.pages.dev](https://openforms.pages.dev)
+🚀 **Try the Interactive Sandbox & Documentation:** [openforms.hfps.dev](https://openforms.hfps.dev)
 
 In modern enterprise applications, forms are the primary way users interact with business data. However, building form interfaces manually or licensing full-featured suites often introduces significant roadblocks.
 

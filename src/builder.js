@@ -1832,9 +1832,9 @@ class OpenFormBuilder {
               fieldEl.innerHTML = `
                 <div class="canvas-field-info" style="width: 100%; border-left: 3px solid var(--color-primary); padding-left: 6px;">
                   <i data-lucide="heading" class="canvas-field-icon" style="color: var(--color-primary)"></i>
-                  <div style="flex: 1;">
-                    <div class="canvas-field-title" style="font-weight: 700; color: var(--color-neutral-10); font-size: 13px;">${displayLabel}</div>
-                    <span style="font-size: 10px; color: var(--color-neutral-7);">${displaySub || `(${this.translations.sectionHeaderSubtitle})`}</span>
+                  <div style="flex: 1; min-width: 0;">
+                    <div class="canvas-field-title" style="font-weight: 700; color: var(--color-neutral-10); font-size: 13px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.4; max-height: 2.8em;">${displayLabel}</div>
+                    <span style="font-size: 10px; color: var(--color-neutral-7); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${displaySub || `(${this.translations.sectionHeaderSubtitle})`}</span>
                   </div>
                 </div>
                 <div class="canvas-field-actions">
@@ -1849,9 +1849,9 @@ class OpenFormBuilder {
               fieldEl.innerHTML = `
                 <div class="canvas-field-info" style="width: 100%; border-left: 3px dashed var(--color-neutral-5); padding-left: 6px;">
                   <i data-lucide="align-justify" class="canvas-field-icon" style="color: var(--color-neutral-7)"></i>
-                  <div style="flex: 1;">
-                    <div class="canvas-field-title" style="font-weight: 400; color: var(--color-neutral-8); font-size: 13px; white-space: normal; line-height: 1.4;">${displayLabel}</div>
-                    <span style="font-size: 9px; color: var(--color-neutral-6);">Text Block</span>
+                  <div style="flex: 1; min-width: 0;">
+                    <div class="canvas-field-title" style="font-weight: 400; color: var(--color-neutral-8); font-size: 13px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.4; max-height: 2.8em;">${displayLabel}</div>
+                    <span style="font-size: 9px; color: var(--color-neutral-6); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Text Block</span>
                   </div>
                 </div>
                 <div class="canvas-field-actions">

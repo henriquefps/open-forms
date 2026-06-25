@@ -2329,6 +2329,15 @@ class OpenFormRenderer {
     }
   }
 
+  formatFileSize(bytes) {
+    if (bytes === undefined || bytes === null || isNaN(bytes)) return '';
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+
   /**
    * Helper to render premium file attachment details with image thumbnails and download triggers
    */
@@ -2345,7 +2354,7 @@ class OpenFormRenderer {
         ${previewHtml}
         <div style="display: flex; flex-direction: column; overflow: hidden; text-align: left;">
           <div style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px; color: var(--color-neutral-10);" title="${file.name}">${file.name}</div>
-          <div style="font-size: 11px; color: var(--color-neutral-7);">${(file.size / 1024).toFixed(1)} KB</div>
+          <div style="font-size: 11px; color: var(--color-neutral-7);">${this.formatFileSize(file.size)}</div>
         </div>
       </div>
       <div class="form-file-details-actions" style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
