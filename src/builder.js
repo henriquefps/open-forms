@@ -1573,7 +1573,7 @@ class OpenFormBuilder {
           <span style="font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--color-primary); display: flex; align-items: center; gap: 4px;">
             <i data-lucide="folder" style="width: 13px; height: 13px;"></i> Section:
           </span>
-          <input type="text" class="section-title-input" value="${sectionTitleVal}" placeholder="${this.editingLocale === 'default' ? 'Section Title...' : (section.title || 'Section Title...')}" style="flex: 1; font-weight: 700; background: transparent; border: none; ${sectionTitleVal == "" || sectionTitleVal == "Default Section" ? "color: var(--pg-text-secondary);" : ""} font-size: 13px; outline: none; margin-left: 6px;" />
+          <input type="text" class="section-title-input" value="${sectionTitleVal}" placeholder="${this.editingLocale === 'default' ? 'Section Title...' : (section.title || 'Section Title...')}" style="flex: 1; font-weight: 700; background: transparent; border: none; ${sectionTitleVal == "" || sectionTitleVal == "Default Section" ? "color: var(--pg-text-secondary);" : ""} font-size: 13px; outline: none; margin-left: 6px; color: var(--color-neutral-10);" />
         </div>
         <div class="section-operations" style="display: flex; gap: 6px; align-items: center;">
           <button class="pg-btn pg-btn-secondary btn-sec-add-row" style="padding: 4px 10px; font-size: 11px;">

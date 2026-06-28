@@ -108,6 +108,7 @@
   padding: 24px;
   display: flex;
   flex-direction: column;
+  background: var(--color-neutral-1);
   gap: 16px;
 }
 
@@ -688,7 +689,6 @@
 .form-repeater-add-btn:hover {
   background-color: var(--color-primary-selected);
   border-color: var(--color-primary-hover);
-  color: var(--color-primary-hover);
 }
 
 /* ==========================================================================
@@ -1162,6 +1162,7 @@
   width: 100%;
   padding: 8px 10px;
   border: 1px solid var(--color-neutral-4);
+  background: var(--color-neutral-0);
   border-radius: 6px;
   /* font-size: 13px; */
   font-family: inherit;
@@ -1368,6 +1369,12 @@ input[type="checkbox"]:not(.form-switch input):focus {
 
 .form-input-container .form-input {
   /* padding-left: 36px; */
+}
+
+/* Customizar o Ã­cone de calendÃ¡rio nativo do HTML5 */
+.form-input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  filter: invert(var(--theme-calendar-invert, 0)) brightness(var(--theme-calendar-brightness, 1));
 }
 
 .form-input:focus {
@@ -1655,7 +1662,7 @@ select.form-input {
 }
 
 /* ==========================================================================
- Section Headers (Visual SubsecÃƒÂ§ÃƒÂµes)
+ Section Headers (Visual SubsecÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes)
  ========================================================================== */
 .form-section-header {
   display: flex;
@@ -1813,7 +1820,7 @@ select.form-input {
 .renderer-steps-line-progress {
   position: absolute;
   top: 15px;
-  left: 20px;
+  /* left: 20px; */
   height: 2px;
   background-color: var(--color-primary);
   z-index: 2;
@@ -1928,8 +1935,8 @@ select.form-input {
   .renderer-steps-line-bg,
   .renderer-steps-line-progress {
     top: 14px;
-    left: 15px;
-    right: 15px;
+    /* left: 15px; */
+    /* right: 15px; */
   }
 
   .renderer-step-bubble {
@@ -2110,7 +2117,7 @@ input[type="radio"].form-radio-input:focus {
   position: absolute;
   width: 5px;
   height: 9px;
-  border: solid white;
+  border: solid var(--color-neutral-0);
   border-width: 0 2.5px 2.5px 0;
   transform: rotate(45deg);
   top: 1.5px;
