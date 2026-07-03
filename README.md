@@ -6,6 +6,8 @@ In modern enterprise applications, forms are the primary way users interact with
 
 **OpenForms** provides a lightweight, developer-friendly, and 100% open-source form designer and player suite.
 
+📖 **Docs in this repo:** [Integration Guide](./INTEGRATION_GUIDE.md) · [Schema Reference](./SCHEMA_REFERENCE.md) · [Customization / Theming](./customization.md)
+
 ---
 
 ## 1. The Core Advantages

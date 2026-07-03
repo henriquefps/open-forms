@@ -1,8 +1,20 @@
 /**
+ * Returns a debounced wrapper around fn: repeated calls within `delay` ms of each other
+ * collapse into a single trailing call once things go quiet.
+ */
+function debounce(fn, delay) {
+  let timeoutId;
+  return function (...args) {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => fn.apply(this, args), delay);
+  };
+}
+
+/**
  * OpenFormBuilder - The Visual Designer
  * Implementation of a high-fidelity drag-and-drop dynamic form builder
  * Supports Subsections (Section Headers), Pagination (Multi-page), and custom translations input.
- * 
+ *
  * Developed by Henrique Silva (contact@hfps.dev)
  * Website: https://hfps.dev
  * License: Apache-2.0
@@ -120,6 +132,7 @@ class OpenFormBuilder {
     this.draggedSourceElement = null;
     this.draggedRowId = null;
     this.draggedSectionId = null;
+    this.draggedSubRowId = null;
 
     // Initial Schema State (Opens empty as requested by the user)
     this.schema = this.normalizeSchema({
@@ -135,6 +148,16 @@ class OpenFormBuilder {
     this.lastSavedStateString = JSON.stringify(this.schema);
 
     this.editingLocale = 'default';
+
+    // A3: full canvas teardown+rebuild is expensive on large forms — debounced so that
+    // rapid-fire `input` events (typing in a label, placeholder, etc.) collapse into a
+    // single re-render once the user pauses, instead of one per keystroke. Only used by
+    // `input`-bound handlers; click/drag/`change`-driven calls stay on `this.render()`
+    // directly since those fire once per discrete action, not in bursts. Schema mutation
+    // and `notifyChange()` (undo stack + the live preview sync) are never debounced —
+    // those stay perfectly in sync with what was typed, only this canvas's own visual
+    // repaint lags slightly behind.
+    this.debouncedRender = debounce(() => this.render(), 200);
 
     this.buildHTMLShell();
     this.init();
@@ -169,6 +192,9 @@ class OpenFormBuilder {
     }
     if (category === 'form') {
       return dict[targetKey] || '';
+    }
+    if (category === 'crossFieldRules') {
+      return (dict.crossFieldRules && dict.crossFieldRules[targetKey] && dict.crossFieldRules[targetKey].errorMessage) || '';
     }
     return '';
   }
@@ -213,6 +239,10 @@ class OpenFormBuilder {
       } else {
         dict.fields[targetKey][subCategory] = optKeyOrValue;
       }
+    } else if (category === 'crossFieldRules') {
+      if (!dict.crossFieldRules) dict.crossFieldRules = {};
+      if (!dict.crossFieldRules[targetKey]) dict.crossFieldRules[targetKey] = {};
+      dict.crossFieldRules[targetKey].errorMessage = optKeyOrValue;
     }
     this.notifyChange();
   }
@@ -256,11 +286,16 @@ class OpenFormBuilder {
           delete dict.fields[targetKey];
         }
       }
+    } else if (category === 'crossFieldRules') {
+      if (dict.crossFieldRules && dict.crossFieldRules[targetKey]) {
+        delete dict.crossFieldRules[targetKey];
+      }
     }
     // Clean up empty objects to optimize JSON output size
     if (dict.fields && Object.keys(dict.fields).length === 0) delete dict.fields;
     if (dict.sections && Object.keys(dict.sections).length === 0) delete dict.sections;
     if (dict.pages && Object.keys(dict.pages).length === 0) delete dict.pages;
+    if (dict.crossFieldRules && Object.keys(dict.crossFieldRules).length === 0) delete dict.crossFieldRules;
     if (Object.keys(dict).length === 0) {
       delete this.schema.translations[this.editingLocale];
     }
@@ -291,13 +326,13 @@ class OpenFormBuilder {
     ).join('');
 
     return `
-      <div class="properties-locale-switcher" style="padding: 12px 14px; border: 1px solid var(--color-neutral-4); background: var(--color-neutral-2); margin-bottom: 16px; border-radius: 4px;">
-        <label class="prop-label" style="margin-bottom: 6px; display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-neutral-7); font-weight: 700;">Editing Language / Idioma</label>
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <select id="prop-editing-locale" class="prop-input" style="flex: 1; padding: 4px 8px; font-size: 12px; height: 30px; margin-bottom: 0;">
+      <div class="properties-locale-switcher" style="">
+        <label class="prop-label" style="margin-bottom: 6px; display: block; font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-neutral-7); font-weight: var(--font-weight-bold);">Editing Language</label>
+        <div style="display: flex; gap: var(--space-s); align-items: center;">
+          <select id="prop-editing-locale" class="prop-input" style="flex: 1; padding: var(--space-xs) var(--space-s); font-size: var(--font-size-s); height: 30px; margin-bottom: 0;">
             ${selectOptionsHTML}
           </select>
-          <button id="btn-add-locale" class="pg-btn pg-btn-secondary" style="padding: 0 8px; font-size: 11px; height: 30px; display: flex; align-items: center; justify-content: center;" title="Add Custom Language Code">
+          <button id="btn-add-locale" class="pg-btn pg-btn-secondary" style="padding: 0 var(--space-s); font-size: var(--font-size-xs); height: 30px; display: flex; align-items: center; justify-content: center;" title="Add Custom Language Code">
             <i data-lucide="plus" style="width: 14px; height: 14px;"></i>
           </button>
         </div>
@@ -502,7 +537,7 @@ class OpenFormBuilder {
           <h4 class="section-label">${this.translations.paletteTitle}</h4>
           <div class="palette-grid">
             <!-- Section Title Heading -->
-            <div class="palette-item" draggable="true" data-type="header" style="border-left: 3px solid var(--color-primary);">
+            <div class="palette-item" draggable="true" data-type="header" style="">
               <i data-lucide="heading"></i>
               <span>${this.translations.sectionHeaderLabel}</span>
             </div>
@@ -587,14 +622,27 @@ class OpenFormBuilder {
   }
 
   /**
+   * Clears all drag-and-drop state variables. Called at the start of every dragstart
+   * handler so a previous drag (e.g. one whose dragend never fired because the canvas was
+   * rebuilt mid-drop) can't leave stale state that contaminates the next, unrelated drag.
+   */
+  resetDragState() {
+    this.draggedFieldType = null;
+    this.draggedRowId = null;
+    this.draggedSectionId = null;
+    this.draggedSubRowId = null;
+    this.draggedSourceElement = null;
+  }
+
+  /**
    * Bind event listeners for sidebar palette item dragging
    */
   setupDragAndDrop() {
     const paletteItems = this.containerEl.querySelectorAll('.palette-item');
     paletteItems.forEach(item => {
       item.addEventListener('dragstart', (e) => {
+        this.resetDragState();
         this.draggedFieldType = item.getAttribute('data-type');
-        this.draggedSourceElement = null;
         e.dataTransfer.setData('text/plain', this.draggedFieldType);
         e.dataTransfer.effectAllowed = 'copy';
       });
@@ -992,7 +1040,7 @@ class OpenFormBuilder {
   deleteSection(sectionId) {
     const activePage = this.schema.pages[this.activePageIndex];
     if (!activePage.sections || activePage.sections.length <= 1) {
-      alert("You must keep at least one section on the page.");
+      this.showToast("You must keep at least one section on the page.", true);
       return;
     }
 
@@ -1308,6 +1356,40 @@ class OpenFormBuilder {
     return false;
   }
 
+  /** Returns the repeater field that directly contains the sub-field with this id, or null. */
+  getParentRepeaterField(id) {
+    for (const page of this.schema.pages) {
+      if (page.sections) {
+        for (const section of page.sections) {
+          for (const row of section.rows) {
+            for (const col of row.columns) {
+              if (col.field && col.field.type === 'repeater') {
+                const found = this._getFieldByIdRecursive(col.field, id);
+                if (found && col.field.id !== id) {
+                  return col.field;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  /** Keys of a repeater's direct sub-fields (its own collision namespace — see A5). */
+  getRepeaterSubFieldKeys(repeaterField, excludeId) {
+    const keys = [];
+    (repeaterField.rows || []).forEach(row => {
+      (row.columns || []).forEach(col => {
+        if (col.field && col.field.id !== excludeId && col.field.key) {
+          keys.push(col.field.key);
+        }
+      });
+    });
+    return keys;
+  }
+
   getAllFields() {
     const list = [];
     this.schema.pages.forEach(page => {
@@ -1382,6 +1464,35 @@ class OpenFormBuilder {
     }
   }
 
+  /**
+   * Helper that triggers high-fidelity modern styled Toasts (mirrors OpenFormRenderer.showToast,
+   * reusing the same #toast-container / .toast CSS the host page already provides)
+   */
+  showToast(message, isError = false) {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    container.setAttribute('aria-live', isError ? 'assertive' : 'polite');
+    container.setAttribute('role', isError ? 'alert' : 'status');
+
+    const toast = document.createElement('div');
+    toast.className = `toast ${isError ? 'toast-error' : 'toast-success'}`;
+    toast.innerHTML = `
+      <i data-lucide="${isError ? 'x-circle' : 'check-circle'}"></i>
+      <span>${message}</span>
+    `;
+    container.appendChild(toast);
+
+    if (window.lucide) window.lucide.createIcons();
+
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(10px)';
+      toast.style.transition = 'all 0.3s ease';
+      setTimeout(() => toast.remove(), 300);
+    }, 3500);
+  }
+
   renderSectionInsertionDivider(index) {
     const divider = document.createElement('div');
     divider.className = 'section-insertion-divider';
@@ -1434,10 +1545,10 @@ class OpenFormBuilder {
     canvasHeader.innerHTML = `
       <div class="form-input-wrapper" style="margin-bottom: 0;">
         <input type="text" id="canvas-form-title" class="form-input" 
-               style="font-size: 18px; font-weight: 700; border: none; padding: 4px 8px; background: transparent; color: var(--color-neutral-10);"
+               style="font-size: 18px; font-weight: var(--font-weight-bold); border: none; padding: var(--space-xs) var(--space-s); background: transparent; color: var(--color-neutral-10);"
                value="${formTitleVal}" placeholder="${this.editingLocale === 'default' ? this.translations.formTitlePlaceholder : this.schema.formTitle}" />
         <input type="text" id="canvas-form-desc" class="form-input" 
-               style="font-size: 12px; color: var(--color-neutral-7); border: none; padding: 2px 8px; background: transparent;"
+               style="font-size: var(--font-size-s); color: var(--color-neutral-7); border: none; padding: 2px var(--space-s); background: transparent;"
                value="${formDescVal}" placeholder="${this.editingLocale === 'default' ? this.translations.formDescPlaceholder : (this.schema.formDescription || '')}" />
       </div>
     `;
@@ -1518,10 +1629,7 @@ class OpenFormBuilder {
 
     // Create New Section Button
     const addSectionBtn = document.createElement('button');
-    addSectionBtn.className = 'canvas-page-add-btn';
-    addSectionBtn.style.borderStyle = 'dashed';
-    addSectionBtn.style.borderColor = 'var(--color-primary)';
-    addSectionBtn.style.color = 'var(--color-primary)';
+    addSectionBtn.className = 'canvas-page-add-btn is-accent';
     addSectionBtn.innerHTML = `<i data-lucide="folder-plus"></i> Add Section`;
     addSectionBtn.addEventListener('click', () => this.addNewSection());
     pagesBar.appendChild(addSectionBtn);
@@ -1539,7 +1647,7 @@ class OpenFormBuilder {
         <i data-lucide="plus-square"></i>
         <h3>${this.translations.pagePrefix} "${activePage.title}" ${this.translations.emptyPageTitle}</h3>
         <p>${this.translations.emptyPageDesc}</p>
-        <button id="btn-empty-add-section" class="pg-btn" style="margin-top: 8px;">
+        <button id="btn-empty-add-section" class="pg-btn" style="margin-top: var(--space-s);">
           <i data-lucide="folder-plus"></i> Add Section
         </button>
       `;
@@ -1569,17 +1677,17 @@ class OpenFormBuilder {
 
       sectionHeader.innerHTML = `
         <div class="section-drag-handle">
-          <i data-lucide="grip-vertical" style="width: 14px; height: 14px; color: var(--color-neutral-6); cursor: grab; margin-right: 4px;"></i>
-          <span style="font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--color-primary); display: flex; align-items: center; gap: 4px;">
-            <i data-lucide="folder" style="width: 13px; height: 13px;"></i> Section:
+          <i data-lucide="grip-vertical" style="width: 14px; height: 14px; color: var(--color-neutral-6); cursor: grab; margin-right: var(--space-xs);"></i>
+          <span style="font-weight: var(--font-weight-bold); font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 0.8px; color: var(--color-primary); display: flex; align-items: center; gap: var(--space-xs);">
+            <i data-lucide="folder" style="width: var(--font-size-s); height: var(--font-size-s);"></i> Section:
           </span>
-          <input type="text" class="section-title-input" value="${sectionTitleVal}" placeholder="${this.editingLocale === 'default' ? 'Section Title...' : (section.title || 'Section Title...')}" style="flex: 1; font-weight: 700; background: transparent; border: none; ${sectionTitleVal == "" || sectionTitleVal == "Default Section" ? "color: var(--pg-text-secondary);" : ""} font-size: 13px; outline: none; margin-left: 6px; color: var(--color-neutral-10);" />
+          <input type="text" class="section-title-input" value="${sectionTitleVal}" placeholder="${this.editingLocale === 'default' ? 'Section Title...' : (section.title || 'Section Title...')}" style="flex: 1; font-weight: var(--font-weight-bold); background: transparent; border: none; ${sectionTitleVal == "" || sectionTitleVal == "Default Section" ? "color: var(--pg-text-secondary);" : ""} font-size: var(--font-size-s); outline: none; margin-left: 6px; color: var(--color-neutral-10);" />
         </div>
         <div class="section-operations" style="display: flex; gap: 6px; align-items: center;">
-          <button class="pg-btn pg-btn-secondary btn-sec-add-row" style="padding: 4px 10px; font-size: 11px;">
+          <button class="pg-btn pg-btn-secondary btn-sec-add-row" style="padding: var(--space-xs) 10px; font-size: var(--font-size-xs);">
             <i data-lucide="plus" style="width: 12px; height: 12px;"></i> Add Row
           </button>
-          <button class="pg-btn pg-btn-secondary btn-sec-delete" style="padding: 4px 10px; font-size: 11px; color: var(--color-error); border-color: rgba(219,60,60,0.15);">
+          <button class="pg-btn pg-btn-secondary btn-sec-delete">
             <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
           </button>
         </div>
@@ -1622,10 +1730,8 @@ class OpenFormBuilder {
 
       // DRAG & DROP FOR SECTION REORDERING
       sectionHeader.addEventListener('dragstart', (e) => {
+        this.resetDragState();
         this.draggedSectionId = section.sectionId;
-        this.draggedRowId = null;
-        this.draggedFieldType = null;
-        this.draggedSourceElement = null;
         sectionEl.classList.add('dragging-section');
         e.dataTransfer.setData('text/plain', section.sectionId);
         e.dataTransfer.effectAllowed = 'move';
@@ -1673,7 +1779,7 @@ class OpenFormBuilder {
         const emptySecDrop = document.createElement('div');
         emptySecDrop.className = 'empty-section-drop-zone';
         emptySecDrop.innerHTML = `
-          <div style="font-size: 11px; color: var(--color-neutral-6); text-align: center; padding: 20px; border: 1px dashed var(--pg-border); border-radius: 6px;">
+          <div style="font-size: var(--font-size-xs); color: var(--color-neutral-6); text-align: center; padding: 20px; border: 1px dashed var(--pg-border); border-radius: var(--border-radius-s);">
             This Section is empty. Click "+ Add Row" in the header to start adding layout rows.
           </div>
         `;
@@ -1745,10 +1851,8 @@ class OpenFormBuilder {
         // Setup Row Drag handles
         const handleEl = rowBar.querySelector('.row-drag-handle');
         handleEl.addEventListener('dragstart', (e) => {
+          this.resetDragState();
           this.draggedRowId = row.rowId;
-          this.draggedFieldType = null;
-          this.draggedSourceElement = null;
-          this.draggedSectionId = null;
           rowEl.classList.add('dragging');
           e.dataTransfer.setData('text/plain', row.rowId);
           e.dataTransfer.effectAllowed = 'move';
@@ -1811,9 +1915,7 @@ class OpenFormBuilder {
             // Local dragging of columns to move/swap elements
             fieldEl.addEventListener('dragstart', (e) => {
               e.stopPropagation();
-              this.draggedFieldType = null;
-              this.draggedRowId = null;
-              this.draggedSectionId = null;
+              this.resetDragState();
               this.draggedSourceElement = { rowId: row.rowId, colIndex: colIndex, field: field };
               fieldEl.classList.add('dragging');
               e.dataTransfer.setData('text/plain', field.id);
@@ -1830,11 +1932,11 @@ class OpenFormBuilder {
               const displayLabel = this.editingLocale === 'default' ? field.label : (this.getTranslationValue('fields', field.key || field.id, 'label') || field.label);
               const displaySub = this.editingLocale === 'default' ? (field.subtitle || '') : (this.getTranslationValue('fields', field.key || field.id, 'subtitle') || (field.subtitle || ''));
               fieldEl.innerHTML = `
-                <div class="canvas-field-info" style="width: 100%; border-left: 3px solid var(--color-primary); padding-left: 6px;">
+                <div class="canvas-field-info" style="width: 100%; padding-left: 6px;">
                   <i data-lucide="heading" class="canvas-field-icon" style="color: var(--color-primary)"></i>
                   <div style="flex: 1; min-width: 0;">
-                    <div class="canvas-field-title" style="font-weight: 700; color: var(--color-neutral-10); font-size: 13px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.4; max-height: 2.8em;">${displayLabel}</div>
-                    <span style="font-size: 10px; color: var(--color-neutral-7); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${displaySub || `(${this.translations.sectionHeaderSubtitle})`}</span>
+                    <div class="canvas-field-title" style="font-weight: var(--font-weight-bold); color: var(--color-neutral-10); font-size: var(--font-size-s); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.4; max-height: 2.8em;">${displayLabel}</div>
+                    <span style="font-size: var(--font-size-xs); color: var(--color-neutral-7); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${displaySub || `(${this.translations.sectionHeaderSubtitle})`}</span>
                   </div>
                 </div>
                 <div class="canvas-field-actions">
@@ -1850,7 +1952,7 @@ class OpenFormBuilder {
                 <div class="canvas-field-info" style="width: 100%; border-left: 3px dashed var(--color-neutral-5); padding-left: 6px;">
                   <i data-lucide="align-justify" class="canvas-field-icon" style="color: var(--color-neutral-7)"></i>
                   <div style="flex: 1; min-width: 0;">
-                    <div class="canvas-field-title" style="font-weight: 400; color: var(--color-neutral-8); font-size: 13px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.4; max-height: 2.8em;">${displayLabel}</div>
+                    <div class="canvas-field-title" style="font-weight: var(--font-weight-normal); color: var(--color-neutral-8); font-size: var(--font-size-s); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.4; max-height: 2.8em;">${displayLabel}</div>
                     <span style="font-size: 9px; color: var(--color-neutral-6); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Text Block</span>
                   </div>
                 </div>
@@ -1864,20 +1966,20 @@ class OpenFormBuilder {
               // Repeatable list visual card
               const displayLabel = this.editingLocale === 'default' ? field.label : (this.getTranslationValue('fields', field.key, 'label') || field.label);
               fieldEl.innerHTML = `
-                <div class="canvas-field-info canvas-field-repeater-wrapper" style="width: 100%; flex-direction: column; align-items: flex-start; gap: 8px;">
-                  <div style="display: flex; align-items: center; gap: 8px; width: 100%;">
+                <div class="canvas-field-info canvas-field-repeater-wrapper" style="width: 100%; flex-direction: column; align-items: flex-start; gap: var(--space-s);">
+                  <div style="display: flex; align-items: center; gap: var(--space-s); width: 100%;">
                     <i data-lucide="layers" class="canvas-field-icon" style="color: var(--color-primary);"></i>
                     <div style="flex: 1;">
-                      <div class="canvas-field-title" style="font-weight: 700; color: var(--color-neutral-10); font-size: 13px;">${displayLabel}</div>
+                      <div class="canvas-field-title" style="font-weight: var(--font-weight-bold); color: var(--color-neutral-10); font-size: var(--font-size-s);">${displayLabel}</div>
                       <span class="canvas-field-key">${field.key}</span>
                     </div>
                     <div class="repeater-operations">
-                      <button class="repeater-op-btn add-row" title="Add Row" style="background: none; border: none; cursor: pointer; display: flex; align-items: center; color: var(--color-primary); font-size: 11px; gap: 4px; padding: 2px 6px;">
+                      <button class="repeater-op-btn add-row" title="Add Row" style="background: none; border: none; cursor: pointer; display: flex; align-items: center; color: var(--color-primary); font-size: var(--font-size-xs); gap: var(--space-xs); padding: 2px 6px;">
                         <i data-lucide="plus" style="width: 12px; height: 12px;"></i> Add Row
                       </button>
                     </div>
                   </div>
-                  <div class="canvas-repeater-rows-container" style="width: 100%; display: flex; flex-direction: column; gap: 12px; border-left: 2px solid var(--color-neutral-4); padding-left: 10px; margin-top: 4px;">
+                  <div class="canvas-repeater-rows-container" style="width: 100%; display: flex; flex-direction: column; gap: var(--space-m); border-left: 2px solid var(--color-neutral-4); padding-left: 10px; margin-top: var(--space-xs);">
                     <!-- Rows will be appended here -->
                   </div>
                 </div>
@@ -1908,7 +2010,7 @@ class OpenFormBuilder {
               const rowsContainer = fieldEl.querySelector('.canvas-repeater-rows-container');
               if (!field.rows || field.rows.length === 0) {
                 const emptyZone = document.createElement('div');
-                emptyZone.style.cssText = "font-size: 11px; color: var(--color-neutral-6); text-align: center; padding: 15px; border: 1px dashed var(--pg-border); border-radius: 6px; width: 100%;";
+                emptyZone.style.cssText = "font-size: var(--font-size-xs); color: var(--color-neutral-6); text-align: center; padding: 15px; border: 1px dashed var(--pg-border); border-radius: var(--border-radius-s); width: 100%;";
                 emptyZone.textContent = "Empty Repeater list. Click 'Add Row' to start designing subfields.";
                 rowsContainer.appendChild(emptyZone);
               } else {
@@ -1922,7 +2024,7 @@ class OpenFormBuilder {
                   const subRowBar = document.createElement('div');
                   subRowBar.className = 'row-actions-bar';
                   subRowBar.innerHTML = `
-                    <div style="font-size: 10px; color: var(--color-neutral-7); font-weight: 600;">
+                    <div style="font-size: var(--font-size-xs); color: var(--color-neutral-7); font-weight: var(--font-weight-semibold);">
                       Row ${subRowIndex + 1}
                     </div>
                     <div class="row-operations">
@@ -1941,11 +2043,8 @@ class OpenFormBuilder {
                   subRowBar.setAttribute('draggable', 'true');
                   subRowBar.addEventListener('dragstart', (e) => {
                     e.stopPropagation();
+                    this.resetDragState();
                     this.draggedSubRowId = subRow.rowId;
-                    this.draggedRowId = null;
-                    this.draggedFieldType = null;
-                    this.draggedSourceElement = null;
-                    this.draggedSectionId = null;
                     subRowEl.classList.add('dragging');
                     e.dataTransfer.setData('text/plain', subRow.rowId);
                   });
@@ -2031,10 +2130,7 @@ class OpenFormBuilder {
 
                       subFieldEl.addEventListener('dragstart', (e) => {
                         e.stopPropagation();
-                        this.draggedFieldType = null;
-                        this.draggedRowId = null;
-                        this.draggedSectionId = null;
-                        this.draggedSubRowId = null;
+                        this.resetDragState();
                         this.draggedSourceElement = { rowId: subRow.rowId, colIndex: subColIndex, field: subField };
                         subFieldEl.classList.add('dragging');
                         e.dataTransfer.setData('text/plain', subField.id);
@@ -2050,7 +2146,7 @@ class OpenFormBuilder {
                         <div class="canvas-field-info" style="width: 100%;">
                           <i data-lucide="${this.getFieldIcon(subField.type)}" class="canvas-field-icon"></i>
                           <div style="flex: 1;">
-                            <div class="canvas-field-title" style="font-weight: 600; font-size: 12px; color: var(--color-neutral-10);">${displaySubLabel}</div>
+                            <div class="canvas-field-title" style="font-weight: var(--font-weight-semibold); font-size: var(--font-size-s); color: var(--color-neutral-10);">${displaySubLabel}</div>
                             <span class="canvas-field-key" style="font-size: 9px;">${subField.key}</span>
                           </div>
                         </div>
@@ -2111,11 +2207,11 @@ class OpenFormBuilder {
 
               const displayLabel = this.editingLocale === 'default' ? field.label : (this.getTranslationValue('fields', field.key, 'label') || field.label);
               fieldEl.innerHTML = `
-                <div class="canvas-field-info canvas-field-matrix-wrapper" style="width: 100%; flex-direction: column; align-items: flex-start; gap: 8px;">
-                  <div style="display: flex; align-items: center; gap: 8px; width: 100%;">
+                <div class="canvas-field-info canvas-field-matrix-wrapper" style="width: 100%; flex-direction: column; align-items: flex-start; gap: var(--space-s);">
+                  <div style="display: flex; align-items: center; gap: var(--space-s); width: 100%;">
                     <i data-lucide="grid" class="canvas-field-icon" style="color: var(--color-primary);"></i>
                     <div style="flex: 1;">
-                      <div class="canvas-field-title" style="font-weight: 700; color: var(--color-neutral-10); font-size: 13px;">${displayLabel}</div>
+                      <div class="canvas-field-title" style="font-weight: var(--font-weight-bold); color: var(--color-neutral-10); font-size: var(--font-size-s);">${displayLabel}</div>
                       <span class="canvas-field-key">${field.key}</span>
                     </div>
                   </div>
@@ -2138,7 +2234,8 @@ class OpenFormBuilder {
                   <div>
                     <div class="canvas-field-title">
                       ${displayLabel} ${field.required ? '<span style="color: var(--color-error)">*</span>' : ''}
-                      ${field.isCalculated ? '<span class="canvas-formula-badge" style="font-size: 9px; padding: 2px 6px; border-radius: 10px; background: rgba(var(--color-primary-rgb), 0.1); color: var(--color-primary); margin-left: 6px; font-weight: 600; display: inline-flex; align-items: center; gap: 3px;"><i data-lucide="calculator" style="width: 10px; height: 10px;"></i> fx</span>' : ''}
+                      ${field.isCalculated ? '<span class="canvas-formula-badge" style="font-size: 9px; padding: 2px 6px; border-radius: 10px; background: rgba(var(--color-primary-rgb), 0.1); color: var(--color-primary); margin-left: 6px; font-weight: var(--font-weight-semibold); display: inline-flex; align-items: center; gap: 3px;"><i data-lucide="calculator" style="width: 10px; height: 10px;"></i> fx</span>' : ''}
+                      ${field.isCalculated && field.isVisibleOnForm === false ? '<span class="canvas-formula-badge" style="font-size: 9px; padding: 2px 6px; border-radius: 10px; background: var(--color-neutral-3); color: var(--color-neutral-7); margin-left: 6px; font-weight: var(--font-weight-semibold); display: inline-flex; align-items: center; gap: 3px;"><i data-lucide="eye-off" style="width: 10px; height: 10px;"></i> hidden</span>' : ''}
                     </div>
                     <span class="canvas-field-key">${field.key}</span>
                   </div>
@@ -2220,7 +2317,7 @@ class OpenFormBuilder {
           const { row, repeaterField } = res;
           // Prevent nesting repeaters/matrices inside repeaters
           if (repeaterField && ['repeater', 'matrix'].includes(this.draggedFieldType)) {
-            alert("Nested repeaters or matrices are not supported.");
+            this.showToast("Nested repeaters or matrices are not supported.", true);
             return;
           }
           const newField = this.createDefaultField(this.draggedFieldType);
@@ -2248,7 +2345,7 @@ class OpenFormBuilder {
           const targetField = targetRow.columns[colIndex].field || null;
 
           if (targetRes.repeaterField && sourceField.type === 'repeater') {
-            alert("Nested repeaters are not supported.");
+            this.showToast("Nested repeaters are not supported.", true);
             return;
           }
 
@@ -2270,15 +2367,46 @@ class OpenFormBuilder {
   /**
    * Renders the reactive Properties Panel on the right sidebar
    */
+  /**
+   * Dispatches to the appropriate properties-panel renderer based on current selection.
+   * Was previously a single ~530-line method mixing 5 unrelated panel types; split into
+   * one focused method per panel (A1).
+   */
   renderProperties() {
-    // 1. If a section is selected, render Section Properties
     if (this.selectedSectionId) {
       const activePage = this.schema.pages[this.activePageIndex];
       const section = activePage.sections.find(s => s.sectionId === this.selectedSectionId);
       if (!section) return;
+      this.renderSectionPropertiesPanel(section);
+      return;
+    }
 
+    const field = this.getSelectedField();
+
+    if (!field) {
+      this.renderPagePropertiesPanel();
+      return;
+    }
+
+    if (field.type === 'paragraph') {
+      this.renderParagraphPropertiesPanel(field);
+      return;
+    }
+
+    if (field.type === 'header') {
+      this.renderHeaderPropertiesPanel(field);
+      return;
+    }
+
+    this.renderStandardFieldPropertiesPanel(field);
+  }
+
+  /**
+   * Properties panel for a selected Section (title, duplicate, visibility business rules).
+   */
+  renderSectionPropertiesPanel(section) {
       this.propertiesEl.innerHTML = `
-        <div class="properties-form" style="max-height: 100%; overflow-y: auto; padding-right: 4px;">
+        <div class="properties-form" style="max-height: 100%; overflow-y: auto; padding-right: var(--space-xs);">
           ${this.renderLocaleSwitcherHTML()}
           <div class="prop-header">
             <i data-lucide="folder"></i>
@@ -2293,14 +2421,14 @@ class OpenFormBuilder {
                    placeholder="${this.editingLocale === 'default' ? '' : (section.title || '')}" />
           </div>
 
-          <div class="prop-group" style="margin-top: 12px;">
-            <button type="button" class="pg-btn pg-btn-secondary" id="btn-duplicate-section" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;"
+          <div class="prop-group" style="margin-top: var(--space-m);">
+            <button type="button" class="pg-btn pg-btn-secondary" id="btn-duplicate-section" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: var(--space-s);"
                     ${this.editingLocale !== 'default' ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
               <i data-lucide="copy" style="width: 14px; height: 14px;"></i> Duplicate Section
             </button>
           </div>
 
-          <hr style="border: none; border-top: 1px solid var(--color-neutral-4); margin: 16px 0;" />
+          <hr style="border: none; border-top: 1px solid var(--color-neutral-4); margin: var(--space-base) 0;" />
 
           <!-- Business Rules Editor for Section -->
           ${this.renderBusinessRulesEditorHTML(section, false)}
@@ -2325,7 +2453,7 @@ class OpenFormBuilder {
             }
           }
           this.notifyChange();
-          this.render(); // sync canvas
+          this.debouncedRender(); // sync canvas
         });
       }
 
@@ -2338,16 +2466,16 @@ class OpenFormBuilder {
       }
 
       this.bindBusinessRulesEvents(section);
-      return;
-    }
+  }
 
-    const field = this.getSelectedField();
-
-    // Fallback: If no field is currently selected, display Active Page properties
-    if (!field) {
+  /**
+   * Properties panel shown when no field/section is selected — page title + cross-field
+   * validation rules editor.
+   */
+  renderPagePropertiesPanel() {
       const activePage = this.schema.pages[this.activePageIndex];
       this.propertiesEl.innerHTML = `
-        <div class="properties-form" style="max-height: 100%; overflow-y: auto; padding-right: 4px;">
+        <div class="properties-form" style="max-height: 100%; overflow-y: auto; padding-right: var(--space-xs);">
           ${this.renderLocaleSwitcherHTML()}
           <div class="prop-header">
             <i data-lucide="file-text"></i>
@@ -2359,16 +2487,13 @@ class OpenFormBuilder {
             <input type="text" id="prop-page-title" class="prop-input" 
                    value="${this.editingLocale === 'default' ? activePage.title : (this.getTranslationValue('pages', activePage.pageId) || '')}" 
                    placeholder="${this.editingLocale === 'default' ? '' : activePage.title}" />
-            <span style="font-size: 10px; color: var(--color-neutral-7); margin-top: 2px;">${this.translations.pageTitleHint}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--color-neutral-7); margin-top: 2px;">${this.translations.pageTitleHint}</span>
           </div>
           
-          ${this.editingLocale === 'default' ? this.renderCrossFieldRulesEditorHTML() : `
-            <hr style="border: none; border-top: 1px solid var(--color-neutral-4); margin: 12px 0;" />
-            <span style="font-size: 10px; color: var(--color-neutral-7); margin-top: 2px; display: block; text-align: center;">Switch to Default Language to edit cross-field validation rules.</span>
-          `}
-          
-          <hr style="border: none; border-top: 1px solid var(--color-neutral-4); margin: 16px 0;" />
-          <div style="font-size: 11px; color: var(--color-neutral-7); text-align: center; line-height: 1.4;">
+          ${this.renderCrossFieldRulesEditorHTML()}
+
+          <hr style="border: none; border-top: 1px solid var(--color-neutral-4); margin: var(--space-base) 0;" />
+          <div style="font-size: var(--font-size-xs); color: var(--color-neutral-7); text-align: center; line-height: 1.4;">
             ${this.translations.propertiesHelpText}
           </div>
         </div>
@@ -2378,9 +2503,7 @@ class OpenFormBuilder {
         window.lucide.createIcons();
       }
       this.bindLocaleSwitcherEvents();
-      if (this.editingLocale === 'default') {
-        this.bindCrossFieldRulesEvents();
-      }
+      this.bindCrossFieldRulesEvents();
 
       const pageTitleInput = this.propertiesEl.querySelector('#prop-page-title');
       if (pageTitleInput) {
@@ -2395,15 +2518,16 @@ class OpenFormBuilder {
               this.deleteTranslationValue('pages', activePage.pageId);
             }
             this.notifyChange();
-            this.render(); // sync page tabs preview
+            this.debouncedRender(); // sync page tabs preview
           }
         });
       }
-      return;
-    }
+  }
 
-    // Simplify properties controls if Paragraph is selected
-    if (field.type === 'paragraph') {
+  /**
+   * Properties panel for a selected `paragraph` field (static text block — no key/required).
+   */
+  renderParagraphPropertiesPanel(field) {
       this.propertiesEl.innerHTML = `
         <div class="properties-form">
           ${this.renderLocaleSwitcherHTML()}
@@ -2415,11 +2539,11 @@ class OpenFormBuilder {
           <!-- Text Content -->
           <div class="prop-group">
             <label class="prop-label">Paragraph Content</label>
-            <textarea id="prop-paragraph-label" class="prop-input" rows="6" style="resize: vertical; font-family: inherit; font-size: 13px; line-height: 1.5; padding: 8px;">${this.editingLocale === 'default' ? field.label : (this.getTranslationValue('fields', field.key || field.id, 'label') || '')}</textarea>
+            <textarea id="prop-paragraph-label" class="prop-input" rows="6" style="resize: vertical; font-family: inherit; font-size: var(--font-size-s); line-height: 1.5; padding: var(--space-s);">${this.editingLocale === 'default' ? field.label : (this.getTranslationValue('fields', field.key || field.id, 'label') || '')}</textarea>
           </div>
           
-          <hr style="border: none; border-top: 1px solid var(--color-neutral-4); margin: 12px 0;" />
-          <div style="font-size: 11px; color: var(--color-neutral-7); line-height: 1.4;">
+          <hr style="border: none; border-top: 1px solid var(--color-neutral-4); margin: var(--space-m) 0;" />
+          <div style="font-size: var(--font-size-xs); color: var(--color-neutral-7); line-height: 1.4;">
             Use this block to display instructions, descriptions, or general text content in the form.
           </div>
         </div>
@@ -2444,14 +2568,16 @@ class OpenFormBuilder {
             }
           }
           this.notifyChange();
-          this.render();
+          this.debouncedRender();
         });
       }
-      return;
-    }
+  }
 
-    // Simplify properties controls if Header (Section Title Divider) is selected
-    if (field.type === 'header') {
+  /**
+   * Properties panel for a selected `header` field (section title divider — label + subtitle,
+   * no key/required).
+   */
+  renderHeaderPropertiesPanel(field) {
       this.propertiesEl.innerHTML = `
         <div class="properties-form">
           ${this.renderLocaleSwitcherHTML()}
@@ -2476,8 +2602,8 @@ class OpenFormBuilder {
                    placeholder="${this.editingLocale === 'default' ? '' : (field.subtitle || '')}" />
           </div>
           
-          <hr style="border: none; border-top: 1px solid var(--color-neutral-4); margin: 12px 0;" />
-          <div style="font-size: 11px; color: var(--color-neutral-7); line-height: 1.4;">
+          <hr style="border: none; border-top: 1px solid var(--color-neutral-4); margin: var(--space-m) 0;" />
+          <div style="font-size: var(--font-size-xs); color: var(--color-neutral-7); line-height: 1.4;">
             ${this.translations.sectionHeadingHint}
           </div>
         </div>
@@ -2502,7 +2628,7 @@ class OpenFormBuilder {
             }
           }
           this.notifyChange();
-          this.render();
+          this.debouncedRender();
         });
       }
 
@@ -2520,15 +2646,20 @@ class OpenFormBuilder {
             }
           }
           this.notifyChange();
-          this.render();
+          this.debouncedRender();
         });
       }
-      return;
-    }
+  }
 
-    // Standard properties forms rendering
+  /**
+   * Properties panel for any "standard" field type (everything except section/page/paragraph/
+   * header — text, number, dropdown, file, repeater, matrix, etc). Still the largest of the
+   * five panels since it composes every type-specific config block, but is now an isolated,
+   * clearly-scoped method rather than mixed into a 530-line dispatcher.
+   */
+  renderStandardFieldPropertiesPanel(field) {
     this.propertiesEl.innerHTML = `
-      <div class="properties-form" style="max-height: 100%; overflow-y: auto; padding-right: 4px;">
+      <div class="properties-form" style="max-height: 100%; overflow-y: auto; padding-right: var(--space-xs);">
         ${this.renderLocaleSwitcherHTML()}
         <div class="prop-header">
           <i data-lucide="${this.getFieldIcon(field.type)}"></i>
@@ -2548,7 +2679,7 @@ class OpenFormBuilder {
           <label class="prop-label">${this.translations.fieldKeyLabel}</label>
           <input type="text" id="prop-field-key" class="prop-input" value="${field.key}" 
                  ${this.editingLocale !== 'default' ? 'disabled style="background: var(--color-neutral-3); cursor: not-allowed;"' : ''} />
-          ${this.editingLocale !== 'default' ? `<span style="font-size: 10px; color: var(--color-neutral-7); margin-top: 2px; display: block;">Switch to Default Language to edit database keys.</span>` : ''}
+          ${this.editingLocale !== 'default' ? `<span style="font-size: var(--font-size-xs); color: var(--color-neutral-7); margin-top: 2px; display: block;">Switch to Default Language to edit database keys.</span>` : ''}
         </div>
         
         <!-- Optional Placeholder -->
@@ -2575,7 +2706,7 @@ class OpenFormBuilder {
           <label class="prop-label">Custom Input Mask</label>
           <input type="text" id="prop-field-mask" class="prop-input" value="${field.mask || ''}" placeholder="e.g., 999.999.999-99" 
                  ${this.editingLocale !== 'default' ? 'disabled style="background: var(--color-neutral-3); cursor: not-allowed;"' : ''} />
-          <span style="font-size: 10px; color: var(--color-neutral-7); margin-top: 4px; display: block; line-height: 1.4;">
+          <span style="font-size: var(--font-size-xs); color: var(--color-neutral-7); margin-top: var(--space-xs); display: block; line-height: 1.4;">
             Use <strong>9</strong> for digits, <strong>a</strong> for letters, and <strong>*</strong> for alphanumeric. All other characters are literals.
           </span>
         </div>
@@ -2601,10 +2732,35 @@ class OpenFormBuilder {
         
         <div class="prop-group" id="prop-field-formula-group" style="${field.isCalculated ? '' : 'display: none;'}">
           <label class="prop-label">Formula Expression</label>
-          <input type="text" id="prop-field-formula-expression" class="prop-input" value="${field.formulaExpression || ''}" placeholder="e.g., {preco} * {quantidade}" 
+          <input type="text" id="prop-field-formula-expression" class="prop-input" value="${field.formulaExpression || ''}" placeholder="e.g., {price} * {quantity}"
                  ${this.editingLocale !== 'default' ? 'disabled style="background: var(--color-neutral-3); cursor: not-allowed;"' : ''} />
-          <span style="font-size: 10px; color: var(--color-neutral-7); margin-top: 4px; display: block; line-height: 1.4;">
-            Wrap other numeric database keys in curly braces (e.g. <code>{preco}</code>). You can use constants and operations: <code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>, <code>%</code>, <code>( )</code>, or functions like <code>Math.round(...)</code>.
+
+          <div class="formula-token-chips">
+            <span class="formula-chip-row-label">Insert field:</span>
+            <div class="formula-chip-row">
+              ${this.getAllFields().filter(f => f.type === 'number' && f.key !== field.key).map(f =>
+                `<button type="button" class="formula-token-chip" data-token="{${f.key}}" title="${f.key}" ${this.editingLocale !== 'default' ? 'disabled' : ''}>${f.label}</button>`
+              ).join('') || '<span class="formula-chip-empty">No other numeric fields available.</span>'}
+            </div>
+            <span class="formula-chip-row-label">Insert function:</span>
+            <div class="formula-chip-row">
+              ${['min', 'max', 'round', 'abs', 'floor', 'ceil'].map(fn =>
+                `<button type="button" class="formula-token-chip formula-fn-chip" data-token="Math.${fn}(" title="Math.${fn}(...)" ${this.editingLocale !== 'default' ? 'disabled' : ''}>${fn}</button>`
+              ).join('')}
+            </div>
+          </div>
+
+          <span style="font-size: var(--font-size-xs); color: var(--color-neutral-7); margin-top: var(--space-xs); display: block; line-height: 1.4;">
+            Wrap other numeric database keys in curly braces (e.g. <code>{price}</code>). Supported: operators <code>+ - * / %</code>, parentheses <code>( )</code>, comparisons <code>&gt; &lt; &gt;= &lt;= == !=</code>, ternary <code>condition ? a : b</code>, and <code>Math.min/max/round/abs/floor/ceil(...)</code>. Nothing else is evaluated.
+          </span>
+
+          <label class="prop-checkbox-label" style="margin-top: var(--space-s);">
+            <input type="checkbox" id="prop-field-visible-on-form" ${field.isVisibleOnForm === false ? '' : 'checked'}
+                   ${this.editingLocale !== 'default' ? 'disabled' : ''} />
+            <span>Visible on Form?</span>
+          </label>
+          <span style="font-size: var(--font-size-xs); color: var(--color-neutral-7); margin-top: 2px; display: block; line-height: 1.4;">
+            Uncheck to keep computing this value silently (e.g. as an input to a Cross-Field Validation) without showing it as a field on the rendered form.
           </span>
         </div>
         ` : ''}
@@ -2629,14 +2785,14 @@ class OpenFormBuilder {
           <label class="prop-label">Accepted Attachment Types</label>
           <input type="text" id="prop-field-accepted-types" class="prop-input" value="${field.acceptedTypes || '.pdf,.docx,image/*'}" placeholder="e.g. .pdf,.docx,image/*" 
                  ${this.editingLocale !== 'default' ? 'disabled style="background: var(--color-neutral-3); cursor: not-allowed;"' : ''} />
-          <span style="font-size: 10px; color: var(--color-neutral-7); margin-top: 2px;">Comma-separated extensions or mime types (e.g. .pdf,image/*,.docx)</span>
+          <span style="font-size: var(--font-size-xs); color: var(--color-neutral-7); margin-top: 2px;">Comma-separated extensions or mime types (e.g. .pdf,image/*,.docx)</span>
         </div>
         <div class="prop-group">
           <label class="prop-label">File Requirements Text</label>
           <input type="text" id="prop-field-requirements-text" class="prop-input" 
                  value="${this.editingLocale === 'default' ? (field.fileRequirementsText || '') : (this.getTranslationValue('fields', field.key || field.id, 'fileRequirementsText') || '')}" 
                  placeholder="${this.editingLocale === 'default' ? 'e.g. Maximum size 10MB' : (field.fileRequirementsText || 'e.g. Maximum size 10MB')}" />
-          <span style="font-size: 10px; color: var(--color-neutral-7); margin-top: 2px;">Help text indicating format/size limits.</span>
+          <span style="font-size: var(--font-size-xs); color: var(--color-neutral-7); margin-top: 2px;">Help text indicating format/size limits.</span>
         </div>
         <div class="prop-group">
           <label class="prop-label">Maximum File Size (MB)</label>
@@ -2644,7 +2800,8 @@ class OpenFormBuilder {
                  value="${field.maxFileSizeMB !== undefined ? field.maxFileSizeMB : 5}" 
                  placeholder="5" 
                  ${this.editingLocale !== 'default' ? 'disabled style="background: var(--color-neutral-3); cursor: not-allowed;"' : ''} />
-          <span style="font-size: 10px; color: var(--color-neutral-7); margin-top: 2px;">File size limit in Megabytes.</span>
+          <span style="font-size: var(--font-size-xs); color: var(--color-neutral-7); margin-top: 2px;">File size limit in Megabytes.</span>
+        </div>
         <div class="prop-group">
           <label class="prop-checkbox-label">
             <input type="checkbox" id="prop-field-use-native-camera" ${field.useNativeCamera ? 'checked' : ''} 
@@ -2675,16 +2832,35 @@ class OpenFormBuilder {
         
         <div id="prop-box-static-options" class="nested-prop-box" style="display: ${field.optionsType === 'static' ? 'flex' : 'none'}; flex-direction: column;">
           ${this.editingLocale === 'default' ? `
-            <label class="prop-label">${this.translations.fieldOptionsStaticLabel} (Label, value)</label>
-            <textarea id="prop-field-static-options" class="prop-input" style="font-family: monospace; font-size: 11px; height: 80px;" placeholder="${this.translations.fieldOptionsStaticPlaceholder}">${this.serializeStaticOptions(field.options)}</textarea>
-            <span style="font-size: 10px; color: var(--color-neutral-7);">${this.translations.fieldOptionsStaticHint}</span>
+            <label class="prop-label" style="display: flex; justify-content: space-between; align-items: center;">
+              <span>${this.translations.fieldOptionsStaticLabel}</span>
+              <button type="button" class="pg-btn pg-btn-secondary" id="btn-static-option-add" style="padding: 2px 8px; font-size: var(--font-size-xs); height: auto;">
+                <i data-lucide="plus" style="width: 10px; height: 10px;"></i> Add Option
+              </button>
+            </label>
+            <div class="static-options-list" style="display: flex; flex-direction: column; gap: var(--space-s); margin-top: var(--space-xs);">
+              ${(field.options || []).map((opt, idx) => `
+                <div class="static-option-row" data-option-index="${idx}" style="display: flex; align-items: center; gap: var(--space-s);">
+                  <input type="text" class="prop-input static-option-label-input" data-option-index="${idx}"
+                         style="flex: 2; font-size: var(--font-size-xs); padding: var(--space-xs) var(--space-s); margin-bottom: 0;"
+                         value="${opt.label}" placeholder="Label" />
+                  <input type="text" class="prop-input static-option-value-input" data-option-index="${idx}"
+                         style="flex: 1; font-size: var(--font-size-xs); padding: var(--space-xs) var(--space-s); margin-bottom: 0; font-family: monospace; color: var(--color-neutral-7);"
+                         value="${opt.value}" placeholder="value" />
+                  <button type="button" class="pg-btn pg-btn-secondary static-option-delete-btn" data-option-index="${idx}"
+                          style="padding: 2px 6px; height: auto; color: var(--color-error); border-color: transparent; background: transparent; flex-shrink: 0;" title="Remove option">
+                    <i data-lucide="x" style="width: 12px; height: 12px;"></i>
+                  </button>
+                </div>
+              `).join('')}
+            </div>
           ` : `
             <label class="prop-label" style="margin-bottom: 6px;">Translate Option Labels</label>
-            <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; flex-direction: column; gap: var(--space-s);">
               ${(field.options || []).map(opt => `
-                <div style="display: flex; align-items: center; gap: 8px;">
-                  <span style="font-size: 11px; flex: 1; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-neutral-7);" title="${opt.label}">${opt.label}:</span>
-                  <input type="text" class="prop-input option-translation-input" style="flex: 2; font-size: 11px; padding: 4px 8px; margin-bottom: 0;"
+                <div style="display: flex; align-items: center; gap: var(--space-s);">
+                  <span style="font-size: var(--font-size-xs); flex: 1; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-neutral-7);" title="${opt.label}">${opt.label}:</span>
+                  <input type="text" class="prop-input option-translation-input" style="flex: 2; font-size: var(--font-size-xs); padding: var(--space-xs) var(--space-s); margin-bottom: 0;"
                          data-option-value="${opt.value}" 
                          value="${this.getTranslationValue('fields', field.key, 'options', opt.value) || ''}"
                          placeholder="Translation..." />
@@ -2698,7 +2874,7 @@ class OpenFormBuilder {
           <label class="prop-label">${this.translations.fieldOptionsApiUrlLabel}</label>
           <input type="text" id="prop-field-api-url" class="prop-input" value="${field.optionsUrl || ''}" placeholder="${this.translations.fieldOptionsApiUrlPlaceholder}" 
                  ${this.editingLocale !== 'default' ? 'disabled style="background: var(--color-neutral-3); cursor: not-allowed;"' : ''} />
-          <span style="font-size: 10px; color: var(--color-neutral-7);">${this.translations.fieldOptionsApiUrlHint}</span>
+          <span style="font-size: var(--font-size-xs); color: var(--color-neutral-7);">${this.translations.fieldOptionsApiUrlHint}</span>
         </div>` : ''}
         <!-- Custom Repeater Configuration (Only applies to repeaters) -->
         ${field.type === 'repeater' ? `
@@ -2723,17 +2899,17 @@ class OpenFormBuilder {
 
         <!-- Custom Matrix Configuration (Only applies to matrix) -->
         ${field.type === 'matrix' ? `
-        <hr style="border: none; border-top: 1px solid var(--color-neutral-4); margin: 12px 0;" />
+        <hr style="border: none; border-top: 1px solid var(--color-neutral-4); margin: var(--space-m) 0;" />
         
         <div class="prop-group">
           <label class="prop-label" style="display: flex; justify-content: space-between; align-items: center;">
             <span>${this.translations.matrixRowsManagerLabel || 'Matrix Rows Manager'}</span>
-            <button type="button" class="pg-btn pg-btn-secondary" id="btn-matrix-add-row" style="padding: 2px 6px; font-size: 10px; height: auto;" 
+            <button type="button" class="pg-btn pg-btn-secondary" id="btn-matrix-add-row" style="padding: 2px 6px; font-size: var(--font-size-xs); height: auto;" 
                     ${this.editingLocale !== 'default' ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
               <i data-lucide="plus" style="width: 10px; height: 10px;"></i> ${this.translations.matrixAddRowLabel || 'Add Row'}
             </button>
           </label>
-          <div class="matrix-rows-list" style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
+          <div class="matrix-rows-list" style="display: flex; flex-direction: column; gap: var(--space-s); margin-top: 6px;">
             ${this.renderMatrixRowsHTML(field)}
           </div>
         </div>
@@ -2741,7 +2917,7 @@ class OpenFormBuilder {
 
         <!-- Advanced Business Rules Panel -->
         ${this.isFieldInsideRepeater(field.id) ? '' : `
-        <hr style="border: none; border-top: 1px solid var(--color-neutral-4); margin: 16px 0;" />
+        <hr style="border: none; border-top: 1px solid var(--color-neutral-4); margin: var(--space-base) 0;" />
         ${this.renderBusinessRulesEditorHTML(field, true)}
         `}
 
@@ -2775,10 +2951,10 @@ class OpenFormBuilder {
       .map(line => line.trim())
       .filter(line => line.includes(':'))
       .map(line => {
-        const parts = line.split(':');
+        const separatorIndex = line.indexOf(':');
         return {
-          label: parts[0].trim(),
-          value: parts[1].trim()
+          label: line.slice(0, separatorIndex).trim(),
+          value: line.slice(separatorIndex + 1).trim()
         };
       });
   }
@@ -2791,9 +2967,9 @@ class OpenFormBuilder {
 
     if (this.editingLocale === 'default') {
       return field.matrixRows.map((row, index) => `
-        <div class="matrix-row-card" data-row-index="${index}" style="border: 1px solid var(--color-neutral-4); border-radius: 6px; padding: 10px; background: var(--color-neutral-2); display: flex; flex-direction: column; gap: 6px;">
+        <div class="matrix-row-card" data-row-index="${index}" style="border: 1px solid var(--color-neutral-4); border-radius: var(--border-radius-s); padding: 10px; background: var(--color-neutral-2); display: flex; flex-direction: column; gap: 6px;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-size: 10px; font-weight: 700; color: var(--color-neutral-8);">Row #${index + 1}</span>
+            <span style="font-size: var(--font-size-xs); font-weight: var(--font-weight-bold); color: var(--color-neutral-8);">Row #${index + 1}</span>
             <button type="button" class="pg-btn pg-btn-secondary matrix-row-delete-btn" style="padding: 2px; color: var(--color-error); border-color: transparent; background: transparent; height: auto;" title="Remove Row">
               <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
             </button>
@@ -2801,23 +2977,23 @@ class OpenFormBuilder {
           
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
             <div class="prop-group" style="margin-bottom: 0;">
-              <label class="prop-label" style="font-size: 10px; margin-bottom: 4px;">Label</label>
-              <input type="text" class="prop-input matrix-row-label-input" style="font-size: 11px; padding: 4px; margin-bottom: 0;" value="${row.label || ''}" />
+              <label class="prop-label" style="font-size: var(--font-size-xs); margin-bottom: var(--space-xs);">Label</label>
+              <input type="text" class="prop-input matrix-row-label-input" style="font-size: var(--font-size-xs); padding: var(--space-xs); margin-bottom: 0;" value="${row.label || ''}" />
             </div>
             <div class="prop-group" style="margin-bottom: 0;">
-              <label class="prop-label" style="font-size: 10px; margin-bottom: 4px;">Row Key</label>
-              <input type="text" class="prop-input matrix-row-key-input" style="font-size: 11px; padding: 4px; margin-bottom: 0;" value="${row.key || ''}" />
+              <label class="prop-label" style="font-size: var(--font-size-xs); margin-bottom: var(--space-xs);">Row Key</label>
+              <input type="text" class="prop-input matrix-row-key-input" style="font-size: var(--font-size-xs); padding: var(--space-xs); margin-bottom: 0;" value="${row.key || ''}" />
             </div>
           </div>
         </div>
       `).join('');
     } else {
       return `
-        <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; flex-direction: column; gap: var(--space-s);">
           ${field.matrixRows.map((row, index) => `
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <span style="font-size: 11px; flex: 1; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-neutral-7);" title="${row.label}">${row.label}:</span>
-              <input type="text" class="prop-input matrix-row-translation-input" style="flex: 2; font-size: 11px; padding: 4px 8px; margin-bottom: 0;"
+            <div style="display: flex; align-items: center; gap: var(--space-s);">
+              <span style="font-size: var(--font-size-xs); flex: 1; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-neutral-7);" title="${row.label}">${row.label}:</span>
+              <input type="text" class="prop-input matrix-row-translation-input" style="flex: 2; font-size: var(--font-size-xs); padding: var(--space-xs) var(--space-s); margin-bottom: 0;"
                      data-row-key="${row.key}" 
                      value="${this.getTranslationValue('fields', field.key, 'matrixRows', row.key) || ''}"
                      placeholder="Translation..." />
@@ -2834,7 +3010,7 @@ class OpenFormBuilder {
    * Gathers valid conditional dependency field references (excludes headers and self)
    */
   getConditionalFieldsOptions(currentFieldId, selectedKey) {
-    const fields = this.getAllFields().filter(f => f.id !== currentFieldId && f.type !== 'header');
+    const fields = this.getAllFields().filter(f => f.id !== currentFieldId && f.type !== 'header' && f.type !== 'paragraph');
     if (fields.length === 0) {
       return `<option value="">${this.translations.fieldCondNoOtherFields}</option>`;
     }
@@ -2849,7 +3025,11 @@ class OpenFormBuilder {
    * Binds direct property change listeners to update layout schema reactively
    */
   bindPropertiesEvents(field) {
-    const updateFieldProperty = (propName, value) => {
+    // `immediate`: discrete actions (checkboxes, selects — one `change` per click) render
+    // synchronously as before; free-typing `input` handlers default to the debounced
+    // canvas repaint (A3) so a burst of keystrokes doesn't tear down/rebuild the canvas
+    // on every character. Schema mutation and notifyChange() are never debounced either way.
+    const updateFieldProperty = (propName, value, immediate = false) => {
       if (this.editingLocale === 'default') {
         field[propName] = value;
       } else {
@@ -2862,7 +3042,11 @@ class OpenFormBuilder {
         }
       }
       this.notifyChange();
-      this.render();
+      if (immediate) {
+        this.render();
+      } else {
+        this.debouncedRender();
+      }
     };
 
     // Label
@@ -2879,8 +3063,31 @@ class OpenFormBuilder {
         const sanitized = e.target.value
           .replace(/[^a-zA-Z0-9]/g, '')
           .replace(/^\d+/, '');
+
+        // A5: enforce key uniqueness within the field's own collision namespace — top-level
+        // fields must not collide with each other (submittedAnswers[key] would silently
+        // overwrite), and a repeater's sub-fields must not collide with their siblings
+        // (items[i][key] would do the same). Cross-namespace collisions (a top-level field
+        // vs. a sub-field inside some repeater) don't actually collide in the output shape,
+        // so they're intentionally not checked here.
+        const parentRepeater = this.getParentRepeaterField(field.id);
+        const existingKeys = parentRepeater
+          ? this.getRepeaterSubFieldKeys(parentRepeater, field.id)
+          : this.getAllFields().filter(f => f.id !== field.id).map(f => f.key);
+
+        if (!sanitized) {
+          this.showToast("Field key cannot be empty.", true);
+          e.target.value = field.key;
+          return;
+        }
+        if (existingKeys.includes(sanitized)) {
+          this.showToast(`Key "${sanitized}" is already used by another field.`, true);
+          e.target.value = field.key;
+          return;
+        }
+
         e.target.value = sanitized;
-        updateFieldProperty('key', sanitized);
+        updateFieldProperty('key', sanitized, true);
       });
     }
 
@@ -2893,7 +3100,7 @@ class OpenFormBuilder {
     // Required checkbox
     const requiredCheckbox = this.propertiesEl.querySelector('#prop-field-required');
     if (requiredCheckbox && this.editingLocale === 'default') {
-      requiredCheckbox.addEventListener('change', (e) => updateFieldProperty('required', e.target.checked));
+      requiredCheckbox.addEventListener('change', (e) => updateFieldProperty('required', e.target.checked, true));
     }
 
     // Input Mask custom input
@@ -2919,7 +3126,7 @@ class OpenFormBuilder {
         }
 
         this.notifyChange();
-        this.render();
+        this.debouncedRender();
       });
     }
 
@@ -2927,7 +3134,7 @@ class OpenFormBuilder {
     const maskCleanCheckbox = this.propertiesEl.querySelector('#prop-field-mask-clean');
     if (maskCleanCheckbox && this.editingLocale === 'default') {
       maskCleanCheckbox.addEventListener('change', (e) => {
-        updateFieldProperty('maskCleanValue', e.target.checked);
+        updateFieldProperty('maskCleanValue', e.target.checked, true);
       });
     }
 
@@ -2958,6 +3165,39 @@ class OpenFormBuilder {
     if (formulaExpressionInput && this.editingLocale === 'default') {
       formulaExpressionInput.addEventListener('input', (e) => {
         updateFieldProperty('formulaExpression', e.target.value);
+      });
+    }
+
+    // Formula token chips (insert field key / Math function at cursor position)
+    const formulaChipsContainer = this.propertiesEl.querySelector('.formula-token-chips');
+    if (formulaChipsContainer && formulaExpressionInput && this.editingLocale === 'default') {
+      formulaChipsContainer.addEventListener('click', (e) => {
+        const chip = e.target.closest('.formula-token-chip');
+        if (!chip) return;
+
+        const token = chip.getAttribute('data-token');
+        const start = formulaExpressionInput.selectionStart ?? formulaExpressionInput.value.length;
+        const end = formulaExpressionInput.selectionEnd ?? formulaExpressionInput.value.length;
+        const current = formulaExpressionInput.value;
+
+        const newValue = current.slice(0, start) + token + current.slice(end);
+        formulaExpressionInput.value = newValue;
+        field.formulaExpression = newValue;
+        this.notifyChange();
+
+        const cursorPos = start + token.length;
+        formulaExpressionInput.focus();
+        formulaExpressionInput.setSelectionRange(cursorPos, cursorPos);
+      });
+    }
+
+    // Visible on Form checkbox (calculated fields only)
+    const visibleOnFormCheckbox = this.propertiesEl.querySelector('#prop-field-visible-on-form');
+    if (visibleOnFormCheckbox && this.editingLocale === 'default') {
+      visibleOnFormCheckbox.addEventListener('change', (e) => {
+        field.isVisibleOnForm = e.target.checked;
+        this.notifyChange();
+        this.render();
       });
     }
 
@@ -3015,7 +3255,7 @@ class OpenFormBuilder {
     const nativeCameraSourceSelect = this.propertiesEl.querySelector('#prop-field-native-camera-source');
     if (nativeCameraSourceSelect && this.editingLocale === 'default') {
       nativeCameraSourceSelect.addEventListener('change', (e) => {
-        updateFieldProperty('nativeCameraSource', e.target.value);
+        updateFieldProperty('nativeCameraSource', e.target.value, true);
       });
     }
 
@@ -3033,12 +3273,49 @@ class OpenFormBuilder {
       });
     }
 
-    // Static Option records text
-    const staticOptionsText = this.propertiesEl.querySelector('#prop-field-static-options');
-    if (staticOptionsText && this.editingLocale === 'default') {
-      staticOptionsText.addEventListener('input', (e) => {
-        field.options = this.parseStaticOptions(e.target.value);
+    // Static Options structured list — Add button
+    const addOptionBtn = this.propertiesEl.querySelector('#btn-static-option-add');
+    if (addOptionBtn && this.editingLocale === 'default') {
+      addOptionBtn.addEventListener('click', () => {
+        if (!field.options) field.options = [];
+        field.options.push({ label: '', value: '' });
         this.notifyChange();
+        this.renderProperties();
+        // Focus the new label input
+        const list = this.propertiesEl.querySelector('.static-options-list');
+        if (list) {
+          const lastInput = list.querySelector('.static-option-row:last-child .static-option-label-input');
+          if (lastInput) lastInput.focus();
+        }
+      });
+    }
+
+    // Static Options structured list — input and delete via event delegation
+    const staticOptionsList = this.propertiesEl.querySelector('.static-options-list');
+    if (staticOptionsList && this.editingLocale === 'default') {
+      // Live label/value edits
+      staticOptionsList.addEventListener('input', (e) => {
+        const idx = parseInt(e.target.getAttribute('data-option-index'));
+        if (isNaN(idx) || !field.options[idx]) return;
+
+        if (e.target.classList.contains('static-option-label-input')) {
+          field.options[idx].label = e.target.value;
+        } else if (e.target.classList.contains('static-option-value-input')) {
+          field.options[idx].value = e.target.value;
+        }
+        this.notifyChange();
+      });
+
+      // Delete row
+      staticOptionsList.addEventListener('click', (e) => {
+        const deleteBtn = e.target.closest('.static-option-delete-btn');
+        if (!deleteBtn) return;
+        const idx = parseInt(deleteBtn.getAttribute('data-option-index'));
+        if (!isNaN(idx)) {
+          field.options.splice(idx, 1);
+          this.notifyChange();
+          this.renderProperties();
+        }
       });
     }
 
@@ -3053,7 +3330,7 @@ class OpenFormBuilder {
         } else {
           this.deleteTranslationValue('fields', field.key, 'options', optVal);
         }
-        this.render(); // sync canvas
+        this.debouncedRender(); // sync canvas
       });
     });
 
@@ -3095,7 +3372,7 @@ class OpenFormBuilder {
           if (e.target.classList.contains('matrix-row-label-input')) {
             r.label = e.target.value;
             this.notifyChange();
-            this.render(); // update canvas preview
+            this.debouncedRender(); // update canvas preview
           }
         });
 
@@ -3141,7 +3418,7 @@ class OpenFormBuilder {
             } else {
               this.deleteTranslationValue('fields', field.key, 'matrixRows', rowKey);
             }
-            this.render(); // sync canvas
+            this.debouncedRender(); // sync canvas
           });
         });
       }
@@ -3151,7 +3428,7 @@ class OpenFormBuilder {
     const minItemsInput = this.propertiesEl.querySelector('#prop-field-min-items');
     if (minItemsInput && this.editingLocale === 'default') {
       minItemsInput.addEventListener('change', (e) => {
-        updateFieldProperty('minItems', Math.max(0, parseInt(e.target.value) || 0));
+        updateFieldProperty('minItems', Math.max(0, parseInt(e.target.value) || 0), true);
       });
     }
 
@@ -3159,7 +3436,7 @@ class OpenFormBuilder {
     const maxItemsInput = this.propertiesEl.querySelector('#prop-field-max-items');
     if (maxItemsInput && this.editingLocale === 'default') {
       maxItemsInput.addEventListener('change', (e) => {
-        updateFieldProperty('maxItems', Math.max(1, parseInt(e.target.value) || 1));
+        updateFieldProperty('maxItems', Math.max(1, parseInt(e.target.value) || 1), true);
       });
     }
 
@@ -3184,6 +3461,9 @@ class OpenFormBuilder {
       entity.conditionalRules = [];
     }
 
+    const isDefaultLocale = this.editingLocale === 'default';
+    const disabledAttr = isDefaultLocale ? '' : 'disabled';
+
     let rulesHtml = '';
 
     entity.conditionalRules.forEach((rule, ruleIndex) => {
@@ -3195,12 +3475,13 @@ class OpenFormBuilder {
 
         group.conditions = group.conditions || [];
         group.conditions.forEach((cond, condIndex) => {
+          const compareMode = cond.compareMode || 'value';
           conditionsHtml += `
             <div class="rules-row" data-rule="${ruleIndex}" data-group="${groupIndex}" data-cond="${condIndex}">
-              <select class="prop-input rule-cond-field">
+              <select class="prop-input rule-cond-field" ${disabledAttr}>
                 ${this.getConditionalFieldsOptions(entity.id || '', cond.dependentFieldKey)}
               </select>
-              <select class="prop-input rule-cond-operator">
+              <select class="prop-input rule-cond-operator" ${disabledAttr}>
                 <option value="equals" ${cond.operator === 'equals' ? 'selected' : ''}>==</option>
                 <option value="notEquals" ${cond.operator === 'notEquals' ? 'selected' : ''}>!=</option>
                 <option value="contains" ${cond.operator === 'contains' ? 'selected' : ''}>contains</option>
@@ -3210,8 +3491,20 @@ class OpenFormBuilder {
                 <option value="lessThan" ${cond.operator === 'lessThan' ? 'selected' : ''}>&lt;</option>
                 <option value="lessThanOrEquals" ${cond.operator === 'lessThanOrEquals' || cond.operator === 'lte' ? 'selected' : ''}>&lt;=</option>
               </select>
-              <input type="text" class="prop-input rule-cond-value" value="${cond.equalsValue !== undefined ? cond.equalsValue : ''}" placeholder="value" />
-              <button type="button" class="pg-btn pg-btn-secondary rule-delete-cond" title="Delete Condition">
+              <div class="rule-cond-value-wrap">
+                <select class="prop-input rule-cond-compare-mode" ${disabledAttr}>
+                  <option value="value" ${compareMode === 'value' ? 'selected' : ''}>Value</option>
+                  <option value="field" ${compareMode === 'field' ? 'selected' : ''}>Field</option>
+                </select>
+                ${compareMode === 'field' ? `
+                  <select class="prop-input rule-cond-compare-field" ${disabledAttr}>
+                    ${this.getConditionalFieldsOptions(entity.id || '', cond.compareToFieldKey)}
+                  </select>
+                ` : `
+                  <input type="text" class="prop-input rule-cond-value" value="${cond.equalsValue !== undefined ? cond.equalsValue : ''}" placeholder="value" ${disabledAttr} />
+                `}
+              </div>
+              <button type="button" class="pg-btn pg-btn-secondary rule-delete-cond" title="Delete Condition" ${disabledAttr}>
                 <i data-lucide="x"></i>
               </button>
             </div>
@@ -3226,14 +3519,14 @@ class OpenFormBuilder {
           <div class="prop-box-condition and-group-card" data-rule="${ruleIndex}" data-group="${groupIndex}">
             <div class="and-group-header">
               <span class="and-group-title">OR GROUP (ANY MET)</span>
-              <button type="button" class="pg-btn pg-btn-secondary rule-delete-group" title="Delete group">
+              <button type="button" class="pg-btn pg-btn-secondary rule-delete-group" title="Delete group" ${disabledAttr}>
                 <i data-lucide="trash-2"></i> Delete Group
               </button>
             </div>
             <div class="conditions-list-container">
               ${conditionsHtml}
             </div>
-            <button type="button" class="pg-btn pg-btn-secondary rule-add-cond">
+            <button type="button" class="pg-btn pg-btn-secondary rule-add-cond" ${disabledAttr}>
               <i data-lucide="plus"></i> Add OR Condition
             </button>
           </div>
@@ -3249,7 +3542,7 @@ class OpenFormBuilder {
         <div class="rule-card" data-rule="${ruleIndex}">
           <div class="rule-card-header">
             ${isField ? `
-              <select class="prop-input rule-target-prop">
+              <select class="prop-input rule-target-prop" ${disabledAttr}>
                 <option value="visibility" ${rule.targetProperty === 'visibility' ? 'selected' : ''}>Show field if...</option>
                 <option value="required" ${rule.targetProperty === 'required' ? 'selected' : ''}>Make required if...</option>
                 <option value="disabled" ${rule.targetProperty === 'disabled' ? 'selected' : ''}>Disable field if...</option>
@@ -3257,14 +3550,14 @@ class OpenFormBuilder {
             ` : `
               <span class="rule-section-title">Show Section if...</span>
             `}
-            <button type="button" class="pg-btn pg-btn-secondary rule-delete-rule" title="Delete Rule">
+            <button type="button" class="pg-btn pg-btn-secondary rule-delete-rule" title="Delete Rule" ${disabledAttr}>
               <i data-lucide="trash-2"></i> Remove Rule
             </button>
           </div>
           <div class="and-groups-list-container">
             ${andGroupsHtml}
           </div>
-          <button type="button" class="pg-btn pg-btn-secondary rule-add-group">
+          <button type="button" class="pg-btn pg-btn-secondary rule-add-group" ${disabledAttr}>
             <i data-lucide="plus"></i> Add AND Group
           </button>
         </div>
@@ -3284,10 +3577,11 @@ class OpenFormBuilder {
         <h4 class="business-rules-title">
           <i data-lucide="shield"></i> Conditional Business Rules
         </h4>
+        ${!isDefaultLocale ? `<div class="rules-locale-notice">Switch to Default Language to edit business rules.</div>` : ''}
         <div class="rules-list-container">
           ${rulesHtml}
         </div>
-        <button type="button" id="btn-add-business-rule" class="pg-btn pg-btn-secondary btn-add-rule">
+        <button type="button" id="btn-add-business-rule" class="pg-btn pg-btn-secondary btn-add-rule" ${disabledAttr}>
           <i data-lucide="plus-circle"></i> Add Business Rule
         </button>
       </div>
@@ -3425,6 +3719,13 @@ class OpenFormBuilder {
           cond.dependentFieldKey = select.value;
         } else if (select.classList.contains('rule-cond-operator')) {
           cond.operator = select.value;
+        } else if (select.classList.contains('rule-cond-compare-mode')) {
+          cond.compareMode = select.value;
+          this.notifyChange();
+          this.renderProperties();
+          return;
+        } else if (select.classList.contains('rule-cond-compare-field')) {
+          cond.compareToFieldKey = select.value;
         }
 
         this.notifyChange();
@@ -3549,67 +3850,222 @@ class OpenFormBuilder {
   }
 
   /**
-   * Renders the cross field validations list for the form
+   * Returns all fields available for use in cross-field conditions (all pages, all types except header/paragraph)
+   */
+  getCrossFieldOptions(selectedKey = '') {
+    const fields = this.getAllFields().filter(f => f.type !== 'header' && f.type !== 'paragraph');
+    if (fields.length === 0) {
+      return `<option value="">No fields available</option>`;
+    }
+    return fields.map(f => {
+      const isSelected = f.key === selectedKey ? 'selected' : '';
+      return `<option value="${f.key}" ${isSelected}>${f.label} (${f.key})</option>`;
+    }).join('');
+  }
+
+  /**
+   * Renders the cross field validations list using a structured AND/OR condition builder
    */
   renderCrossFieldRulesEditorHTML() {
     this.schema.crossFieldRules = this.schema.crossFieldRules || [];
+    this.schema.crossFieldRules.forEach(rule => {
+      if (!rule.ruleId) rule.ruleId = `cfr-${Math.random().toString(36).substr(2, 9)}`;
+    });
+
+    const isDefaultLocale = this.editingLocale === 'default';
+    const disabledAttr = isDefaultLocale ? '' : 'disabled';
+
+    const renderConditionRow = (ruleIdx, groupIdx, condIdx, cond) => {
+      const compareMode = cond.compareMode || 'value';
+      return `
+        <div class="cfr-cond-row" data-rule="${ruleIdx}" data-group="${groupIdx}" data-cond="${condIdx}"
+             style="display: flex; align-items: center; gap: var(--space-xs); flex-wrap: wrap; padding: 6px; background: var(--color-neutral-0); border: 1px solid var(--color-neutral-3); border-radius: var(--border-radius-xs);">
+          <select class="prop-input cfr-cond-field" style="flex: 2; min-width: 100px; font-size: var(--font-size-xs); padding: 4px 6px;" ${disabledAttr}>
+            ${this.getCrossFieldOptions(cond.dependentFieldKey)}
+          </select>
+          <select class="prop-input cfr-cond-operator" style="flex: 1; min-width: 70px; font-size: var(--font-size-xs); padding: 4px 6px;" ${disabledAttr}>
+            <option value="equals" ${cond.operator === 'equals' ? 'selected' : ''}>=</option>
+            <option value="notEquals" ${cond.operator === 'notEquals' ? 'selected' : ''}>≠</option>
+            <option value="greaterThan" ${cond.operator === 'greaterThan' ? 'selected' : ''}>&gt;</option>
+            <option value="greaterThanOrEquals" ${cond.operator === 'greaterThanOrEquals' ? 'selected' : ''}>&gt;=</option>
+            <option value="lessThan" ${cond.operator === 'lessThan' ? 'selected' : ''}>&lt;</option>
+            <option value="lessThanOrEquals" ${cond.operator === 'lessThanOrEquals' ? 'selected' : ''}>&lt;=</option>
+            <option value="contains" ${cond.operator === 'contains' ? 'selected' : ''}>contains</option>
+            <option value="notContains" ${cond.operator === 'notContains' ? 'selected' : ''}>not contains</option>
+          </select>
+          <div style="display: flex; align-items: center; gap: var(--space-xs); flex: 3; min-width: 120px;">
+            <select class="prop-input cfr-cond-compare-mode" style="font-size: var(--font-size-xs); padding: 4px 6px; width: 70px; flex-shrink: 0;" ${disabledAttr}>
+              <option value="value" ${compareMode === 'value' ? 'selected' : ''}>Value</option>
+              <option value="field" ${compareMode === 'field' ? 'selected' : ''}>Field</option>
+            </select>
+            ${compareMode === 'field' ? `
+              <select class="prop-input cfr-cond-compare-field" style="flex: 1; font-size: var(--font-size-xs); padding: 4px 6px;" ${disabledAttr}>
+                ${this.getCrossFieldOptions(cond.compareToFieldKey)}
+              </select>
+            ` : `
+              <input type="text" class="prop-input cfr-cond-value" value="${cond.equalsValue !== undefined ? cond.equalsValue : ''}" placeholder="Value"
+                     style="flex: 1; font-size: var(--font-size-xs); padding: 4px 6px; margin-bottom: 0;" ${disabledAttr} />
+            `}
+          </div>
+          <button type="button" class="cfr-delete-cond" title="Remove condition" ${disabledAttr}
+                  style="background: none; border: none; color: var(--color-neutral-5); cursor: pointer; padding: 2px; display: flex; align-items: center; flex-shrink: 0;">
+            <i data-lucide="x" style="width: 12px; height: 12px;"></i>
+          </button>
+        </div>
+      `;
+    };
+
+    const renderAndGroup = (ruleIdx, groupIdx, group) => {
+      const conditions = (group.conditions || []).map((cond, condIdx) =>
+        renderConditionRow(ruleIdx, groupIdx, condIdx, cond)
+      ).join('');
+
+      return `
+        <div class="cfr-and-group" data-rule="${ruleIdx}" data-group="${groupIdx}"
+             style="background: var(--color-neutral-2); border: 1px solid var(--color-neutral-4); border-radius: var(--border-radius-xs); padding: 8px; display: flex; flex-direction: column; gap: var(--space-xs);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+            <span style="font-size: 9px; font-weight: var(--font-weight-bold); text-transform: uppercase; color: var(--color-neutral-6); letter-spacing: 0.5px;">OR Group (any met)</span>
+            <button type="button" class="cfr-delete-group" title="Remove group" ${disabledAttr}
+                    style="background: none; border: none; color: var(--color-error); cursor: pointer; padding: 2px; display: flex; align-items: center; font-size: var(--font-size-xs); gap: 3px;">
+              <i data-lucide="trash-2" style="width: 10px; height: 10px;"></i> Remove Group
+            </button>
+          </div>
+          <div class="cfr-conditions-list" style="display: flex; flex-direction: column; gap: var(--space-xs);">
+            ${conditions || `<div style="font-size: var(--font-size-xs); color: var(--color-neutral-5); font-style: italic; padding: 4px;">No conditions. Add one below.</div>`}
+          </div>
+          <button type="button" class="pg-btn pg-btn-secondary cfr-add-cond" style="justify-content: center; font-size: var(--font-size-xs); padding: 3px 8px; height: auto; margin-top: 2px;" ${disabledAttr}>
+            <i data-lucide="plus" style="width: 10px; height: 10px;"></i> Add OR Condition
+          </button>
+        </div>
+      `;
+    };
+
+    const renderRuleCard = (rule, ruleIdx) => {
+      // Legacy migration notice for old expression-based rules
+      if (rule.expression && !rule.andGroups) {
+        return `
+          <div class="cfr-rule-card" data-rule="${ruleIdx}"
+               style="padding: 10px; background: var(--color-neutral-2); border: 1px solid rgba(219,60,60,0.3); border-radius: var(--border-radius-soft); position: relative;">
+            <button class="cfr-delete-rule" data-index="${ruleIdx}" title="Delete rule" ${disabledAttr}
+                    style="position: absolute; top: 8px; right: 8px; border: none; background: transparent; color: var(--color-neutral-6); cursor: pointer; display: flex; align-items: center;">
+              <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
+            </button>
+            <div style="font-size: var(--font-size-xs); color: var(--color-error); margin-bottom: 6px; display: flex; align-items: center; gap: 4px; padding-right: 20px;">
+              <i data-lucide="alert-triangle" style="width: 12px; height: 12px;"></i>
+              Legacy expression rule — click Migrate to convert to the structured builder.
+            </div>
+            <code style="font-size: 9px; color: var(--color-neutral-7); display: block; margin-bottom: 8px; word-break: break-all;">${rule.expression}</code>
+            <button type="button" class="pg-btn pg-btn-secondary cfr-migrate-rule" data-index="${ruleIdx}" style="font-size: var(--font-size-xs); padding: 4px 10px; height: auto;" ${disabledAttr}>
+              <i data-lucide="refresh-cw" style="width: 10px; height: 10px;"></i> Migrate to Builder
+            </button>
+          </div>
+        `;
+      }
+
+      const andGroups = (rule.andGroups || []).map((group, groupIdx) =>
+        renderAndGroup(ruleIdx, groupIdx, group)
+      ).join('');
+
+      const targetChips = (this.getAllFields().filter(f => f.type !== 'header' && f.type !== 'paragraph')).map(f => {
+        const isSelected = (rule.targetFields || []).includes(f.key);
+        return `
+          <button type="button" class="cfr-target-chip" data-field-key="${f.key}" data-rule="${ruleIdx}" ${disabledAttr}
+                  style="font-size: 9px; padding: 2px 8px; border-radius: 10px; cursor: pointer; transition: all 0.15s ease;
+                         background: ${isSelected ? 'var(--color-primary)' : 'var(--color-neutral-3)'};
+                         color: ${isSelected ? 'var(--color-neutral-0)' : 'var(--color-neutral-7)'};
+                         border: 1px solid ${isSelected ? 'var(--color-primary)' : 'var(--color-neutral-4)'};
+                         font-weight: ${isSelected ? 'var(--font-weight-semibold)' : 'var(--font-weight-normal)'}">
+            ${f.label}
+          </button>
+        `;
+      }).join('');
+
+      const errorMessageVal = isDefaultLocale ? (rule.errorMessage || '') : (this.getTranslationValue('crossFieldRules', rule.ruleId) || '');
+      const errorMessagePlaceholder = isDefaultLocale ? 'e.g. End date must be after start date' : (rule.errorMessage || '');
+
+      return `
+        <div class="cfr-rule-card" data-rule="${ruleIdx}" data-rule-id="${rule.ruleId}"
+             style="padding: 10px; background: var(--color-neutral-2); border: 1px solid var(--color-neutral-4); border-radius: var(--border-radius-soft);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-s);">
+            <span style="font-size: var(--font-size-xs); font-weight: var(--font-weight-bold); color: var(--color-neutral-8);">Validation Rule #${ruleIdx + 1}</span>
+            <button class="cfr-delete-rule" data-index="${ruleIdx}" title="Delete rule" ${disabledAttr}
+                    style="border: none; background: transparent; color: var(--color-neutral-5); cursor: pointer; display: flex; align-items: center;">
+              <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
+            </button>
+          </div>
+
+          <div style="font-size: 9px; font-weight: var(--font-weight-bold); text-transform: uppercase; color: var(--color-neutral-6); letter-spacing: 0.5px; margin-bottom: var(--space-xs);">Rule is invalid when ALL of the following AND groups are met:</div>
+          <div class="cfr-and-groups-list" style="display: flex; flex-direction: column; gap: var(--space-s); margin-bottom: var(--space-s);">
+            ${andGroups || `<div style="font-size: var(--font-size-xs); color: var(--color-neutral-5); font-style: italic; padding: 4px;">No AND groups. Add one below.</div>`}
+          </div>
+          <button type="button" class="pg-btn pg-btn-secondary cfr-add-group" style="font-size: var(--font-size-xs); padding: 3px 8px; height: auto; width: 100%; justify-content: center; margin-bottom: var(--space-s);" ${disabledAttr}>
+            <i data-lucide="plus" style="width: 10px; height: 10px;"></i> Add AND Group
+          </button>
+
+          <hr style="border: none; border-top: 1px solid var(--color-neutral-3); margin: var(--space-s) 0;" />
+
+          <div class="prop-group" style="margin-bottom: var(--space-s);">
+            <label class="prop-label" style="font-size: 9px; text-transform: uppercase;">Error Message</label>
+            <input type="text" class="prop-input cfr-rule-message" value="${errorMessageVal}" placeholder="${errorMessagePlaceholder}"
+                   style="font-size: var(--font-size-xs); padding: 4px 6px; margin-bottom: 0;" />
+          </div>
+
+          <div class="prop-group" style="margin-bottom: 0;">
+            <label class="prop-label" style="font-size: 9px; text-transform: uppercase; margin-bottom: var(--space-xs);">Mark as invalid:</label>
+            <div class="cfr-target-chips" style="display: flex; flex-wrap: wrap; gap: var(--space-xs);">
+              ${targetChips || `<span style="font-size: var(--font-size-xs); color: var(--color-neutral-5); font-style: italic;">No fields available.</span>`}
+            </div>
+          </div>
+        </div>
+      `;
+    };
+
+    const rulesHtml = this.schema.crossFieldRules.map((rule, idx) => renderRuleCard(rule, idx)).join('');
 
     return `
-      <hr style="border: none; border-top: 1px solid var(--color-neutral-4); margin: 16px 0;" />
-      <div class="cross-field-rules-section" style="margin-top: 8px;">
-        <div style="font-weight: 700; font-size: 12px; color: var(--color-neutral-9); margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+      <hr style="border: none; border-top: 1px solid var(--color-neutral-4); margin: var(--space-base) 0;" />
+      <div class="cross-field-rules-section" style="margin-top: var(--space-s);">
+        <div style="font-weight: var(--font-weight-bold); font-size: var(--font-size-s); color: var(--color-neutral-9); margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
           <i data-lucide="shield-alert" style="width: 14px; height: 14px; color: var(--color-primary);"></i>
           Cross-Field Validations
         </div>
-        <div style="font-size: 10px; color: var(--color-neutral-7); margin-bottom: 12px; line-height: 1.3;">
-          Define rules combining multiple fields. A failed rule marks target fields as invalid and blocks submission.
+        <div style="font-size: var(--font-size-xs); color: var(--color-neutral-7); margin-bottom: var(--space-m); line-height: 1.3;">
+          Rules that compare multiple fields. A failed rule blocks submission and marks target fields as invalid.
         </div>
-        
-        <div id="cross-rules-list" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px;">
-          ${this.schema.crossFieldRules.map((rule, idx) => `
-            <div class="rule-card" style="padding: 10px; background: var(--color-neutral-2); border: 1px solid var(--color-neutral-4); border-radius: var(--border-radius-soft); position: relative;">
-              <button class="btn-delete-rule" data-index="${idx}" title="Delete rule" style="position: absolute; top: 8px; right: 8px; border: none; background: transparent; color: var(--color-neutral-6); cursor: pointer; display: flex; align-items: center;">
-                <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
-              </button>
-              
-              <div class="prop-group" style="margin-bottom: 6px; padding-right: 20px;">
-                <label class="prop-label" style="font-size: 9px; text-transform: uppercase;">Expression (e.g. {end} >= {start})</label>
-                <input type="text" class="prop-input rule-expression" data-index="${idx}" value="${rule.expression || ''}" placeholder="({endDate} >= {startDate})" style="font-size: 11px; padding: 4px 8px;" />
-              </div>
-              
-              <div class="prop-group" style="margin-bottom: 6px;">
-                <label class="prop-label" style="font-size: 9px; text-transform: uppercase;">Error Message</label>
-                <input type="text" class="prop-input rule-message" data-index="${idx}" value="${rule.errorMessage || ''}" placeholder="Custom error message..." style="font-size: 11px; padding: 4px 8px;" />
-              </div>
-              
-              <div class="prop-group" style="margin-bottom: 0;">
-                <label class="prop-label" style="font-size: 9px; text-transform: uppercase;">Target Fields (Keys, comma separated)</label>
-                <input type="text" class="prop-input rule-targets" data-index="${idx}" value="${(rule.targetFields || []).join(', ')}" placeholder="startDate, endDate" style="font-size: 11px; padding: 4px 8px;" />
-              </div>
-            </div>
-          `).join('')}
+        ${!isDefaultLocale ? `<div class="rules-locale-notice">Switch to Default Language to edit rule conditions. Error messages can still be translated below.</div>` : ''}
+
+        <div id="cfr-rules-list" style="display: flex; flex-direction: column; gap: var(--space-m); margin-bottom: var(--space-m);">
+          ${rulesHtml || `<div style="font-size: var(--font-size-xs); color: var(--color-neutral-5); font-style: italic; text-align: center; padding: var(--space-m);">No validation rules yet.</div>`}
         </div>
-        
-        <button id="btn-add-cross-rule" class="pg-btn pg-btn-secondary" style="width: 100%; font-size: 11px; padding: 6px 12px; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;">
-          <i data-lucide="plus" style="width: 12px; height: 12px;"></i> Add Validation Rule
+
+        <button id="btn-add-cross-rule" class="pg-btn pg-btn-secondary" style="width: 100%; font-size: var(--font-size-xs); padding: 6px var(--space-m); display: flex; align-items: center; justify-content: center; gap: 6px;" ${disabledAttr}>
+          <i data-lucide="plus-circle" style="width: 12px; height: 12px;"></i> Add Validation Rule
         </button>
       </div>
     `;
   }
 
   /**
-   * Binds change and delete event listeners to the cross field validations list
+   * Binds all event handlers for the structured cross-field validation builder
    */
   bindCrossFieldRulesEvents() {
-    // Add validation rule
-    const btnAdd = this.propertiesEl.querySelector('#btn-add-cross-rule');
+    const section = this.propertiesEl.querySelector('.cross-field-rules-section');
+    if (!section) return;
+
+    const getRule = (idx) => this.schema.crossFieldRules[idx];
+    const getGroup = (ruleIdx, groupIdx) => (getRule(ruleIdx)?.andGroups || [])[groupIdx];
+    const getCond = (ruleIdx, groupIdx, condIdx) => (getGroup(ruleIdx, groupIdx)?.conditions || [])[condIdx];
+    const firstField = () => this.getAllFields().find(f => f.type !== 'header' && f.type !== 'paragraph')?.key || '';
+
+    // Add new rule
+    const btnAdd = section.querySelector('#btn-add-cross-rule');
     if (btnAdd) {
       btnAdd.addEventListener('click', () => {
         this.schema.crossFieldRules = this.schema.crossFieldRules || [];
         this.schema.crossFieldRules.push({
-          ruleId: `rule-${Math.random().toString(36).substr(2, 9)}`,
+          ruleId: `cfr-${Math.random().toString(36).substr(2, 9)}`,
+          andGroups: [{ conditions: [{ dependentFieldKey: firstField(), operator: 'greaterThan', compareMode: 'field', compareToFieldKey: firstField(), equalsValue: '' }] }],
           targetFields: [],
-          expression: '',
           errorMessage: ''
         });
         this.notifyChange();
@@ -3617,47 +4073,182 @@ class OpenFormBuilder {
       });
     }
 
-    // Bind expression change
-    const expressions = this.propertiesEl.querySelectorAll('.rule-expression');
-    expressions.forEach(input => {
-      input.addEventListener('change', (e) => {
-        const idx = parseInt(e.target.getAttribute('data-index'));
-        this.schema.crossFieldRules[idx].expression = e.target.value;
-        this.notifyChange();
-      });
-    });
-
-    // Bind message change
-    const messages = this.propertiesEl.querySelectorAll('.rule-message');
-    messages.forEach(input => {
-      input.addEventListener('change', (e) => {
-        const idx = parseInt(e.target.getAttribute('data-index'));
-        this.schema.crossFieldRules[idx].errorMessage = e.target.value;
-        this.notifyChange();
-      });
-    });
-
-    // Bind target fields change
-    const targets = this.propertiesEl.querySelectorAll('.rule-targets');
-    targets.forEach(input => {
-      input.addEventListener('change', (e) => {
-        const idx = parseInt(e.target.getAttribute('data-index'));
-        const cleanTargets = e.target.value.split(',').map(s => s.trim()).filter(s => s.length > 0);
-        this.schema.crossFieldRules[idx].targetFields = cleanTargets;
-        this.notifyChange();
-      });
-    });
-
-    // Bind delete rule
-    const deletes = this.propertiesEl.querySelectorAll('.btn-delete-rule');
-    deletes.forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const targetBtn = e.target.closest('.btn-delete-rule');
-        const idx = parseInt(targetBtn.getAttribute('data-index'));
+    // Event delegation for the entire rules section
+    section.addEventListener('click', (e) => {
+      // Delete rule
+      const deleteRuleBtn = e.target.closest('.cfr-delete-rule');
+      if (deleteRuleBtn) {
+        const idx = parseInt(deleteRuleBtn.getAttribute('data-index'));
         this.schema.crossFieldRules.splice(idx, 1);
         this.notifyChange();
         this.renderProperties();
-      });
+        return;
+      }
+
+      // Migrate legacy expression rule
+      const migrateBtn = e.target.closest('.cfr-migrate-rule');
+      if (migrateBtn) {
+        const idx = parseInt(migrateBtn.getAttribute('data-index'));
+        const rule = getRule(idx);
+        if (rule) {
+          rule.andGroups = [{ conditions: [{ dependentFieldKey: firstField(), operator: 'greaterThan', compareMode: 'field', compareToFieldKey: firstField(), equalsValue: '' }] }];
+          delete rule.expression;
+          this.notifyChange();
+          this.renderProperties();
+        }
+        return;
+      }
+
+      // Add AND group
+      const addGroupBtn = e.target.closest('.cfr-add-group');
+      if (addGroupBtn) {
+        const ruleCard = addGroupBtn.closest('.cfr-rule-card');
+        const ruleIdx = parseInt(ruleCard.getAttribute('data-rule'));
+        const rule = getRule(ruleIdx);
+        if (rule) {
+          rule.andGroups = rule.andGroups || [];
+          rule.andGroups.push({ conditions: [{ dependentFieldKey: firstField(), operator: 'equals', compareMode: 'value', equalsValue: '' }] });
+          this.notifyChange();
+          this.renderProperties();
+        }
+        return;
+      }
+
+      // Delete AND group
+      const deleteGroupBtn = e.target.closest('.cfr-delete-group');
+      if (deleteGroupBtn) {
+        const groupEl = deleteGroupBtn.closest('.cfr-and-group');
+        const ruleIdx = parseInt(groupEl.getAttribute('data-rule'));
+        const groupIdx = parseInt(groupEl.getAttribute('data-group'));
+        const rule = getRule(ruleIdx);
+        if (rule) {
+          rule.andGroups.splice(groupIdx, 1);
+          this.notifyChange();
+          this.renderProperties();
+        }
+        return;
+      }
+
+      // Add condition
+      const addCondBtn = e.target.closest('.cfr-add-cond');
+      if (addCondBtn) {
+        const groupEl = addCondBtn.closest('.cfr-and-group');
+        const ruleIdx = parseInt(groupEl.getAttribute('data-rule'));
+        const groupIdx = parseInt(groupEl.getAttribute('data-group'));
+        const group = getGroup(ruleIdx, groupIdx);
+        if (group) {
+          group.conditions.push({ dependentFieldKey: firstField(), operator: 'equals', compareMode: 'value', equalsValue: '' });
+          this.notifyChange();
+          this.renderProperties();
+        }
+        return;
+      }
+
+      // Delete condition
+      const deleteCondBtn = e.target.closest('.cfr-delete-cond');
+      if (deleteCondBtn) {
+        const row = deleteCondBtn.closest('.cfr-cond-row');
+        const ruleIdx = parseInt(row.getAttribute('data-rule'));
+        const groupIdx = parseInt(row.getAttribute('data-group'));
+        const condIdx = parseInt(row.getAttribute('data-cond'));
+        const group = getGroup(ruleIdx, groupIdx);
+        if (group) {
+          group.conditions.splice(condIdx, 1);
+          this.notifyChange();
+          this.renderProperties();
+        }
+        return;
+      }
+
+      // Toggle target field chip
+      const chip = e.target.closest('.cfr-target-chip');
+      if (chip) {
+        const ruleIdx = parseInt(chip.getAttribute('data-rule'));
+        const fieldKey = chip.getAttribute('data-field-key');
+        const rule = getRule(ruleIdx);
+        if (rule) {
+          rule.targetFields = rule.targetFields || [];
+          const pos = rule.targetFields.indexOf(fieldKey);
+          if (pos === -1) {
+            rule.targetFields.push(fieldKey);
+          } else {
+            rule.targetFields.splice(pos, 1);
+          }
+          this.notifyChange();
+          this.renderProperties();
+        }
+        return;
+      }
+    });
+
+    // Change delegation (selects and inputs)
+    section.addEventListener('change', (e) => {
+      const row = e.target.closest('.cfr-cond-row');
+      if (row) {
+        const ruleIdx = parseInt(row.getAttribute('data-rule'));
+        const groupIdx = parseInt(row.getAttribute('data-group'));
+        const condIdx = parseInt(row.getAttribute('data-cond'));
+        const cond = getCond(ruleIdx, groupIdx, condIdx);
+        if (!cond) return;
+
+        if (e.target.classList.contains('cfr-cond-field')) {
+          cond.dependentFieldKey = e.target.value;
+        } else if (e.target.classList.contains('cfr-cond-operator')) {
+          cond.operator = e.target.value;
+        } else if (e.target.classList.contains('cfr-cond-compare-mode')) {
+          cond.compareMode = e.target.value;
+          // Re-render to swap value input <-> field selector
+          this.notifyChange();
+          this.renderProperties();
+          return;
+        } else if (e.target.classList.contains('cfr-cond-compare-field')) {
+          cond.compareToFieldKey = e.target.value;
+        }
+        this.notifyChange();
+        return;
+      }
+    });
+
+    // Input delegation (text value fields and error messages)
+    section.addEventListener('input', (e) => {
+      // Condition value input
+      const row = e.target.closest('.cfr-cond-row');
+      if (row && e.target.classList.contains('cfr-cond-value')) {
+        const ruleIdx = parseInt(row.getAttribute('data-rule'));
+        const groupIdx = parseInt(row.getAttribute('data-group'));
+        const condIdx = parseInt(row.getAttribute('data-cond'));
+        const cond = getCond(ruleIdx, groupIdx, condIdx);
+        if (cond) {
+          const val = e.target.value;
+          if (val === 'true') cond.equalsValue = true;
+          else if (val === 'false') cond.equalsValue = false;
+          else if (!isNaN(val) && val !== '') cond.equalsValue = Number(val);
+          else cond.equalsValue = val;
+          this.notifyChange();
+        }
+        return;
+      }
+
+      // Error message input
+      const ruleCard = e.target.closest('.cfr-rule-card');
+      if (ruleCard && e.target.classList.contains('cfr-rule-message')) {
+        const ruleIdx = parseInt(ruleCard.getAttribute('data-rule'));
+        const rule = getRule(ruleIdx);
+        if (rule) {
+          if (this.editingLocale === 'default') {
+            rule.errorMessage = e.target.value;
+            this.notifyChange();
+          } else {
+            const val = e.target.value;
+            if (val) {
+              this.setTranslationValue('crossFieldRules', rule.ruleId, null, val);
+            } else {
+              this.deleteTranslationValue('crossFieldRules', rule.ruleId);
+            }
+          }
+        }
+        return;
+      }
     });
   }
 }

@@ -2,6 +2,8 @@
 
 This guide describes how to integrate **OpenForms** (both the visual form builder and form player/renderer) into any modern web application (such as React, Vue, Angular, or pure HTML/JS sites).
 
+> Looking for the JSON schema shape (field types, conditional rules, cross-field validation, calculated fields)? See **[SCHEMA_REFERENCE.md](./SCHEMA_REFERENCE.md)**.
+
 ---
 
 ## 1. Distribution & CDNs
@@ -18,6 +20,8 @@ You can load OpenForms assets directly using **jsDelivr**:
 <!-- Form Player / Renderer (OpenFormRenderer) -->
 <script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.0.5/src/renderer.js"></script>
 ```
+
+Both scripts are plain classic `<script>` tags — no bundler, no ES module imports required. Each one is fully self-contained; load only `renderer.js` if you just need to play back forms, without ever loading `builder.js`.
 
 ---
 
@@ -73,10 +77,13 @@ To render a dynamic form from a saved schema JSON:
     }
   });
 
-  // Load the schema into the player
-  renderer.loadSchema(schema);
+  // Mount the schema — the single entry point that (re)draws the form.
+  // Signature: render(schemaJSON, answers = null, readOnly = false)
+  renderer.render(schema);
 </script>
 ```
+
+> There is no separate `loadSchema()` method on the renderer. `render()` is the one call that mounts (and re-mounts, if called again) the form — see section 4 for passing pre-filled answers and read-only mode through its 2nd and 3rd parameters.
 
 ## 3. Implementing the Visual Builder (Designer)
 
@@ -88,24 +95,26 @@ To allow administrators to visually create/edit forms:
 <script>
   const builder = new OpenFormBuilder({
     containerEl: document.getElementById('form-builder-container'),
-    onChange: (updatedSchema) => {
+    onSchemaChange: (updatedSchema) => {
       console.log("Schema updated in real-time:", updatedSchema);
+      // Persist updatedSchema to your backend here (e.g. debounced autosave)
     }
   });
 
-  // Optionally load an existing schema to edit, or pass null/empty object for a new form
+  // Optionally load an existing schema to edit, or pass null/{} for a new blank form
   builder.loadSchema(initialSchema);
 
-  // Retrieve the generated JSON anytime
-  const finalSchema = builder.getSchema();
+  // The current schema is always readable directly off the instance — there is no
+  // separate getSchema() method.
+  const finalSchema = builder.schema;
 </script>
 ```
 
 ---
 
-## 4. Read-Only / View Mode
+## 4. Read-Only / View Mode & Pre-Filled Answers
 
-To render completed forms in read-only mode (e.g. for detail pages or audit logs), pass the `readOnly` parameter or pre-populated answers:
+`render()` takes the answers to pre-fill and the read-only flag as its 2nd and 3rd arguments — there's no separate `setAnswers()`/`setReadOnly()` call:
 
 ```javascript
 const renderer = new OpenFormRenderer({
@@ -113,14 +122,19 @@ const renderer = new OpenFormRenderer({
   onSubmit: (answers) => {}
 });
 
-renderer.loadSchema(schema);
-renderer.setAnswers(savedAnswers);
-renderer.setReadOnly(true); // Locks all fields, hides submit/reset buttons
+// render(schemaJSON, answers, readOnly)
+renderer.render(schema, savedAnswers, true); // pre-filled + locked, hides the submit button
+```
+
+To later unlock the same instance (e.g. an "Edit" button toggling out of view mode), just call `render()` again with `readOnly: false`:
+
+```javascript
+renderer.render(schema, renderer.answers, false);
 ```
 
 ---
 
-## 4. Taking Pictures
+## 5. Taking Pictures
 
 OpenForms supports capturing photos directly from the user's device camera through the File Upload widget. The behavior varies depending on your application type:
 
@@ -133,7 +147,7 @@ OpenForms supports capturing photos directly from the user's device camera throu
 
 ---
 
-## 5. Downloading / Sharing Files on Mobile
+## 6. Downloading / Sharing Files on Mobile
 
 When a user taps an uploaded file attachment (like a PDF or DOCX) to view it:
 
