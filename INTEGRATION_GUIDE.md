@@ -12,13 +12,13 @@ You can load OpenForms assets directly using **jsDelivr**:
 
 ```html
 <!-- Stylesheet -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.0.5/src/openforms.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.0.6/src/openforms.css">
 
 <!-- Visual Builder (OpenFormBuilder) -->
-<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.0.5/src/builder.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.0.6/src/builder.js"></script>
 
 <!-- Form Player / Renderer (OpenFormRenderer) -->
-<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.0.5/src/renderer.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.0.6/src/renderer.js"></script>
 ```
 
 Both scripts are plain classic `<script>` tags — no bundler, no ES module imports required. Each one is fully self-contained; load only `renderer.js` if you just need to play back forms, without ever loading `builder.js`.
