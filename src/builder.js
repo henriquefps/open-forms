@@ -117,7 +117,57 @@ class OpenFormBuilder {
       matrixRowsManagerLabel: "Matrix Rows Manager",
       matrixAddRowLabel: "Add Row",
       matrixRowLabel: "Row",
-      matrixRowKeyLabel: "Row Key"
+      matrixRowKeyLabel: "Row Key",
+
+      // Conditional Business Rules Panel
+      businessRulesTitle: "Conditional Business Rules",
+      businessRulesLocaleNotice: "Switch to Default Language to edit business rules.",
+      noBusinessRulesText: "No conditional business rules defined.",
+      addBusinessRuleLabel: "Add Business Rule",
+      ruleTargetVisibilityOption: "Show field if...",
+      ruleTargetRequiredOption: "Make required if...",
+      ruleTargetDisabledOption: "Disable field if...",
+      ruleShowSectionIfLabel: "Show Section if...",
+      ruleDeleteRuleTitle: "Delete Rule",
+      ruleRemoveRuleLabel: "Remove Rule",
+      ruleAddAndGroupLabel: "Add AND Group",
+      ruleNoAndConditionsText: "No AND conditions. Add a group below.",
+      ruleOrGroupTitle: "OR GROUP (ANY MET)",
+      ruleDeleteGroupTitle: "Delete group",
+      ruleDeleteGroupLabel: "Delete Group",
+      ruleAddOrConditionLabel: "Add OR Condition",
+      ruleNoOrConditionsText: "No OR conditions. Add one below.",
+      ruleDeleteConditionTitle: "Delete Condition",
+      ruleOperatorContains: "contains",
+      ruleOperatorNotContains: "not contain",
+      ruleCompareValueOption: "Value",
+      ruleCompareFieldOption: "Field",
+      ruleValueInputPlaceholder: "value",
+
+      // Cross-Field Validations Panel
+      crossFieldValidationsTitle: "Cross-Field Validations",
+      crossFieldValidationsDesc: "Rules that compare multiple fields. A failed rule blocks submission and marks target fields as invalid.",
+      crossFieldLocaleNotice: "Switch to Default Language to edit rule conditions. Error messages can still be translated below.",
+      cfrNoRulesYetText: "No validation rules yet.",
+      cfrAddValidationRuleLabel: "Add Validation Rule",
+      cfrValidationRulePrefix: "Validation Rule #",
+      cfrDeleteRuleTitle: "Delete rule",
+      cfrLegacyNoticeText: "Legacy expression rule — click Migrate to convert to the structured builder.",
+      cfrMigrateButtonLabel: "Migrate to Builder",
+      cfrRuleInvalidWhenText: "Rule is invalid when ALL of the following AND groups are met:",
+      cfrNoAndGroupsText: "No AND groups. Add one below.",
+      cfrOrGroupLabel: "OR Group (any met)",
+      cfrRemoveGroupTitle: "Remove group",
+      cfrRemoveGroupLabel: "Remove Group",
+      cfrNoConditionsText: "No conditions. Add one below.",
+      cfrRemoveConditionTitle: "Remove condition",
+      cfrOperatorContains: "contains",
+      cfrOperatorNotContains: "not contains",
+      cfrValueInputPlaceholder: "Value",
+      cfrErrorMessageLabel: "Error Message",
+      cfrErrorMessagePlaceholder: "e.g. End date must be after start date",
+      cfrMarkAsInvalidLabel: "Mark as invalid:",
+      cfrNoFieldsAvailableText: "No fields available."
     }, translations || {});
 
     // Active page state
@@ -3484,8 +3534,8 @@ class OpenFormBuilder {
               <select class="prop-input rule-cond-operator" ${disabledAttr}>
                 <option value="equals" ${cond.operator === 'equals' ? 'selected' : ''}>==</option>
                 <option value="notEquals" ${cond.operator === 'notEquals' ? 'selected' : ''}>!=</option>
-                <option value="contains" ${cond.operator === 'contains' ? 'selected' : ''}>contains</option>
-                <option value="notContains" ${cond.operator === 'notContains' ? 'selected' : ''}>not contain</option>
+                <option value="contains" ${cond.operator === 'contains' ? 'selected' : ''}>${this.translations.ruleOperatorContains}</option>
+                <option value="notContains" ${cond.operator === 'notContains' ? 'selected' : ''}>${this.translations.ruleOperatorNotContains}</option>
                 <option value="greaterThan" ${cond.operator === 'greaterThan' ? 'selected' : ''}>&gt;</option>
                 <option value="greaterThanOrEquals" ${cond.operator === 'greaterThanOrEquals' || cond.operator === 'gte' ? 'selected' : ''}>&gt;=</option>
                 <option value="lessThan" ${cond.operator === 'lessThan' ? 'selected' : ''}>&lt;</option>
@@ -3493,18 +3543,18 @@ class OpenFormBuilder {
               </select>
               <div class="rule-cond-value-wrap">
                 <select class="prop-input rule-cond-compare-mode" ${disabledAttr}>
-                  <option value="value" ${compareMode === 'value' ? 'selected' : ''}>Value</option>
-                  <option value="field" ${compareMode === 'field' ? 'selected' : ''}>Field</option>
+                  <option value="value" ${compareMode === 'value' ? 'selected' : ''}>${this.translations.ruleCompareValueOption}</option>
+                  <option value="field" ${compareMode === 'field' ? 'selected' : ''}>${this.translations.ruleCompareFieldOption}</option>
                 </select>
                 ${compareMode === 'field' ? `
                   <select class="prop-input rule-cond-compare-field" ${disabledAttr}>
                     ${this.getConditionalFieldsOptions(entity.id || '', cond.compareToFieldKey)}
                   </select>
                 ` : `
-                  <input type="text" class="prop-input rule-cond-value" value="${cond.equalsValue !== undefined ? cond.equalsValue : ''}" placeholder="value" ${disabledAttr} />
+                  <input type="text" class="prop-input rule-cond-value" value="${cond.equalsValue !== undefined ? cond.equalsValue : ''}" placeholder="${this.translations.ruleValueInputPlaceholder}" ${disabledAttr} />
                 `}
               </div>
-              <button type="button" class="pg-btn pg-btn-secondary rule-delete-cond" title="Delete Condition" ${disabledAttr}>
+              <button type="button" class="pg-btn pg-btn-secondary rule-delete-cond" title="${this.translations.ruleDeleteConditionTitle}" ${disabledAttr}>
                 <i data-lucide="x"></i>
               </button>
             </div>
@@ -3512,29 +3562,29 @@ class OpenFormBuilder {
         });
 
         if (conditionsHtml === '') {
-          conditionsHtml = `<div class="rules-empty-state">No OR conditions. Add one below.</div>`;
+          conditionsHtml = `<div class="rules-empty-state">${this.translations.ruleNoOrConditionsText}</div>`;
         }
 
         andGroupsHtml += `
           <div class="prop-box-condition and-group-card" data-rule="${ruleIndex}" data-group="${groupIndex}">
             <div class="and-group-header">
-              <span class="and-group-title">OR GROUP (ANY MET)</span>
-              <button type="button" class="pg-btn pg-btn-secondary rule-delete-group" title="Delete group" ${disabledAttr}>
-                <i data-lucide="trash-2"></i> Delete Group
+              <span class="and-group-title">${this.translations.ruleOrGroupTitle}</span>
+              <button type="button" class="pg-btn pg-btn-secondary rule-delete-group" title="${this.translations.ruleDeleteGroupTitle}" ${disabledAttr}>
+                <i data-lucide="trash-2"></i> ${this.translations.ruleDeleteGroupLabel}
               </button>
             </div>
             <div class="conditions-list-container">
               ${conditionsHtml}
             </div>
             <button type="button" class="pg-btn pg-btn-secondary rule-add-cond" ${disabledAttr}>
-              <i data-lucide="plus"></i> Add OR Condition
+              <i data-lucide="plus"></i> ${this.translations.ruleAddOrConditionLabel}
             </button>
           </div>
         `;
       });
 
       if (andGroupsHtml === '') {
-        andGroupsHtml = `<div class="rules-empty-state">No AND conditions. Add a group below.</div>`;
+        andGroupsHtml = `<div class="rules-empty-state">${this.translations.ruleNoAndConditionsText}</div>`;
       }
 
       // Render the rule card
@@ -3543,22 +3593,22 @@ class OpenFormBuilder {
           <div class="rule-card-header">
             ${isField ? `
               <select class="prop-input rule-target-prop" ${disabledAttr}>
-                <option value="visibility" ${rule.targetProperty === 'visibility' ? 'selected' : ''}>Show field if...</option>
-                <option value="required" ${rule.targetProperty === 'required' ? 'selected' : ''}>Make required if...</option>
-                <option value="disabled" ${rule.targetProperty === 'disabled' ? 'selected' : ''}>Disable field if...</option>
+                <option value="visibility" ${rule.targetProperty === 'visibility' ? 'selected' : ''}>${this.translations.ruleTargetVisibilityOption}</option>
+                <option value="required" ${rule.targetProperty === 'required' ? 'selected' : ''}>${this.translations.ruleTargetRequiredOption}</option>
+                <option value="disabled" ${rule.targetProperty === 'disabled' ? 'selected' : ''}>${this.translations.ruleTargetDisabledOption}</option>
               </select>
             ` : `
-              <span class="rule-section-title">Show Section if...</span>
+              <span class="rule-section-title">${this.translations.ruleShowSectionIfLabel}</span>
             `}
-            <button type="button" class="pg-btn pg-btn-secondary rule-delete-rule" title="Delete Rule" ${disabledAttr}>
-              <i data-lucide="trash-2"></i> Remove Rule
+            <button type="button" class="pg-btn pg-btn-secondary rule-delete-rule" title="${this.translations.ruleDeleteRuleTitle}" ${disabledAttr}>
+              <i data-lucide="trash-2"></i> ${this.translations.ruleRemoveRuleLabel}
             </button>
           </div>
           <div class="and-groups-list-container">
             ${andGroupsHtml}
           </div>
           <button type="button" class="pg-btn pg-btn-secondary rule-add-group" ${disabledAttr}>
-            <i data-lucide="plus"></i> Add AND Group
+            <i data-lucide="plus"></i> ${this.translations.ruleAddAndGroupLabel}
           </button>
         </div>
       `;
@@ -3567,7 +3617,7 @@ class OpenFormBuilder {
     if (rulesHtml === '') {
       rulesHtml = `
         <div class="rules-empty-state rules-empty-panel">
-          No conditional business rules defined.
+          ${this.translations.noBusinessRulesText}
         </div>
       `;
     }
@@ -3575,14 +3625,14 @@ class OpenFormBuilder {
     return `
       <div class="business-rules-panel">
         <h4 class="business-rules-title">
-          <i data-lucide="shield"></i> Conditional Business Rules
+          <i data-lucide="shield"></i> ${this.translations.businessRulesTitle}
         </h4>
-        ${!isDefaultLocale ? `<div class="rules-locale-notice">Switch to Default Language to edit business rules.</div>` : ''}
+        ${!isDefaultLocale ? `<div class="rules-locale-notice">${this.translations.businessRulesLocaleNotice}</div>` : ''}
         <div class="rules-list-container">
           ${rulesHtml}
         </div>
         <button type="button" id="btn-add-business-rule" class="pg-btn pg-btn-secondary btn-add-rule" ${disabledAttr}>
-          <i data-lucide="plus-circle"></i> Add Business Rule
+          <i data-lucide="plus-circle"></i> ${this.translations.addBusinessRuleLabel}
         </button>
       </div>
     `;
@@ -3855,7 +3905,7 @@ class OpenFormBuilder {
   getCrossFieldOptions(selectedKey = '') {
     const fields = this.getAllFields().filter(f => f.type !== 'header' && f.type !== 'paragraph');
     if (fields.length === 0) {
-      return `<option value="">No fields available</option>`;
+      return `<option value="">${this.translations.fieldCondNoOtherFields}</option>`;
     }
     return fields.map(f => {
       const isSelected = f.key === selectedKey ? 'selected' : '';
@@ -3890,24 +3940,24 @@ class OpenFormBuilder {
             <option value="greaterThanOrEquals" ${cond.operator === 'greaterThanOrEquals' ? 'selected' : ''}>&gt;=</option>
             <option value="lessThan" ${cond.operator === 'lessThan' ? 'selected' : ''}>&lt;</option>
             <option value="lessThanOrEquals" ${cond.operator === 'lessThanOrEquals' ? 'selected' : ''}>&lt;=</option>
-            <option value="contains" ${cond.operator === 'contains' ? 'selected' : ''}>contains</option>
-            <option value="notContains" ${cond.operator === 'notContains' ? 'selected' : ''}>not contains</option>
+            <option value="contains" ${cond.operator === 'contains' ? 'selected' : ''}>${this.translations.cfrOperatorContains}</option>
+            <option value="notContains" ${cond.operator === 'notContains' ? 'selected' : ''}>${this.translations.cfrOperatorNotContains}</option>
           </select>
           <div style="display: flex; align-items: center; gap: var(--space-xs); flex: 3; min-width: 120px;">
             <select class="prop-input cfr-cond-compare-mode" style="font-size: var(--font-size-xs); padding: 4px 6px; width: 70px; flex-shrink: 0;" ${disabledAttr}>
-              <option value="value" ${compareMode === 'value' ? 'selected' : ''}>Value</option>
-              <option value="field" ${compareMode === 'field' ? 'selected' : ''}>Field</option>
+              <option value="value" ${compareMode === 'value' ? 'selected' : ''}>${this.translations.ruleCompareValueOption}</option>
+              <option value="field" ${compareMode === 'field' ? 'selected' : ''}>${this.translations.ruleCompareFieldOption}</option>
             </select>
             ${compareMode === 'field' ? `
               <select class="prop-input cfr-cond-compare-field" style="flex: 1; font-size: var(--font-size-xs); padding: 4px 6px;" ${disabledAttr}>
                 ${this.getCrossFieldOptions(cond.compareToFieldKey)}
               </select>
             ` : `
-              <input type="text" class="prop-input cfr-cond-value" value="${cond.equalsValue !== undefined ? cond.equalsValue : ''}" placeholder="Value"
+              <input type="text" class="prop-input cfr-cond-value" value="${cond.equalsValue !== undefined ? cond.equalsValue : ''}" placeholder="${this.translations.cfrValueInputPlaceholder}"
                      style="flex: 1; font-size: var(--font-size-xs); padding: 4px 6px; margin-bottom: 0;" ${disabledAttr} />
             `}
           </div>
-          <button type="button" class="cfr-delete-cond" title="Remove condition" ${disabledAttr}
+          <button type="button" class="cfr-delete-cond" title="${this.translations.cfrRemoveConditionTitle}" ${disabledAttr}
                   style="background: none; border: none; color: var(--color-neutral-5); cursor: pointer; padding: 2px; display: flex; align-items: center; flex-shrink: 0;">
             <i data-lucide="x" style="width: 12px; height: 12px;"></i>
           </button>
@@ -3924,17 +3974,17 @@ class OpenFormBuilder {
         <div class="cfr-and-group" data-rule="${ruleIdx}" data-group="${groupIdx}"
              style="background: var(--color-neutral-2); border: 1px solid var(--color-neutral-4); border-radius: var(--border-radius-xs); padding: 8px; display: flex; flex-direction: column; gap: var(--space-xs);">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
-            <span style="font-size: 9px; font-weight: var(--font-weight-bold); text-transform: uppercase; color: var(--color-neutral-6); letter-spacing: 0.5px;">OR Group (any met)</span>
-            <button type="button" class="cfr-delete-group" title="Remove group" ${disabledAttr}
+            <span style="font-size: 9px; font-weight: var(--font-weight-bold); text-transform: uppercase; color: var(--color-neutral-6); letter-spacing: 0.5px;">${this.translations.cfrOrGroupLabel}</span>
+            <button type="button" class="cfr-delete-group" title="${this.translations.cfrRemoveGroupTitle}" ${disabledAttr}
                     style="background: none; border: none; color: var(--color-error); cursor: pointer; padding: 2px; display: flex; align-items: center; font-size: var(--font-size-xs); gap: 3px;">
-              <i data-lucide="trash-2" style="width: 10px; height: 10px;"></i> Remove Group
+              <i data-lucide="trash-2" style="width: 10px; height: 10px;"></i> ${this.translations.cfrRemoveGroupLabel}
             </button>
           </div>
           <div class="cfr-conditions-list" style="display: flex; flex-direction: column; gap: var(--space-xs);">
-            ${conditions || `<div style="font-size: var(--font-size-xs); color: var(--color-neutral-5); font-style: italic; padding: 4px;">No conditions. Add one below.</div>`}
+            ${conditions || `<div style="font-size: var(--font-size-xs); color: var(--color-neutral-5); font-style: italic; padding: 4px;">${this.translations.cfrNoConditionsText}</div>`}
           </div>
           <button type="button" class="pg-btn pg-btn-secondary cfr-add-cond" style="justify-content: center; font-size: var(--font-size-xs); padding: 3px 8px; height: auto; margin-top: 2px;" ${disabledAttr}>
-            <i data-lucide="plus" style="width: 10px; height: 10px;"></i> Add OR Condition
+            <i data-lucide="plus" style="width: 10px; height: 10px;"></i> ${this.translations.ruleAddOrConditionLabel}
           </button>
         </div>
       `;
@@ -3946,17 +3996,17 @@ class OpenFormBuilder {
         return `
           <div class="cfr-rule-card" data-rule="${ruleIdx}"
                style="padding: 10px; background: var(--color-neutral-2); border: 1px solid rgba(219,60,60,0.3); border-radius: var(--border-radius-soft); position: relative;">
-            <button class="cfr-delete-rule" data-index="${ruleIdx}" title="Delete rule" ${disabledAttr}
+            <button class="cfr-delete-rule" data-index="${ruleIdx}" title="${this.translations.cfrDeleteRuleTitle}" ${disabledAttr}
                     style="position: absolute; top: 8px; right: 8px; border: none; background: transparent; color: var(--color-neutral-6); cursor: pointer; display: flex; align-items: center;">
               <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
             </button>
             <div style="font-size: var(--font-size-xs); color: var(--color-error); margin-bottom: 6px; display: flex; align-items: center; gap: 4px; padding-right: 20px;">
               <i data-lucide="alert-triangle" style="width: 12px; height: 12px;"></i>
-              Legacy expression rule — click Migrate to convert to the structured builder.
+              ${this.translations.cfrLegacyNoticeText}
             </div>
             <code style="font-size: 9px; color: var(--color-neutral-7); display: block; margin-bottom: 8px; word-break: break-all;">${rule.expression}</code>
             <button type="button" class="pg-btn pg-btn-secondary cfr-migrate-rule" data-index="${ruleIdx}" style="font-size: var(--font-size-xs); padding: 4px 10px; height: auto;" ${disabledAttr}>
-              <i data-lucide="refresh-cw" style="width: 10px; height: 10px;"></i> Migrate to Builder
+              <i data-lucide="refresh-cw" style="width: 10px; height: 10px;"></i> ${this.translations.cfrMigrateButtonLabel}
             </button>
           </div>
         `;
@@ -3981,39 +4031,39 @@ class OpenFormBuilder {
       }).join('');
 
       const errorMessageVal = isDefaultLocale ? (rule.errorMessage || '') : (this.getTranslationValue('crossFieldRules', rule.ruleId) || '');
-      const errorMessagePlaceholder = isDefaultLocale ? 'e.g. End date must be after start date' : (rule.errorMessage || '');
+      const errorMessagePlaceholder = isDefaultLocale ? this.translations.cfrErrorMessagePlaceholder : (rule.errorMessage || '');
 
       return `
         <div class="cfr-rule-card" data-rule="${ruleIdx}" data-rule-id="${rule.ruleId}"
              style="padding: 10px; background: var(--color-neutral-2); border: 1px solid var(--color-neutral-4); border-radius: var(--border-radius-soft);">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-s);">
-            <span style="font-size: var(--font-size-xs); font-weight: var(--font-weight-bold); color: var(--color-neutral-8);">Validation Rule #${ruleIdx + 1}</span>
-            <button class="cfr-delete-rule" data-index="${ruleIdx}" title="Delete rule" ${disabledAttr}
+            <span style="font-size: var(--font-size-xs); font-weight: var(--font-weight-bold); color: var(--color-neutral-8);">${this.translations.cfrValidationRulePrefix}${ruleIdx + 1}</span>
+            <button class="cfr-delete-rule" data-index="${ruleIdx}" title="${this.translations.cfrDeleteRuleTitle}" ${disabledAttr}
                     style="border: none; background: transparent; color: var(--color-neutral-5); cursor: pointer; display: flex; align-items: center;">
               <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
             </button>
           </div>
 
-          <div style="font-size: 9px; font-weight: var(--font-weight-bold); text-transform: uppercase; color: var(--color-neutral-6); letter-spacing: 0.5px; margin-bottom: var(--space-xs);">Rule is invalid when ALL of the following AND groups are met:</div>
+          <div style="font-size: 9px; font-weight: var(--font-weight-bold); text-transform: uppercase; color: var(--color-neutral-6); letter-spacing: 0.5px; margin-bottom: var(--space-xs);">${this.translations.cfrRuleInvalidWhenText}</div>
           <div class="cfr-and-groups-list" style="display: flex; flex-direction: column; gap: var(--space-s); margin-bottom: var(--space-s);">
-            ${andGroups || `<div style="font-size: var(--font-size-xs); color: var(--color-neutral-5); font-style: italic; padding: 4px;">No AND groups. Add one below.</div>`}
+            ${andGroups || `<div style="font-size: var(--font-size-xs); color: var(--color-neutral-5); font-style: italic; padding: 4px;">${this.translations.cfrNoAndGroupsText}</div>`}
           </div>
           <button type="button" class="pg-btn pg-btn-secondary cfr-add-group" style="font-size: var(--font-size-xs); padding: 3px 8px; height: auto; width: 100%; justify-content: center; margin-bottom: var(--space-s);" ${disabledAttr}>
-            <i data-lucide="plus" style="width: 10px; height: 10px;"></i> Add AND Group
+            <i data-lucide="plus" style="width: 10px; height: 10px;"></i> ${this.translations.ruleAddAndGroupLabel}
           </button>
 
           <hr style="border: none; border-top: 1px solid var(--color-neutral-3); margin: var(--space-s) 0;" />
 
           <div class="prop-group" style="margin-bottom: var(--space-s);">
-            <label class="prop-label" style="font-size: 9px; text-transform: uppercase;">Error Message</label>
+            <label class="prop-label" style="font-size: 9px; text-transform: uppercase;">${this.translations.cfrErrorMessageLabel}</label>
             <input type="text" class="prop-input cfr-rule-message" value="${errorMessageVal}" placeholder="${errorMessagePlaceholder}"
                    style="font-size: var(--font-size-xs); padding: 4px 6px; margin-bottom: 0;" />
           </div>
 
           <div class="prop-group" style="margin-bottom: 0;">
-            <label class="prop-label" style="font-size: 9px; text-transform: uppercase; margin-bottom: var(--space-xs);">Mark as invalid:</label>
+            <label class="prop-label" style="font-size: 9px; text-transform: uppercase; margin-bottom: var(--space-xs);">${this.translations.cfrMarkAsInvalidLabel}</label>
             <div class="cfr-target-chips" style="display: flex; flex-wrap: wrap; gap: var(--space-xs);">
-              ${targetChips || `<span style="font-size: var(--font-size-xs); color: var(--color-neutral-5); font-style: italic;">No fields available.</span>`}
+              ${targetChips || `<span style="font-size: var(--font-size-xs); color: var(--color-neutral-5); font-style: italic;">${this.translations.cfrNoFieldsAvailableText}</span>`}
             </div>
           </div>
         </div>
@@ -4027,19 +4077,19 @@ class OpenFormBuilder {
       <div class="cross-field-rules-section" style="margin-top: var(--space-s);">
         <div style="font-weight: var(--font-weight-bold); font-size: var(--font-size-s); color: var(--color-neutral-9); margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
           <i data-lucide="shield-alert" style="width: 14px; height: 14px; color: var(--color-primary);"></i>
-          Cross-Field Validations
+          ${this.translations.crossFieldValidationsTitle}
         </div>
         <div style="font-size: var(--font-size-xs); color: var(--color-neutral-7); margin-bottom: var(--space-m); line-height: 1.3;">
-          Rules that compare multiple fields. A failed rule blocks submission and marks target fields as invalid.
+          ${this.translations.crossFieldValidationsDesc}
         </div>
-        ${!isDefaultLocale ? `<div class="rules-locale-notice">Switch to Default Language to edit rule conditions. Error messages can still be translated below.</div>` : ''}
+        ${!isDefaultLocale ? `<div class="rules-locale-notice">${this.translations.crossFieldLocaleNotice}</div>` : ''}
 
         <div id="cfr-rules-list" style="display: flex; flex-direction: column; gap: var(--space-m); margin-bottom: var(--space-m);">
-          ${rulesHtml || `<div style="font-size: var(--font-size-xs); color: var(--color-neutral-5); font-style: italic; text-align: center; padding: var(--space-m);">No validation rules yet.</div>`}
+          ${rulesHtml || `<div style="font-size: var(--font-size-xs); color: var(--color-neutral-5); font-style: italic; text-align: center; padding: var(--space-m);">${this.translations.cfrNoRulesYetText}</div>`}
         </div>
 
         <button id="btn-add-cross-rule" class="pg-btn pg-btn-secondary" style="width: 100%; font-size: var(--font-size-xs); padding: 6px var(--space-m); display: flex; align-items: center; justify-content: center; gap: 6px;" ${disabledAttr}>
-          <i data-lucide="plus-circle" style="width: 12px; height: 12px;"></i> Add Validation Rule
+          <i data-lucide="plus-circle" style="width: 12px; height: 12px;"></i> ${this.translations.cfrAddValidationRuleLabel}
         </button>
       </div>
     `;

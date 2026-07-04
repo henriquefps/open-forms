@@ -1,0 +1,39 @@
+{
+  "formEmptyStructure": "No form structure defined.",
+  "formSubmitButton": "Submit Answers",
+  "formPrevPageButton": "Previous",
+  "formNextPageButton": "Next",
+  "stepIndicatorPrefix": "Step",
+  "stepIndicatorOf": "of",
+  "stepIndicatorDivider": ":",
+  "requiredFieldBubble": "This field is required.",
+  "patternValidationBubble": "Incorrect value for the required pattern.",
+  "validationToastError": "Please correctly fill in all required fields in this step.",
+  "validationToastSuccess": "Form successfully validated and submitted!",
+
+  "selectOptionPlaceholder": "Select an option...",
+  "dropdownLoading": "Loading options from API...",
+  "radioNoOptions": "No options available",
+  "radioLoading": "Loading options...",
+  "checkboxNoOptions": "No options available",
+  "checkboxLoading": "Loading options...",
+
+  "signatureInstruction": "Sign in the box above",
+  "signatureClearButton": "Clear",
+  "signatureAriaLabel": "Digital Signature",
+  "signatureTypeLabel": "Type your full name:",
+  "signatureTypePlaceholder": "Your name",
+  "signatureModeDrawLabel": "Draw",
+  "signatureModeTypeLabel": "Type",
+  "signatureInputVal": "Signed",
+
+  "fileClickToUpload": "Click to upload or drag files here",
+  "fileTypeRequirements": "PDF, Word, Excel or Images (Max 5MB)",
+  "fileTooLargeError": "The file is too large. Maximum allowed size: 5MB.",
+  "fileUploaderActiveIcon": "file-check",
+  "fileDeleteTitle": "Delete file",
+  "repeaterDeleteItemTitle": "Delete item",
+
+  "normalizeFormUntitled": "Untitled Form",
+  "normalizePageDefault": "Page"
+}
