@@ -26,7 +26,7 @@ function debounce(fn, delay) {
  * License: Apache-2.0
  */
 class OpenFormBuilder {
-  static VERSION = '1.1.0';
+  static VERSION = '1.1.1';
 
   /**
    * S2: escapes a value for safe interpolation into HTML text or a quoted attribute.

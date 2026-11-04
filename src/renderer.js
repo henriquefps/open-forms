@@ -9,7 +9,7 @@
  * License: Apache-2.0
  */
 class OpenFormRenderer {
-  static VERSION = '1.1.0';
+  static VERSION = '1.1.1';
 
   /**
    * @param {Object} options
