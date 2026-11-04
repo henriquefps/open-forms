@@ -105,7 +105,7 @@ export interface Field {
   /** file */
   acceptedTypes?: string;
   useNativeCamera?: boolean;
-  nativeCameraSource?: 'camera' | 'gallery' | 'photos' | 'prompt';
+  nativeCameraSource?: 'camera' | 'photos' | 'prompt';
   maxFileSizeMB?: number;
   fileRequirementsText?: string;
 }
@@ -137,8 +137,8 @@ export interface Page {
 /** Per-locale display text. Structural properties (keys, types, operators) are not translatable. */
 export interface LocaleTranslations {
   form?: { formTitle?: string; formDescription?: string };
-  pages?: Record<string, string>;
-  sections?: Record<string, string>;
+  pages?: Record<string, { title?: string }>;
+  sections?: Record<string, { title?: string }>;
   fields?: Record<string, {
     label?: string;
     placeholder?: string;
@@ -289,8 +289,30 @@ export interface OpenFormBuilderOptions {
   containerEl: HTMLElement;
   /** Fired on every schema mutation with a copy of the schema. */
   onSchemaChange?: (schema: FormSchema) => void;
-  /** Overrides the built-in UI string dictionary. */
+  /**
+   * Overrides the built-in UI string dictionary (every key is listed in docs/builder-translations.json).
+   * `{name}` placeholders are filled by the builder; `*One` / `*Other` keys are the singular/plural pair.
+   */
   translations?: Record<string, string>;
+  /** Schema to start from (cloned). Same as `loadSchema()` right after construction, without undo history. */
+  schema?: FormSchema;
+  /** Allow-list of field types offered in the palette. Default: all of `OpenFormBuilder.FIELD_TYPES`. Unknown types are ignored. */
+  fieldTypes?: FieldType[];
+  /** View-only: no palette, no drag, no editing, read-only Properties panel, no undo/redo shortcuts. Default `false`. */
+  readOnly?: boolean;
+  /** Languages offered in the "Editing Language" switcher (the base language is always first). Replaces the built-in list (pt-BR, en-US, es-ES). */
+  locales?: BuilderLocale[];
+  /** Replaces the built-in confirm dialog. Resolve `true` to proceed; anything else (or a throw) counts as "no". */
+  confirm?: (message: string) => boolean | Promise<boolean>;
+  /** Replaces the built-in prompt dialog. Resolve the typed text, or `null` to cancel. */
+  prompt?: (message: string, defaultValue: string) => string | null | Promise<string | null>;
+}
+
+export interface BuilderLocale {
+  /** BCP 47-style code stored as the key under `schema.translations`. */
+  code: string;
+  /** Text shown in the switcher (defaults to `code`). */
+  label?: string;
 }
 
 export class OpenFormBuilder {
@@ -303,6 +325,12 @@ export class OpenFormBuilder {
 
   /** Current schema (read anytime; prefer `getSchema()` for a safe copy). */
   schema: FormSchema;
+  /** Whether this builder was created with `readOnly: true`. */
+  readOnly: boolean;
+  /** The `fieldTypes` allow-list, or `null` when every type is allowed. */
+  allowedFieldTypes: FieldType[] | null;
+  /** The locales offered in the switcher (without the base language). */
+  locales: BuilderLocale[];
 
   static escapeHtml(value: unknown): string;
   static validateSchema(schema: unknown): SchemaValidationResult;
@@ -316,6 +344,12 @@ export class OpenFormBuilder {
   markSaved(): void;
   undo(): void;
   redo(): void;
+  /** Asks for confirmation through the `confirm` hook or the built-in dialog. */
+  confirm(message: string): Promise<boolean>;
+  /** Asks for text through the `prompt` hook or the built-in dialog; `null` when cancelled. */
+  prompt(message: string, defaultValue?: string): Promise<string | null>;
+  /** True when the palette offers `type` (always false in read-only mode). */
+  isFieldTypeAllowed(type: FieldType): boolean;
   destroy(): void;
 }
 

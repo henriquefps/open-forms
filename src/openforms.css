@@ -3265,3 +3265,60 @@
 
 .openforms-toast-container .toast.toast-error { background: #b42318; }
 .openforms-toast-container .toast.toast-success { background: #15803d; }
+
+/* ==========================================================================
+   Builder dialogs (A7) — the built-in replacement for window.confirm/prompt
+   ========================================================================== */
+.builder-layout .of-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--of-space-base);
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.builder-layout .of-dialog {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--of-space-m);
+  padding: var(--of-space-base);
+  border-radius: var(--of-border-radius-m);
+  background: var(--of-color-neutral-0);
+  color: var(--of-color-neutral-10);
+  box-shadow: var(--of-shadow-lg);
+  font-family: var(--of-font-family);
+  font-size: var(--of-font-size-base);
+}
+
+.builder-layout .of-dialog-message {
+  margin: 0;
+  line-height: 1.5;
+  white-space: pre-line;
+}
+
+.builder-layout .of-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--of-space-s);
+}
+
+/* ==========================================================================
+   Builder read-only mode (A7)
+   ========================================================================== */
+.builder-layout.is-readonly {
+  grid-template-columns: 3fr 2fr;
+}
+
+.builder-layout.is-readonly .canvas-field,
+.builder-layout.is-readonly .canvas-section-header {
+  cursor: default;
+}
+
+.builder-layout.is-readonly .column-empty-indicator {
+  display: none;
+}

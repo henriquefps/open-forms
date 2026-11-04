@@ -145,7 +145,7 @@ There is no `colId` property on Column — that was a documentation error carrie
 | Field type | Extra properties |
 | :--- | :--- |
 | `header` | `subtitle` (`string`, optional) |
-| `text` | `placeholder`, `mask` (custom mask pattern, `9`=digit/`a`=letter/`*`=alphanumeric), `maskCleanValue` (`boolean`, strip mask chars before storing), `validationRegex`, `errorMessage` |
+| `text` | `placeholder`, `mask` (custom mask pattern, `9`=digit/`a`=any letter, including accented and non-Latin ones/`*`=letter or digit), `maskCleanValue` (`boolean`, strip mask chars before storing), `validationRegex`, `errorMessage` |
 | `textarea` | `placeholder` |
 | `number` | `placeholder`, `mask`, `maskCleanValue`, `isCalculated` (`boolean`), `formulaExpression` (`string`, see section 6), `isVisibleOnForm` (`boolean`, default `true` — only meaningful when `isCalculated` is `true`) |
 | `boolean` | `defaultValue` (`boolean`) |
@@ -153,7 +153,7 @@ There is no `colId` property on Column — that was a documentation error carrie
 | `matrix` | `matrixRows` (`Array<{key, label}>`), plus the same `optionsType`/`options`/`optionsUrl` as above (shared across every row) |
 | `repeater` | `minItems`, `maxItems` (`integer`), `addButtonLabel` (`string`), `rows` (`Row[]` — the sub-field layout repeated per item; only `text`/`textarea`/`number`/`date`/`boolean`/`dropdown`/`radio`/`checkbox`/`matrix`/`signature`/`file` are supported inside a repeater, **not** another `repeater` or nested `matrix`) |
 | `signature` | *(no extra properties)* |
-| `file` | `acceptedTypes` (`string`, comma-separated extensions/MIME patterns), `useNativeCamera` (`boolean`, Cordova/Capacitor), `nativeCameraSource` (`"camera"` \| `"gallery"`), `maxFileSizeMB` (`number`, default `5`), `fileRequirementsText` (`string`, optional override of the default hint text) |
+| `file` | `acceptedTypes` (`string`, comma-separated extensions/MIME patterns such as `.pdf,image/*`, default `.pdf,.docx,image/*`; enforced by the file picker and also for dragged-and-dropped files), `useNativeCamera` (`boolean`, Cordova/Capacitor), `nativeCameraSource` (`"camera"` \| `"photos"` \| `"prompt"`: camera only, photo library only, or ask each time; default `"camera"`), `maxFileSizeMB` (`number`, default `5`), `fileRequirementsText` (`string`, optional override of the default hint text) |
 
 ---
 
@@ -258,6 +258,8 @@ Used on **Field** objects (any `targetProperty`) and **Section** objects (visibi
 | `equalsValue` | `any` | The static value to compare against — used when `compareMode` is `"value"` or omitted |
 | `compareToFieldKey` | `string` | Another field's key to compare against live — used when `compareMode` is `"field"` |
 
+**Rules on repeater sub-fields.** A sub-field inside a repeater can carry `conditionalRules` too. They are evaluated **per item**: `dependentFieldKey` (and `compareToFieldKey`) naming another sub-field of the same repeater reads that item's value; any other key reads the form's top-level answer. So in one item a field can be shown while in the next it is hidden. A hidden sub-field is reset and left out of `getAnswers()` / `onSubmit` (same as a hidden top-level field), its required asterisk and `aria-required` follow `"required"` rules, and a hidden or disabled sub-field is not required when validating. Rules are re-evaluated on every change and when items are added or removed.
+
 The `greaterThan`/`lessThan` family of operators is date-aware: `"2026-07-01"` compares chronologically against `"2026-06-30"`, not lexicographically.
 
 > **Legacy format:** older schemas may carry a `visibilityCondition` object directly on a Field/Section instead of `conditionalRules`. `normalizeSchema()` migrates this automatically into the `andGroups` format on load — you never need to write `visibilityCondition` in a new schema.
@@ -308,10 +310,10 @@ Legacy cross-field `expression` rules use the same grammar plus `&&`, `||` (and 
   "translations": {
     "pt-BR": {
       "form": { "formTitle": "Formulário de Contacto" },
-      "pages": { "page-001": "Informação Pessoal" },
-      "sections": { "sec-001": "Dados de Contacto" },
+      "pages": { "page-001": { "title": "Informação Pessoal" } },
+      "sections": { "sec-001": { "title": "Dados de Contacto" } },
       "fields": {
-        "full_name": { "label": "Nome Completo", "placeholder": "ex. João Silva" }
+        "full_name": { "label": "Nome Completo", "placeholder": "ex. João Silva", "errorMessage": "Use apenas letras." }
       },
       "crossFieldRules": {
         "cfr-dates-1": { "errorMessage": "A data final não pode ser anterior à inicial." }
@@ -322,6 +324,10 @@ Legacy cross-field `expression` rules use the same grammar plus `&&`, `||` (and 
 ```
 
 Translations are keyed by locale, then by category (`form`, `pages`, `sections`, `fields`, `crossFieldRules`), then by the relevant `pageId`/`sectionId`/field `key`/`ruleId`. Structural properties (database keys, field `type`, operators, target field keys, formula expressions) are **not** translatable by design — only display text (labels, titles, placeholders, error messages, option labels) is. Switch locales at runtime with `renderer.setLocale('pt-BR')`.
+
+A rule's `errorMessage` is translated under `crossFieldRules[ruleId].errorMessage`, and a text field's `errorMessage` (the message for a failed `validationRegex`) under `fields[key].errorMessage`. Without a translation the schema's own message is shown; a rule without any `errorMessage` shows the built-in, translated `crossFieldDefaultError` ("Invalid field combination."). The renderer's own UI texts (buttons, "Yes / No", "Add Item", upload hints, ...) are separate: they come from the built-in dictionaries (English, pt-BR, es-ES) and can be overridden with the `translations` constructor option — see `docs/renderer-translations.json` for every key.
+
+`translations[locale].fields` is keyed by plain field `key`. A repeater sub-field may reuse a top-level key (keys are unique per scope, see `duplicate-key` in section 1), in which case both fields share that translation entry.
 
 ---
 
@@ -387,15 +393,24 @@ const renderer = new OpenFormRenderer({
 ```js
 const builder = new OpenFormBuilder({
   containerEl,      // required, HTMLElement
-  onSchemaChange,   // (schema) => void, fired on every schema mutation
-  translations      // optional, overrides the built-in UI string dictionary
+  onSchemaChange,   // (schema) => void, fired on every schema mutation (receives a deep clone)
+  translations,     // optional, overrides the built-in UI string dictionary (docs/builder-translations.json)
+  schema,           // optional, initial schema (cloned, normalized; no undo history, not dirty)
+  fieldTypes,       // optional, allow-list for the palette, e.g. ['text', 'number', 'dropdown'] (default: all)
+  readOnly,         // optional, view-only builder (default false)
+  locales,          // optional, [{ code, label }] languages of the "Editing Language" switcher
+  confirm,          // optional, (message) => boolean | Promise<boolean>
+  prompt            // optional, (message, defaultValue) => string | null | Promise<string | null>
 });
 
 builder.loadSchema(existingSchema); // pass null/{} for a blank canvas
-builder.schema;                     // current schema, readable anytime (also passed into onSchemaChange)
+builder.getSchema();                // deep clone of the current schema
+builder.isDirty();                  // differs from the last loadSchema()/markSaved()
+builder.markSaved();
 builder.undo();
 builder.redo();
+builder.destroy();
 OpenFormBuilder.validateSchema(schema); // static, same result as the renderer's (section 1)
 ```
 
-There is no `getSchema()` method — read `builder.schema` directly, or capture it from the `onSchemaChange` callback.
+`fieldTypes` only limits what the **palette** can create; a loaded schema may still contain other types and they keep rendering and editing normally. Values must come from `OpenFormBuilder.FIELD_TYPES` (unknown ones are ignored with a `console.warn`); an empty array leaves the palette empty. `readOnly` shows the form without the palette and without any editing control (no drag, no add/delete buttons, no undo/redo shortcuts); selecting a field still opens the Properties panel, with every control disabled, and the language being viewed can still be switched. See INTEGRATION_GUIDE.md section 3 for details on `locales`, `confirm` and `prompt`.

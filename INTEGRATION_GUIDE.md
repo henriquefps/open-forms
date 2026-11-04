@@ -12,13 +12,13 @@ You can load OpenForms assets directly using **jsDelivr**:
 
 ```html
 <!-- Stylesheet -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.2.0/src/openforms.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.3.0/src/openforms.css">
 
 <!-- Visual Builder (OpenFormBuilder) -->
-<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.2.0/src/builder.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.3.0/src/builder.js"></script>
 
 <!-- Form Player / Renderer (OpenFormRenderer) -->
-<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.2.0/src/renderer.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.3.0/src/renderer.js"></script>
 ```
 
 Both scripts are plain classic `<script>` tags — no bundler, no ES module imports required. Each one is fully self-contained; load only `renderer.js` if you just need to play back forms, without ever loading `builder.js`.
@@ -36,7 +36,7 @@ Importing never touches `window` or `document`, so it is safe in Node or during 
 **TypeScript.** `src/openforms.d.ts` declares both classes, their options and callbacks, and the schema and answer types (`FormSchema`, `Field`, `FormAnswers`, …). Reference it from your project, for example by copying it next to your sources, or straight from the CDN:
 
 ```ts
-/// <reference path="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.2.0/src/openforms.d.ts" />
+/// <reference path="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.3.0/src/openforms.d.ts" />
 ```
 
 and `import type { FormSchema } from './openforms'` when you use a local copy.
@@ -165,6 +165,10 @@ If `onSubmit` returns nothing, the success toast is shown right after it runs.
 
 Answers are keyed by field `key`; see the value shape per field type in the [Schema Reference](SCHEMA_REFERENCE.md#field-types-reference). `number` fields always hold a JS number, or `null` when empty, both at the top level and inside repeater items. Pre-filled answers stored as strings (`"42"`) are converted when you call `render()`. An empty number never matches `greaterThan`/`lessThan`-style conditions, and still matches `equals ""`. Every field gets its default value on `render()` (`""`, `null` for numbers, `false` for switches, `[]` for repeaters with `minItems` empty items…), including fields on pages the user hasn't opened yet.
 
+### Texts and languages
+
+Every text the renderer adds itself (buttons, "Yes / No", "Add Item", "Item #{n}", upload and image-preview labels, error messages, file-size units, print strings) is translated for English, pt-BR and es-ES through the `locale` option / `setLocale()`. Override any of them with `translations: { key: 'text' }`; the keys are listed in `docs/renderer-translations.json` (`{n}` and `{date}` are replaced). Numbers shown by the renderer (calculated fields, file sizes, print) use the active locale's format, while the stored answer stays a plain number. Texts that belong to the form itself (labels, placeholders, `errorMessage` of fields and cross-field rules, options) are translated in the schema's `translations` node — see SCHEMA_REFERENCE.md.
+
 ### Several forms on one page
 
 Every element id the renderer creates starts with a per-instance prefix (`ofr1-`, `ofr2-`, … in creation order), for example `ofr1-input-<fieldId>`, `ofr1-label-<fieldId>`, `ofr1-renderer-form-title`. Two renderers, or a form and its `print()` copy, never share an id, and each label and `aria-*` reference points to its own form. To get predictable ids (CSS or end-to-end tests), pass `idPrefix`:
@@ -258,6 +262,39 @@ To allow administrators to visually create/edit forms:
   builder.destroy();
 </script>
 ```
+
+### Builder options
+
+| Option | Type | What it does |
+|--------|------|--------------|
+| `containerEl` | `HTMLElement` | Required. |
+| `onSchemaChange` | `(schema) => void` | Fired on every change with a deep clone. |
+| `schema` | `FormSchema` | Initial schema, cloned and normalized. Like calling `loadSchema()` right after construction, but with no undo history, `isDirty()` is `false` and `onSchemaChange` does not fire. If it has validation errors a toast reports them; it still loads. |
+| `fieldTypes` | `FieldType[]` | Allow-list of types in the palette (default: all of `OpenFormBuilder.FIELD_TYPES`). Only restricts what can be **created**: fields of other types already in a loaded schema still render and can be edited or deleted. Unknown names are ignored with a `console.warn`. |
+| `readOnly` | `boolean` | View-only builder: no palette, no drag and drop, no add/delete/duplicate buttons, canvas inputs read-only, Properties panel visible but every control disabled, undo/redo shortcuts off. Selecting a field and switching the viewed language still work. Mutating methods (`undo()`, `deletePage()`, …) do nothing. `loadSchema()` still works, so you can show different forms. Set once at construction; create a new instance to change it. |
+| `locales` | `Array<{ code, label }>` | Languages in the "Editing Language" switcher, replacing the built-in list (`pt-BR`, `en-US`, `es-ES`). The base language (`default`) is always first; entries without a string `code` and duplicates are dropped; a missing `label` falls back to the code. Locales already present in the loaded schema's `translations` are still listed as "(Custom)". The "+" button still lets users type any other code. |
+| `confirm` | `(message) => boolean \| Promise<boolean>` | Replaces the built-in confirmation dialog (used when deleting a page). Only `true` counts as yes; a rejection or exception counts as no. |
+| `prompt` | `(message, defaultValue) => string \| null \| Promise<string \| null>` | Replaces the built-in text dialog (used to add a language code). `null` cancels. |
+| `translations` | `Record<string, string>` | Overrides the UI strings (every key and its English default is in `docs/builder-translations.json`). |
+
+```js
+const builder = new OpenFormBuilder({
+  containerEl,
+  schema: savedSchema,
+  fieldTypes: ['text', 'textarea', 'number', 'date', 'dropdown'],
+  locales: [{ code: 'pt-BR', label: 'Português' }, { code: 'fr-FR', label: 'Français' }],
+  // Use your design system's dialogs instead of the built-in ones:
+  confirm: (message) => myDialogs.confirm(message),
+  prompt: (message, defaultValue) => myDialogs.prompt(message, defaultValue),
+  onSchemaChange: autosave
+});
+```
+
+**Dialogs.** The builder never calls `window.confirm` / `window.prompt`. Without hooks it opens a small modal inside its own container: `role="dialog"` with `aria-modal`, focus moves into it (to "Cancel" for confirmations, to the text field for prompts) and is trapped until it closes, Escape or a click outside cancels, Enter confirms a prompt, and focus returns to where it was. The button labels are translatable (`dialogOkLabel`, `dialogCancelLabel`) as are the messages (`deletePageConfirm`, `addLocalePrompt`). `builder.confirm(message)` and `builder.prompt(message, defaultValue)` are public and use the same hooks or modal. `deletePage()` now returns a Promise because the confirmation is asynchronous.
+
+**Translating the builder UI.** All visible text comes from the `translations` dictionary, including toasts and the default text of new fields ("Option 1", "Add Item", …). Strings can contain `{name}` placeholders (keep them in your override), and a few use light formatting: `` `code` `` and `**bold**`. Messages with a count come as `…One` / `…Other` pairs.
+
+**Key scoping.** Renaming a field key follows the schema's key scopes: top-level fields share one namespace and each repeater's sub-fields have their own, so a sub-field may reuse a top-level key. Renaming a sub-field only rewrites rules and formulas inside its repeater; renaming a top-level field does not touch rules inside a repeater that has a sub-field of the same name.
 
 ### Schema API, dirty state and undo
 

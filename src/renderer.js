@@ -9,13 +9,187 @@
  * Website: https://hfps.dev
  * License: Apache-2.0
  */
+/**
+ * Built-in UI strings, one dictionary per locale. `default` is English; any other locale
+ * falls back to it key by key. Hosts override single keys with the `translations` option.
+ * This is the only place these strings live (constructor and setLocale() both read it).
+ */
+const BUILT_IN_TRANSLATIONS = {
+  'default': {
+    formEmptyStructure: "No form structure defined.",
+    formSubmitButton: "Submit Answers",
+    formPrevPageButton: "Previous",
+    formNextPageButton: "Next",
+    stepIndicatorPrefix: "Step",
+    stepIndicatorOf: "of",
+    stepIndicatorDivider: ":",
+    requiredFieldBubble: "This field is required.",
+    unsupportedFieldType: "Unsupported field type",
+    patternValidationBubble: "Incorrect value for the required pattern.",
+    crossFieldDefaultError: "Invalid field combination.",
+    validationToastError: "Please correctly fill in all required fields in this step.",
+    validationToastSuccess: "Form successfully validated and submitted!",
+    submitErrorToast: "Could not submit the form. Please try again.",
+    selectOptionPlaceholder: "Select an option...",
+    dropdownLoading: "Loading options from API...",
+    radioNoOptions: "No options available",
+    radioLoading: "Loading options...",
+    checkboxNoOptions: "No options available",
+    checkboxLoading: "Loading options...",
+    optionsLoadError: "Could not load options.",
+    optionsSourceUnavailable: "Options source not configured.",
+    switchLabel: "Yes / No",
+    printYes: "Yes",
+    printNo: "No",
+    printGeneratedOn: "Generated on {date}",
+    signatureInstruction: "Sign in the box above",
+    signatureClearButton: "Clear",
+    signatureAriaLabel: "Digital Signature",
+    signatureTypeLabel: "Type your full name:",
+    signatureTypePlaceholder: "Your name",
+    signatureModeDrawLabel: "Draw",
+    signatureModeTypeLabel: "Type",
+    signatureInputVal: "Signed",
+    fileClickToUpload: "Click to upload or drag files here",
+    fileTypeRequirements: "PDF, Word, Excel or Images (Max 5MB)",
+    fileTooLargeError: "The file is too large. Maximum allowed size: 5MB.",
+    fileTypeNotAllowedError: "This file type is not allowed.",
+    fileUploaderActiveIcon: "file-check",
+    fileDeleteTitle: "Delete file",
+    fileDownloadTitle: "Download attachment",
+    fileNoneUploaded: "No file uploaded",
+    fileSizeUnits: "Bytes|KB|MB|GB|TB",
+    lightboxCloseLabel: "Close Preview",
+    lightboxImageAlt: "Attachment Preview",
+    actionSheetTitle: "Select Attachment Source",
+    actionSheetTakePhoto: "Take Photo",
+    actionSheetChooseFile: "Choose Document/File",
+    actionSheetCancel: "Cancel",
+    repeaterDeleteItemTitle: "Delete item",
+    repeaterItemTitle: "Item #{n}",
+    repeaterAddButtonLabel: "Add Item",
+    normalizeFormUntitled: "Untitled Form",
+    normalizePageDefault: "Page"
+  },
+  'pt-BR': {
+    formEmptyStructure: "Nenhuma estrutura de formulário definida.",
+    formSubmitButton: "Enviar Respostas",
+    formPrevPageButton: "Anterior",
+    formNextPageButton: "Próximo",
+    stepIndicatorPrefix: "Passo",
+    stepIndicatorOf: "de",
+    stepIndicatorDivider: ":",
+    requiredFieldBubble: "Este campo é obrigatório.",
+    unsupportedFieldType: "Tipo de campo não suportado",
+    patternValidationBubble: "Valor incorreto para o padrão exigido.",
+    crossFieldDefaultError: "Combinação de campos inválida.",
+    validationToastError: "Por favor, preencha corretamente todos os campos obrigatórios neste passo.",
+    validationToastSuccess: "Formulário validado e enviado com sucesso!",
+    submitErrorToast: "Não foi possível enviar o formulário. Tente novamente.",
+    selectOptionPlaceholder: "Selecione uma opção...",
+    dropdownLoading: "Carregando opções da API...",
+    radioNoOptions: "Nenhuma opção disponível",
+    radioLoading: "Carregando opções...",
+    checkboxNoOptions: "Nenhuma opção disponível",
+    checkboxLoading: "Carregando opções...",
+    optionsLoadError: "Não foi possível carregar as opções.",
+    optionsSourceUnavailable: "Fonte de opções não configurada.",
+    switchLabel: "Sim / Não",
+    printYes: "Sim",
+    printNo: "Não",
+    printGeneratedOn: "Gerado em {date}",
+    signatureInstruction: "Assine no quadro acima",
+    signatureClearButton: "Limpar",
+    signatureAriaLabel: "Assinatura Digital",
+    signatureTypeLabel: "Digite seu nome completo:",
+    signatureTypePlaceholder: "Seu nome",
+    signatureModeDrawLabel: "Desenhar",
+    signatureModeTypeLabel: "Digitar",
+    signatureInputVal: "Assinado",
+    fileClickToUpload: "Clique para carregar ou arraste arquivos aqui",
+    fileTypeRequirements: "PDF, Word, Excel ou Imagens (Máx 5MB)",
+    fileTooLargeError: "O arquivo é muito grande. Tamanho máximo permitido: 5MB.",
+    fileTypeNotAllowedError: "Este tipo de arquivo não é permitido.",
+    fileDeleteTitle: "Excluir arquivo",
+    fileDownloadTitle: "Baixar anexo",
+    fileNoneUploaded: "Nenhum arquivo enviado",
+    lightboxCloseLabel: "Fechar visualização",
+    lightboxImageAlt: "Visualização do anexo",
+    actionSheetTitle: "Selecione a origem do anexo",
+    actionSheetTakePhoto: "Tirar foto",
+    actionSheetChooseFile: "Escolher documento/arquivo",
+    actionSheetCancel: "Cancelar",
+    repeaterDeleteItemTitle: "Excluir item",
+    repeaterItemTitle: "Item nº {n}",
+    repeaterAddButtonLabel: "Adicionar item",
+    normalizeFormUntitled: "Formulário sem Título",
+    normalizePageDefault: "Página"
+  },
+  'es-ES': {
+    formEmptyStructure: "No se ha definido ninguna estructura de formulario.",
+    formSubmitButton: "Enviar Respuestas",
+    formPrevPageButton: "Anterior",
+    formNextPageButton: "Siguiente",
+    stepIndicatorPrefix: "Paso",
+    stepIndicatorOf: "de",
+    stepIndicatorDivider: ":",
+    requiredFieldBubble: "Este campo es obligatorio.",
+    unsupportedFieldType: "Tipo de campo no compatible",
+    patternValidationBubble: "Valor incorrecto para el patrón requerido.",
+    crossFieldDefaultError: "Combinación de campos no válida.",
+    validationToastError: "Por favor, complete correctamente todos los campos obligatorios en este paso.",
+    validationToastSuccess: "¡Formulario validado y enviado con éxito!",
+    submitErrorToast: "No se pudo enviar el formulario. Inténtelo de nuevo.",
+    selectOptionPlaceholder: "Seleccione una opción...",
+    dropdownLoading: "Cargando opciones de la API...",
+    radioNoOptions: "No hay opciones disponibles",
+    radioLoading: "Cargando opciones...",
+    checkboxNoOptions: "No hay opciones disponibles",
+    checkboxLoading: "Cargando opciones...",
+    optionsLoadError: "No se pudieron cargar las opciones.",
+    optionsSourceUnavailable: "Fuente de opciones no configurada.",
+    switchLabel: "Sí / No",
+    printYes: "Sí",
+    printNo: "No",
+    printGeneratedOn: "Generado el {date}",
+    signatureInstruction: "Firme en el cuadro de arriba",
+    signatureClearButton: "Limpiar",
+    signatureAriaLabel: "Firma Digital",
+    signatureTypeLabel: "Escriba su nombre completo:",
+    signatureTypePlaceholder: "Su nombre",
+    signatureModeDrawLabel: "Dibujar",
+    signatureModeTypeLabel: "Escribir",
+    signatureInputVal: "Firmado",
+    fileClickToUpload: "Haga clic para cargar o arrastre archivos aquí",
+    fileTypeRequirements: "PDF, Word, Excel o Imágenes (Máx 5MB)",
+    fileTooLargeError: "El archivo es demasiado grande. Tamaño máximo permitido: 5MB.",
+    fileTypeNotAllowedError: "Este tipo de archivo no está permitido.",
+    fileDeleteTitle: "Eliminar archivo",
+    fileDownloadTitle: "Descargar archivo adjunto",
+    fileNoneUploaded: "Ningún archivo subido",
+    lightboxCloseLabel: "Cerrar vista previa",
+    lightboxImageAlt: "Vista previa del adjunto",
+    actionSheetTitle: "Seleccione el origen del adjunto",
+    actionSheetTakePhoto: "Tomar foto",
+    actionSheetChooseFile: "Elegir documento/archivo",
+    actionSheetCancel: "Cancelar",
+    repeaterDeleteItemTitle: "Eliminar elemento",
+    repeaterItemTitle: "Elemento n.º {n}",
+    repeaterAddButtonLabel: "Añadir elemento",
+    normalizeFormUntitled: "Formulario sin Título",
+    normalizePageDefault: "Página"
+  }
+};
+
 class OpenFormRenderer {
-  static VERSION = '1.2.0';
+  static VERSION = '1.3.0';
 
   /** Current schema format version written by the builder (schemas without it are version 1). */
   static SCHEMA_VERSION = 2;
   /** Field types this build knows how to render. */
   static FIELD_TYPES = ['header', 'paragraph', 'text', 'textarea', 'number', 'date', 'boolean', 'dropdown', 'radio', 'checkbox', 'signature', 'file', 'repeater', 'matrix'];
+  /** `accept` list used by file fields without `acceptedTypes`. */
+  static DEFAULT_ACCEPTED_TYPES = '.pdf,.docx,image/*';
   /** Condition operators the rule evaluator understands (`gte`/`lte` are aliases). */
   static CONDITION_OPERATORS = ['equals', 'notEquals', 'contains', 'notContains', 'greaterThan', 'greaterThanOrEquals', 'gte', 'lessThan', 'lessThanOrEquals', 'lte'];
 
@@ -115,142 +289,7 @@ class OpenFormRenderer {
     this.locale = locale || 'default';
     this.customTranslationsOverride = translations || {};
 
-    const systemLocales = {
-      'pt-BR': {
-        formEmptyStructure: "Nenhuma estrutura de formulário definida.",
-        formSubmitButton: "Enviar Respostas",
-        formPrevPageButton: "Anterior",
-        formNextPageButton: "Próximo",
-        stepIndicatorPrefix: "Passo",
-        stepIndicatorOf: "de",
-        stepIndicatorDivider: ":",
-        requiredFieldBubble: "Este campo é obrigatório.",
-        unsupportedFieldType: "Tipo de campo não suportado",
-        patternValidationBubble: "Valor incorreto para o padrão exigido.",
-        validationToastError: "Por favor, preencha corretamente todos os campos obrigatórios neste passo.",
-        validationToastSuccess: "Formulário validado e enviado com sucesso!",
-        submitErrorToast: "Não foi possível enviar o formulário. Tente novamente.",
-        selectOptionPlaceholder: "Selecione uma opção...",
-        dropdownLoading: "Carregando opções da API...",
-        radioNoOptions: "Nenhuma opção disponível",
-        radioLoading: "Carregando opções...",
-        checkboxNoOptions: "Nenhuma opção disponível",
-        checkboxLoading: "Carregando opções...",
-        optionsLoadError: "Não foi possível carregar as opções.",
-        optionsSourceUnavailable: "Fonte de opções não configurada.",
-        signatureInstruction: "Assine no quadro acima",
-        signatureClearButton: "Limpar",
-        signatureAriaLabel: "Assinatura Digital",
-        signatureTypeLabel: "Digite seu nome completo:",
-        signatureTypePlaceholder: "Seu nome",
-        signatureModeDrawLabel: "Desenhar",
-        signatureModeTypeLabel: "Digitar",
-        signatureInputVal: "Assinado",
-        fileClickToUpload: "Clique para carregar ou arraste arquivos aqui",
-        fileTypeRequirements: "PDF, Word, Excel ou Imagens (Máx 5MB)",
-        fileTooLargeError: "O arquivo é muito grande. Tamanho máximo permitido: 5MB.",
-        fileDeleteTitle: "Excluir arquivo",
-        fileDownloadTitle: "Baixar anexo",
-        fileNoneUploaded: "Nenhum arquivo enviado",
-        repeaterDeleteItemTitle: "Excluir item",
-        normalizeFormUntitled: "Formulário sem Título",
-        normalizePageDefault: "Página"
-      },
-      'es-ES': {
-        formEmptyStructure: "No se ha definido ninguna estructura de formulario.",
-        formSubmitButton: "Enviar Respuestas",
-        formPrevPageButton: "Anterior",
-        formNextPageButton: "Siguiente",
-        stepIndicatorPrefix: "Paso",
-        stepIndicatorOf: "de",
-        stepIndicatorDivider: ":",
-        requiredFieldBubble: "Este campo es obligatorio.",
-        unsupportedFieldType: "Tipo de campo no compatible",
-        patternValidationBubble: "Valor incorrecto para el patrón requerido.",
-        validationToastError: "Por favor, complete correctamente todos los campos obligatorios en este paso.",
-        validationToastSuccess: "¡Formulario validado y enviado con éxito!",
-        submitErrorToast: "No se pudo enviar el formulario. Inténtelo de nuevo.",
-        selectOptionPlaceholder: "Seleccione una opción...",
-        dropdownLoading: "Cargando opciones de la API...",
-        radioNoOptions: "No hay opciones disponibles",
-        radioLoading: "Cargando opciones...",
-        checkboxNoOptions: "No hay opciones disponibles",
-        checkboxLoading: "Cargando opciones...",
-        optionsLoadError: "No se pudieron cargar las opciones.",
-        optionsSourceUnavailable: "Fuente de opciones no configurada.",
-        signatureInstruction: "Firme en el cuadro de arriba",
-        signatureClearButton: "Limpiar",
-        signatureAriaLabel: "Firma Digital",
-        signatureTypeLabel: "Escriba su nombre completo:",
-        signatureTypePlaceholder: "Su nombre",
-        signatureModeDrawLabel: "Dibujar",
-        signatureModeTypeLabel: "Escribir",
-        signatureInputVal: "Firmado",
-        fileClickToUpload: "Haga clic para cargar o arrastre archivos aquí",
-        fileTypeRequirements: "PDF, Word, Excel o Imágenes (Máx 5MB)",
-        fileTooLargeError: "El archivo es demasiado grande. Tamaño máximo permitido: 5MB.",
-        fileDeleteTitle: "Eliminar archivo",
-        fileDownloadTitle: "Descargar archivo adjunto",
-        fileNoneUploaded: "Ningún archivo subido",
-        repeaterDeleteItemTitle: "Eliminar elemento",
-        normalizeFormUntitled: "Formulario sin Título",
-        normalizePageDefault: "Página"
-      }
-    };
-
-    const activeSystemTranslations = systemLocales[this.locale] || {};
-
-    // Standard English Translation Dictionary
-    this.translations = Object.assign({
-      // Error notifications / Toast / Warnings
-      formEmptyStructure: "No form structure defined.",
-      formSubmitButton: "Submit Answers",
-      formPrevPageButton: "Previous",
-      formNextPageButton: "Next",
-      stepIndicatorPrefix: "Step",
-      stepIndicatorOf: "of",
-      stepIndicatorDivider: ":",
-      requiredFieldBubble: "This field is required.",
-      unsupportedFieldType: "Unsupported field type",
-      patternValidationBubble: "Incorrect value for the required pattern.",
-      validationToastError: "Please correctly fill in all required fields in this step.",
-      validationToastSuccess: "Form successfully validated and submitted!",
-      submitErrorToast: "Could not submit the form. Please try again.",
-
-      // Field widget values
-      selectOptionPlaceholder: "Select an option...",
-      dropdownLoading: "Loading options from API...",
-      radioNoOptions: "No options available",
-      radioLoading: "Loading options...",
-      checkboxNoOptions: "No options available",
-      checkboxLoading: "Loading options...",
-      optionsLoadError: "Could not load options.",
-      optionsSourceUnavailable: "Options source not configured.",
-
-      // Signature Pad
-      signatureInstruction: "Sign in the box above",
-      signatureClearButton: "Clear",
-      signatureAriaLabel: "Digital Signature",
-      signatureTypeLabel: "Type your full name:",
-      signatureTypePlaceholder: "Your name",
-      signatureModeDrawLabel: "Draw",
-      signatureModeTypeLabel: "Type",
-      signatureInputVal: "Signed",
-
-      // File Uploader
-      fileClickToUpload: "Click to upload or drag files here",
-      fileTypeRequirements: "PDF, Word, Excel or Images (Max 5MB)",
-      fileTooLargeError: "The file is too large. Maximum allowed size: 5MB.",
-      fileUploaderActiveIcon: "file-check",
-      fileDeleteTitle: "Delete file",
-      fileDownloadTitle: "Download attachment",
-      fileNoneUploaded: "No file uploaded",
-      repeaterDeleteItemTitle: "Delete item",
-
-      // Normalize schema defaults
-      normalizeFormUntitled: "Untitled Form",
-      normalizePageDefault: "Page"
-    }, activeSystemTranslations, translations || {});
+    this.translations = this._resolveTranslations();
 
     this.schema = null;
     this.activePageIndex = 0;
@@ -366,6 +405,11 @@ class OpenFormRenderer {
     return id;
   }
 
+  /** Merges built-in English, the active locale's built-ins and the host's `translations` option. */
+  _resolveTranslations() {
+    return Object.assign({}, BUILT_IN_TRANSLATIONS['default'], BUILT_IN_TRANSLATIONS[this.locale] || {}, this.customTranslationsOverride || {});
+  }
+
   /**
    * Technical dynamic translations schema value retrieval
    */
@@ -386,6 +430,11 @@ class OpenFormRenderer {
     if (category === 'sections') {
       return (dict.sections && dict.sections[targetKey] && dict.sections[targetKey].title) !== undefined
         ? dict.sections[targetKey].title
+        : fallbackVal;
+    }
+    if (category === 'crossFieldRules') {
+      return (dict.crossFieldRules && dict.crossFieldRules[targetKey] && dict.crossFieldRules[targetKey].errorMessage) !== undefined
+        ? dict.crossFieldRules[targetKey].errorMessage
         : fallbackVal;
     }
     if (category === 'fields') {
@@ -414,133 +463,7 @@ class OpenFormRenderer {
     if (this._destroyed) return;
     this.locale = newLocale || 'default';
 
-    const systemLocales = {
-      'pt-BR': {
-        formEmptyStructure: "Nenhuma estrutura de formulário definida.",
-        formSubmitButton: "Enviar Respostas",
-        formPrevPageButton: "Anterior",
-        formNextPageButton: "Próximo",
-        stepIndicatorPrefix: "Passo",
-        stepIndicatorOf: "de",
-        stepIndicatorDivider: ":",
-        requiredFieldBubble: "Este campo é obrigatório.",
-        unsupportedFieldType: "Tipo de campo não suportado",
-        patternValidationBubble: "Valor incorreto para o padrão exigido.",
-        validationToastError: "Por favor, preencha corretamente todos os campos obrigatórios neste passo.",
-        validationToastSuccess: "Formulário validado e enviado com sucesso!",
-        submitErrorToast: "Não foi possível enviar o formulário. Tente novamente.",
-        selectOptionPlaceholder: "Selecione uma opção...",
-        dropdownLoading: "Carregando opções da API...",
-        radioNoOptions: "Nenhuma opção disponível",
-        radioLoading: "Carregando opções...",
-        checkboxNoOptions: "Nenhuma opção disponível",
-        checkboxLoading: "Carregando opções...",
-        optionsLoadError: "Não foi possível carregar as opções.",
-        optionsSourceUnavailable: "Fonte de opções não configurada.",
-        signatureInstruction: "Assine no quadro acima",
-        signatureClearButton: "Limpar",
-        signatureAriaLabel: "Assinatura Digital",
-        signatureTypeLabel: "Digite seu nome completo:",
-        signatureTypePlaceholder: "Seu nome",
-        signatureModeDrawLabel: "Desenhar",
-        signatureModeTypeLabel: "Digitar",
-        signatureInputVal: "Assinado",
-        fileClickToUpload: "Clique para carregar ou arraste arquivos aqui",
-        fileTypeRequirements: "PDF, Word, Excel ou Imagens (Máx 5MB)",
-        fileTooLargeError: "O arquivo é muito grande. Tamanho máximo permitido: 5MB.",
-        fileDeleteTitle: "Excluir arquivo",
-        fileDownloadTitle: "Baixar anexo",
-        fileNoneUploaded: "Nenhum arquivo enviado",
-        repeaterDeleteItemTitle: "Excluir item",
-        normalizeFormUntitled: "Formulário sem Título",
-        normalizePageDefault: "Página"
-      },
-      'es-ES': {
-        formEmptyStructure: "No se ha definido ninguna estructura de formulario.",
-        formSubmitButton: "Enviar Respuestas",
-        formPrevPageButton: "Anterior",
-        formNextPageButton: "Siguiente",
-        stepIndicatorPrefix: "Paso",
-        stepIndicatorOf: "de",
-        stepIndicatorDivider: ":",
-        requiredFieldBubble: "Este campo es obligatorio.",
-        unsupportedFieldType: "Tipo de campo no compatible",
-        patternValidationBubble: "Valor incorrecto para el patrón requerido.",
-        validationToastError: "Por favor, complete correctamente todos los campos obligatorios en este paso.",
-        validationToastSuccess: "¡Formulario validado y enviado con éxito!",
-        submitErrorToast: "No se pudo enviar el formulario. Inténtelo de nuevo.",
-        selectOptionPlaceholder: "Seleccione una opción...",
-        dropdownLoading: "Cargando opciones de la API...",
-        radioNoOptions: "No hay opciones disponibles",
-        radioLoading: "Cargando opciones...",
-        checkboxNoOptions: "No hay opciones disponibles",
-        checkboxLoading: "Cargando opciones...",
-        optionsLoadError: "No se pudieron cargar las opciones.",
-        optionsSourceUnavailable: "Fuente de opciones no configurada.",
-        signatureInstruction: "Firme en el cuadro de arriba",
-        signatureClearButton: "Limpiar",
-        signatureAriaLabel: "Firma Digital",
-        signatureTypeLabel: "Escriba su nombre completo:",
-        signatureTypePlaceholder: "Su nombre",
-        signatureModeDrawLabel: "Dibujar",
-        signatureModeTypeLabel: "Escribir",
-        signatureInputVal: "Firmado",
-        fileClickToUpload: "Haga clic para cargar o arrastre archivos aquí",
-        fileTypeRequirements: "PDF, Word, Excel o Imágenes (Máx 5MB)",
-        fileTooLargeError: "El archivo es demasiado grande. Tamaño máximo permitido: 5MB.",
-        fileDeleteTitle: "Eliminar archivo",
-        fileDownloadTitle: "Descargar archivo adjunto",
-        fileNoneUploaded: "Ningún archivo subido",
-        repeaterDeleteItemTitle: "Eliminar elemento",
-        normalizeFormUntitled: "Formulario sin Título",
-        normalizePageDefault: "Página"
-      }
-    };
-
-    const activeSystemTranslations = systemLocales[this.locale] || {};
-    const defaultEnglish = {
-      formEmptyStructure: "No form structure defined.",
-      formSubmitButton: "Submit Answers",
-      formPrevPageButton: "Previous",
-      formNextPageButton: "Next",
-      stepIndicatorPrefix: "Step",
-      stepIndicatorOf: "of",
-      stepIndicatorDivider: ":",
-      requiredFieldBubble: "This field is required.",
-      unsupportedFieldType: "Unsupported field type",
-      patternValidationBubble: "Incorrect value for the required pattern.",
-      validationToastError: "Please correctly fill in all required fields in this step.",
-      validationToastSuccess: "Form successfully validated and submitted!",
-      submitErrorToast: "Could not submit the form. Please try again.",
-      selectOptionPlaceholder: "Select an option...",
-      dropdownLoading: "Loading options from API...",
-      radioNoOptions: "No options available",
-      radioLoading: "Loading options...",
-      checkboxNoOptions: "No options available",
-      checkboxLoading: "Loading options...",
-      optionsLoadError: "Could not load options.",
-      optionsSourceUnavailable: "Options source not configured.",
-      signatureInstruction: "Sign in the box above",
-      signatureClearButton: "Clear",
-      signatureAriaLabel: "Digital Signature",
-      signatureTypeLabel: "Type your full name:",
-      signatureTypePlaceholder: "Your name",
-      signatureModeDrawLabel: "Draw",
-      signatureModeTypeLabel: "Type",
-      signatureInputVal: "Signed",
-      fileClickToUpload: "Click to upload or drag files here",
-      fileTypeRequirements: "PDF, Word, Excel or Images (Max 5MB)",
-      fileTooLargeError: "The file is too large. Maximum allowed size: 5MB.",
-      fileUploaderActiveIcon: "file-check",
-      fileDeleteTitle: "Delete file",
-      fileDownloadTitle: "Download attachment",
-      fileNoneUploaded: "No file uploaded",
-      repeaterDeleteItemTitle: "Delete item",
-      normalizeFormUntitled: "Untitled Form",
-      normalizePageDefault: "Page"
-    };
-
-    this.translations = Object.assign({}, defaultEnglish, activeSystemTranslations, this.customTranslationsOverride || {});
+    this.translations = this._resolveTranslations();
     this.drawActivePage();
   }
 
@@ -669,17 +592,8 @@ class OpenFormRenderer {
 
   /** Print-only strings; hosts can override them through the `translations` option. */
   _printStrings() {
-    const english = { printYes: 'Yes', printNo: 'No', printGeneratedOn: 'Generated on {date}' };
-    const builtIn = {
-      'pt-BR': { printYes: 'Sim', printNo: 'Não', printGeneratedOn: 'Gerado em {date}' },
-      'es-ES': { printYes: 'Sí', printNo: 'No', printGeneratedOn: 'Generado el {date}' }
-    };
-    const strings = Object.assign({}, english, builtIn[this.locale] || {});
-    const overrides = this.customTranslationsOverride || {};
-    Object.keys(english).forEach(key => {
-      if (typeof overrides[key] === 'string') strings[key] = overrides[key];
-    });
-    return strings;
+    const t = this.translations;
+    return { printYes: t.printYes, printNo: t.printNo, printGeneratedOn: t.printGeneratedOn };
   }
 
   /**
@@ -814,6 +728,17 @@ class OpenFormRenderer {
       return new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(date);
     } catch (e) {
       return value;
+    }
+  }
+
+  /** A number in the active locale's format (up to 2 decimals, like formula results). */
+  _formatNumber(value) {
+    if (value === null || value === undefined || value === '' || !isFinite(Number(value))) return '';
+    const locale = this.locale && this.locale !== 'default' ? this.locale : undefined;
+    try {
+      return new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(Number(value));
+    } catch (e) {
+      return String(value);
     }
   }
 
@@ -1199,8 +1124,8 @@ class OpenFormRenderer {
       const lightboxHtml = `
         <div id="lightbox-modal" class="lightbox-overlay" style="display: none;">
           <div class="lightbox-container">
-            <button id="lightbox-close" class="lightbox-close-btn" aria-label="Close Preview">&times;</button>
-            <img id="lightbox-image" class="lightbox-img" src="" alt="Attachment Preview" />
+            <button id="lightbox-close" class="lightbox-close-btn" aria-label="${OpenFormRenderer.escapeHtml(this.translations.lightboxCloseLabel)}">&times;</button>
+            <img id="lightbox-image" class="lightbox-img" src="" alt="${OpenFormRenderer.escapeHtml(this.translations.lightboxImageAlt)}" />
             <div class="lightbox-caption" id="lightbox-caption"></div>
           </div>
         </div>
@@ -1400,6 +1325,8 @@ class OpenFormRenderer {
     if (padState.stopDraw) {
       window.removeEventListener('mouseup', padState.stopDraw);
       window.removeEventListener('touchend', padState.stopDraw);
+      window.removeEventListener('pointerup', padState.stopDraw);
+      window.removeEventListener('pointercancel', padState.stopDraw);
     }
     if (padState.resizeObserver) {
       padState.resizeObserver.disconnect();
@@ -1623,7 +1550,8 @@ class OpenFormRenderer {
 
       stepEl.setAttribute('role', 'tab');
       stepEl.setAttribute('aria-selected', isActive ? 'true' : 'false');
-      stepEl.setAttribute('aria-controls', this._domId('page-panel', page.pageId));
+      // Only the active page's panel exists in the DOM, so only its tab can point at it
+      if (isActive) stepEl.setAttribute('aria-controls', this._domId('page-panel', page.pageId));
       stepEl.setAttribute('tabindex', isActive ? '0' : '-1');
       stepEl.id = this._domId('step-tab', page.pageId);
 
@@ -1698,7 +1626,11 @@ class OpenFormRenderer {
       const label = document.createElement('label');
       label.className = `form-label ${field.required ? 'required' : ''}`;
       label.id = this._domId('label', field.id);
-      label.setAttribute('for', this._domId('input', field.id));
+      // Group widgets have no single control to point at: they reference the label with
+      // aria-labelledby instead (a `for` here would dangle).
+      if (!['radio', 'checkbox', 'matrix', 'repeater'].includes(field.type)) {
+        label.setAttribute('for', this._domId('input', field.id));
+      }
       label.textContent = this.getTranslatedValue('fields', field.key, 'label', null, field.label);
       wrapper.appendChild(label);
     }
@@ -1759,9 +1691,12 @@ class OpenFormRenderer {
         const numPlaceholder = this.getTranslatedValue('fields', field.key, 'placeholder', null, field.placeholder || '0');
         const iconName = field.isCalculated ? 'calculator' : 'binary';
         const readonlyAttr = (field.isCalculated || this.readOnly) ? 'readonly style="background: var(--of-color-neutral-2); cursor: not-allowed;"' : '';
+        // A calculated value is shown in the reader's number format (an <input type="number">
+        // only takes a plain "1234.5"); the stored answer stays a plain JS number.
+        const numInputType = field.isCalculated ? 'text" inputmode="decimal' : 'number';
         container.innerHTML = `
           ${OpenFormRenderer.icon(iconName, 'form-input-icon')}
-          <input type="number" id="${did('input')}" class="form-input" 
+          <input type="${numInputType}" id="${did('input')}" class="form-input" 
                  placeholder="${esc(numPlaceholder)}" ${field.required ? 'required aria-required="true"' : ''} ${readonlyAttr}
                  aria-describedby="${did('error')}" />
         `;
@@ -1783,7 +1718,7 @@ class OpenFormRenderer {
                      aria-describedby="${did('error')}" />
               <span class="form-slider"></span>
             </span>
-            <span class="form-switch-label" aria-hidden="true" style="font-size: var(--of-font-size-s); color: var(--of-color-neutral-8);">Yes / No</span>
+            <span class="form-switch-label" aria-hidden="true" style="font-size: var(--of-font-size-s); color: var(--of-color-neutral-8);">${esc(this.translations.switchLabel)}</span>
           </label>
         `;
         break;
@@ -1820,7 +1755,7 @@ class OpenFormRenderer {
         const signatureFieldLabel = this.getTranslatedValue('fields', field.key, 'label', null, field.label);
         container.innerHTML = `
           <div class="form-signature-box ${this.readOnly ? 'is-readonly' : ''}">
-            <canvas id="${did('canvas')}" class="form-signature-canvas" width="500" height="150" role="img" aria-label="${esc(signatureFieldLabel)}: ${esc(this.translations.signatureAriaLabel)}" style="display: block;"></canvas>
+            <canvas id="${did('canvas')}" class="form-signature-canvas" width="500" height="150" role="img" aria-label="${esc(signatureFieldLabel)}: ${esc(this.translations.signatureAriaLabel)}" style="display: block; width: 100%; height: 150px; touch-action: none;"></canvas>
 
             ${this.readOnly ? '' : `
             <div id="${did('type-container')}" style="display: none; padding: var(--of-space-m); border-top: 1px solid var(--of-border); background: var(--of-color-neutral-2);">
@@ -1867,7 +1802,7 @@ class OpenFormRenderer {
             }
             return esc(reqText);
           })()}</div>
-            <input type="file" id="${did('filepicker')}" style="display: none;" accept="${esc(field.acceptedTypes || '.pdf,.docx,image/*')}" />
+            <input type="file" id="${did('filepicker')}" style="display: none;" accept="${esc(field.acceptedTypes || OpenFormRenderer.DEFAULT_ACCEPTED_TYPES)}" />
           </div>
           <div id="${did('filedetails')}" style="display: none;"></div>
           <input type="hidden" id="${did('input')}" ${field.required ? 'required' : ''} />
@@ -1876,6 +1811,8 @@ class OpenFormRenderer {
 
       case 'repeater':
         container.classList.add('is-repeater-container');
+        container.setAttribute('role', 'group');
+        container.setAttribute('aria-labelledby', this._domId('label', field.id));
         this.renderRepeaterWidget(field, container);
         break;
 
@@ -2352,6 +2289,25 @@ class OpenFormRenderer {
     });
   }
 
+  /**
+   * Value to store for a text/number input: when the field has a `mask`, re-formats what the
+   * user typed in place (keeping the caret) and returns the clean or formatted text per
+   * `maskCleanValue`; otherwise the raw input value. Shared by top-level and repeater fields.
+   */
+  _readMaskedInput(field, inputEl) {
+    const rawVal = inputEl.value;
+    if (!field.mask || !['text', 'number'].includes(field.type)) return rawVal;
+
+    const formatted = this.applyMask(rawVal, field.mask);
+    const start = inputEl.selectionStart;
+    const oldLen = rawVal.length;
+    inputEl.value = formatted;
+    try {
+      inputEl.selectionStart = inputEl.selectionEnd = start + (formatted.length - oldLen);
+    } catch (e) { /* input types without a selection (e.g. number) */ }
+    return field.maskCleanValue !== false ? this.getCleanValue(formatted, field.mask) : formatted;
+  }
+
   /** Pre-fills one rendered top-level field from this.answers and wires its listeners. */
   bindFieldEvents(field) {
     if (field.type === 'header') return;
@@ -2365,6 +2321,8 @@ class OpenFormRenderer {
         let val = stored === undefined || stored === null ? '' : stored;
         if (field.mask && val) {
           val = this.applyMask(String(val), field.mask);
+        } else if (field.type === 'number' && field.isCalculated) {
+          val = this._formatNumber(stored);
         }
         inputEl.value = val;
       }
@@ -2384,26 +2342,7 @@ class OpenFormRenderer {
         if (!this.readOnly) {
           const eventName = ['text', 'textarea', 'number'].includes(field.type) ? 'input' : 'change';
           inputEl.addEventListener(eventName, (e) => {
-            let rawVal = e.target.value;
-
-            if (field.mask && ['text', 'number'].includes(field.type)) {
-              const formatted = this.applyMask(rawVal, field.mask);
-
-              const start = e.target.selectionStart;
-              const oldLen = rawVal.length;
-              e.target.value = formatted;
-
-              const newLen = formatted.length;
-              e.target.selectionStart = e.target.selectionEnd = start + (newLen - oldLen);
-
-              if (field.maskCleanValue !== false) {
-                this.answers[field.key] = this.getCleanValue(formatted, field.mask);
-              } else {
-                this.answers[field.key] = formatted;
-              }
-            } else {
-              this.answers[field.key] = rawVal;
-            }
+            this.answers[field.key] = this._readMaskedInput(field, e.target);
             if (field.type === 'number') {
               this.answers[field.key] = OpenFormRenderer._toNumberAnswer(this.answers[field.key]);
             }
@@ -2473,6 +2412,32 @@ class OpenFormRenderer {
   }
 
   /**
+   * Answer used by rule conditions. While a repeater item is being validated (see
+   * _withItemScope) a key that names one of the item's sub-fields reads that item's value,
+   * so a sub-field's rules can depend on its siblings; any other key reads the form answers.
+   */
+  _answerFor(key) {
+    const scope = this._itemScope;
+    if (scope && scope.keys.has(key)) return scope.item[key];
+    return this.answers[key];
+  }
+
+  /** Runs `fn` with rule conditions resolved against one repeater item (see _answerFor). */
+  _withItemScope(repeaterField, item, fn) {
+    const keys = new Set();
+    (repeaterField.rows || []).forEach(row => (row.columns || []).forEach(col => {
+      if (col && col.field && col.field.key) keys.add(col.field.key);
+    }));
+    const previous = this._itemScope;
+    this._itemScope = { keys, item: item || {} };
+    try {
+      return fn();
+    } finally {
+      this._itemScope = previous;
+    }
+  }
+
+  /**
    * Evaluates individual conditional rules operator logic.
    * Supports compareMode: 'field' to resolve the comparison target from this.answers instead of a static value.
    */
@@ -2482,12 +2447,12 @@ class OpenFormRenderer {
     // An empty `number` answer is stored as null: for (in)equality and contains it reads as
     // an empty string, as it did when numbers were stored as text; ordering operators get
     // null and never match (see compareOrdinal).
-    const rawDependentVal = this.answers[cond.dependentFieldKey];
+    const rawDependentVal = this._answerFor(cond.dependentFieldKey);
 
     // Support field-to-field comparison (Cross-Field Validations)
     const compareMode = cond.compareMode || 'value';
     const rawTargetVal = compareMode === 'field' && cond.compareToFieldKey
-      ? this.answers[cond.compareToFieldKey]
+      ? this._answerFor(cond.compareToFieldKey)
       : cond.equalsValue;
     const isOrdering = ['greaterThan', 'greaterThanOrEquals', 'gte', 'lessThan', 'lessThanOrEquals', 'lte'].includes(cond.operator);
     const dependentVal = rawDependentVal === null && !isOrdering ? '' : rawDependentVal;
@@ -2788,6 +2753,122 @@ class OpenFormRenderer {
     }
 
     this.applyBusinessRulesToDOM(activePage);
+
+    // Repeater sub-field rules are per item, so they run after the top-level state is applied
+    (activePage.sections || []).forEach(section => (section.rows || []).forEach(row => (row.columns || []).forEach(col => {
+      if (col.field && col.field.type === 'repeater') this._applyRepeaterItemRules(col.field);
+    })));
+  }
+
+  /** The per-item copy of a repeater sub-field that the item's widgets are rendered from. */
+  _scopedSubField(repeaterField, itemIndex, subField) {
+    return Object.assign({}, subField, {
+      id: `${repeaterField.id}-${itemIndex}-${subField.id}`,
+      key: `sub-${repeaterField.id}-${itemIndex}-${subField.key}`
+    });
+  }
+
+  /**
+   * Applies the sub-fields' conditionalRules (visibility / required / disabled) to every item of
+   * a repeater: each item is evaluated against its own values (see _withItemScope), a sub-field
+   * that becomes hidden is reset like a hidden top-level field, and the rendered column, required
+   * asterisk, aria-required and disabled state follow the result. Runs after every change.
+   */
+  _applyRepeaterItemRules(field) {
+    const items = this.answers[field.key];
+    if (!Array.isArray(items) || !this.formEl) return;
+    const parentDisabled = !!this.fieldDisabledStates[field.id];
+    const subFields = [];
+    (field.rows || []).forEach(row => (row.columns || []).forEach(col => {
+      if (col && col.field && (col.field.conditionalRules || []).length > 0) subFields.push(col.field);
+    }));
+    // Sub-fields without rules still need their static required/disabled DOM, which is rendered as is
+    if (subFields.length === 0) return;
+
+    // Clearing a hidden sub-field can flip a sibling rule, so settle first (bounded, like top level)
+    for (let pass = 0; pass < 5; pass++) {
+      let changed = false;
+      items.forEach((item, itemIndex) => subFields.forEach(subField => {
+        const state = this._withItemScope(field, item, () => this.evaluateFieldState(subField, null));
+        const scoped = this._scopedSubField(field, itemIndex, subField);
+        if (!state.visible && scoped.key in this.answers && this.hasNonDefaultValue(scoped)) {
+          this.clearFieldState(scoped);
+          changed = true;
+        }
+      }));
+      if (!changed) break;
+    }
+
+    items.forEach((item, itemIndex) => {
+      subFields.forEach(subField => {
+        const state = this._withItemScope(field, item, () => this.evaluateFieldState(subField, null));
+        const scoped = this._scopedSubField(field, itemIndex, subField);
+        const colEl = this.formEl.querySelector(`.form-column[data-field-id="${scoped.id.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"]`);
+        if (colEl) {
+          colEl.style.display = state.visible ? 'block' : 'none';
+          const rowEl = colEl.parentElement;
+          if (rowEl && rowEl.classList.contains('renderer-row')) {
+            const anyVisible = Array.from(rowEl.children).some(c => c.style.display !== 'none');
+            rowEl.style.display = anyVisible ? 'grid' : 'none';
+          }
+        }
+        this._applyStateToWrapper(scoped, state.required, state.disabled || parentDisabled, parentDisabled);
+      });
+    });
+  }
+
+  /**
+   * Applies a field's required / disabled state to its wrapper: required asterisk, aria-required,
+   * `required` attributes and the disabled look/attributes. `field.id` addresses the wrapper
+   * (repeater sub-fields pass their per-item scoped copy).
+   */
+  _applyStateToWrapper(field, isRequired, isDisabled, parentDisabled = false) {
+    const fieldWrapper = this._byId('wrapper', field.id);
+    if (fieldWrapper) {
+      // The renderer's required indicator is the `.required` class on the field's own
+      // .form-label (CSS draws the " *"). Only direct children: a repeater wrapper also
+      // contains its sub-fields' labels.
+      const labelEl = Array.from(fieldWrapper.children).find(el => el.classList.contains('form-label'));
+      if (labelEl) {
+        labelEl.classList.toggle('required', !!isRequired);
+      }
+
+      // Keep aria-required on the element assistive tech treats as the field: the
+      // visible input/select/textarea (never the hidden value holder) or the radiogroup.
+      const primaryInput = Array.from(fieldWrapper.querySelectorAll('input, select, textarea')).find(el => el.id === this._domId('input', field.id));
+      const radioGroup = field.type === 'radio' ? fieldWrapper.querySelector('[role="radiogroup"]') : null;
+      [primaryInput && primaryInput.type !== 'hidden' ? primaryInput : null, radioGroup].forEach(el => {
+        if (!el) return;
+        if (isRequired) {
+          el.setAttribute('aria-required', 'true');
+        } else {
+          el.removeAttribute('aria-required');
+        }
+      });
+
+      const reqInputs = fieldWrapper.querySelectorAll('input, select, textarea');
+      reqInputs.forEach(input => {
+        if (isRequired) {
+          input.setAttribute('required', 'required');
+        } else {
+          input.removeAttribute('required');
+        }
+      });
+
+      if (isDisabled) {
+        fieldWrapper.classList.add('is-disabled');
+      } else {
+        fieldWrapper.classList.remove('is-disabled');
+      }
+      const disInputs = fieldWrapper.querySelectorAll('input, select, textarea, button');
+      disInputs.forEach(input => {
+        if (isDisabled) {
+          input.setAttribute('disabled', 'disabled');
+        } else if (!this.readOnly) {
+          input.removeAttribute('disabled');
+        }
+      });
+    }
   }
 
   /**
@@ -2815,52 +2896,7 @@ class OpenFormRenderer {
             colEl.style.display = overallVisible ? 'block' : 'none';
           }
 
-          const fieldWrapper = this._byId('wrapper', field.id);
-          if (fieldWrapper) {
-            // The renderer's required indicator is the `.required` class on the field's own
-            // .form-label (CSS draws the " *"). Only direct children: a repeater wrapper also
-            // contains its sub-fields' labels.
-            const labelEl = Array.from(fieldWrapper.children).find(el => el.classList.contains('form-label'));
-            if (labelEl) {
-              labelEl.classList.toggle('required', !!isRequired);
-            }
-
-            // Keep aria-required on the element assistive tech treats as the field: the
-            // visible input/select/textarea (never the hidden value holder) or the radiogroup.
-            const primaryInput = Array.from(fieldWrapper.querySelectorAll('input, select, textarea')).find(el => el.id === this._domId('input', field.id));
-            const radioGroup = field.type === 'radio' ? fieldWrapper.querySelector('[role="radiogroup"]') : null;
-            [primaryInput && primaryInput.type !== 'hidden' ? primaryInput : null, radioGroup].forEach(el => {
-              if (!el) return;
-              if (isRequired) {
-                el.setAttribute('aria-required', 'true');
-              } else {
-                el.removeAttribute('aria-required');
-              }
-            });
-
-            const reqInputs = fieldWrapper.querySelectorAll('input, select, textarea');
-            reqInputs.forEach(input => {
-              if (isRequired) {
-                input.setAttribute('required', 'required');
-              } else {
-                input.removeAttribute('required');
-              }
-            });
-
-            if (isDisabled) {
-              fieldWrapper.classList.add('is-disabled');
-            } else {
-              fieldWrapper.classList.remove('is-disabled');
-            }
-            const disInputs = fieldWrapper.querySelectorAll('input, select, textarea, button');
-            disInputs.forEach(input => {
-              if (isDisabled) {
-                input.setAttribute('disabled', 'disabled');
-              } else if (!this.readOnly) {
-                input.removeAttribute('disabled');
-              }
-            });
-          }
+          this._applyStateToWrapper(field, isRequired, isDisabled);
         });
 
         // Hide row if all fields inside it are hidden
@@ -2917,89 +2953,98 @@ class OpenFormRenderer {
       ctx,
       isDrawing: false,
       hasDrawn: false,
-      mode: 'draw'
+      mode: 'draw',
+      // Size in CSS pixels; the backing bitmap is cssWidth*dpr x cssHeight*dpr so strokes stay
+      // crisp on high-density screens while pointer coordinates stay in CSS pixels.
+      cssWidth: canvas.width,
+      cssHeight: canvas.height,
+      source: null
     };
 
     this.signaturePads[field.id] = padState;
 
+    const isDataImage = (v) => typeof v === 'string' && v.startsWith('data:image');
+
     const existingSignature = this.answers[field.key];
-    if (typeof existingSignature === 'string' && existingSignature.startsWith('data:image')) {
+    if (isDataImage(existingSignature)) {
       hiddenInput.value = this.translations.signatureInputVal;
       padState.hasDrawn = true;
     }
 
-    // ResizeObserver tracks dynamic canvas scaling rules
+    const applyStrokeStyle = () => {
+      ctx.strokeStyle = '#1a1a1a';
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+    };
+
+    // (Re)sizes the bitmap for the current CSS size and device pixel ratio, then repaints the
+    // stored signature scaled to fit.
+    const resizeCanvas = (width, height) => {
+      const dpr = (window.devicePixelRatio > 0 ? window.devicePixelRatio : 1);
+      padState.cssWidth = width;
+      padState.cssHeight = height;
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      if (typeof ctx.setTransform === 'function') ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      applyStrokeStyle();
+
+      const currentSignature = this.answers[field.key];
+      if (isDataImage(currentSignature)) {
+        const img = new Image();
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0, padState.cssWidth, padState.cssHeight);
+        };
+        img.src = currentSignature;
+      }
+    };
+    const clearPad = () => ctx.clearRect(0, 0, padState.cssWidth, padState.cssHeight);
+
+    // ResizeObserver tracks dynamic canvas scaling rules. It stays alive for the life of the
+    // pad (also after Clear); teardownSignaturePad disconnects it.
     if (window.ResizeObserver) {
       const resizeObserver = new ResizeObserver((entries) => {
         for (let entry of entries) {
           const { width, height } = entry.contentRect;
-          if (width > 0 && height > 0) {
-            const currentSignature = this.answers[field.key];
-
-            canvas.width = width;
-            canvas.height = height;
-
-            ctx.strokeStyle = '#1a1a1a';
-            ctx.lineWidth = 2.5;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-
-            if (typeof currentSignature === 'string' && currentSignature.startsWith('data:image')) {
-              const img = new Image();
-              img.onload = () => {
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-              };
-              img.src = currentSignature;
-            }
-          }
+          if (width > 0 && height > 0) resizeCanvas(width, height);
         }
       });
       resizeObserver.observe(canvas);
       padState.resizeObserver = resizeObserver;
     } else {
       // Fallback
-      canvas.width = canvas.offsetWidth || 500;
-      canvas.height = canvas.offsetHeight || 150;
-      ctx.strokeStyle = '#1a1a1a';
-      ctx.lineWidth = 2.5;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-
-      if (typeof existingSignature === 'string' && existingSignature.startsWith('data:image')) {
-        const img = new Image();
-        img.onload = () => {
-          ctx.drawImage(img, 0, 0);
-        };
-        img.src = existingSignature;
-      }
+      resizeCanvas(canvas.offsetWidth || 500, canvas.offsetHeight || 150);
     }
 
     const getPos = (e) => {
       const rect = canvas.getBoundingClientRect();
-      if (e.touches && e.touches.length > 0) {
-        return {
-          x: e.touches[0].clientX - rect.left,
-          y: e.touches[0].clientY - rect.top
-        };
-      }
+      const point = e.touches && e.touches.length > 0 ? e.touches[0] : e;
       return {
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top
+        x: point.clientX - rect.left,
+        y: point.clientY - rect.top
       };
     };
 
-    const startDraw = (e) => {
+    // One gesture is reported by up to three event families (pointer, then compatibility
+    // mouse/touch events). The family that starts the stroke owns it; the others are ignored.
+    const startDraw = (source) => (e) => {
       if (this.fieldDisabledStates && this.fieldDisabledStates[field.id]) return;
+      if (padState.isDrawing) return;
       e.preventDefault();
       padState.isDrawing = true;
+      padState.source = source;
       padState.strokeChanged = false;
+      if (source === 'pointer' && typeof canvas.setPointerCapture === 'function' && e.pointerId !== undefined) {
+        try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* synthetic event */ }
+      }
       const pos = getPos(e);
+      applyStrokeStyle();
       ctx.beginPath();
       ctx.moveTo(pos.x, pos.y);
     };
 
-    const draw = (e) => {
-      if (!padState.isDrawing) return;
+    const draw = (source) => (e) => {
+      if (!padState.isDrawing || padState.source !== source) return;
       if (this.fieldDisabledStates && this.fieldDisabledStates[field.id]) return;
       e.preventDefault();
       const pos = getPos(e);
@@ -3007,9 +3052,7 @@ class OpenFormRenderer {
       ctx.stroke();
       padState.hasDrawn = true;
       padState.strokeChanged = true;
-
-      const dataUrl = canvas.toDataURL();
-      this.answers[field.key] = dataUrl;
+      // The (expensive) toDataURL() encoding happens once, when the stroke ends.
       hiddenInput.value = this.translations.signatureInputVal;
 
       const wrapper = this._byId('wrapper', field.id);
@@ -3021,34 +3064,39 @@ class OpenFormRenderer {
     const stopDraw = () => {
       const strokeEnded = padState.isDrawing && padState.strokeChanged;
       padState.isDrawing = false;
+      padState.source = null;
       padState.strokeChanged = false;
-      if (strokeEnded && !this._destroyed) this.handleFieldChanged(field.key);
+      if (strokeEnded && !this._destroyed) {
+        this.answers[field.key] = canvas.toDataURL();
+        this.handleFieldChanged(field.key);
+      }
     };
     padState.stopDraw = stopDraw;
 
     if (!this.readOnly) {
-      canvas.addEventListener('mousedown', startDraw);
-      canvas.addEventListener('mousemove', draw);
+      canvas.addEventListener('pointerdown', startDraw('pointer'));
+      canvas.addEventListener('pointermove', draw('pointer'));
+      window.addEventListener('pointerup', stopDraw);
+      window.addEventListener('pointercancel', stopDraw);
+
+      // Fallback for browsers without Pointer Events
+      canvas.addEventListener('mousedown', startDraw('mouse'));
+      canvas.addEventListener('mousemove', draw('mouse'));
       window.addEventListener('mouseup', stopDraw);
 
-      canvas.addEventListener('touchstart', startDraw, { passive: false });
-      canvas.addEventListener('touchmove', draw, { passive: false });
+      canvas.addEventListener('touchstart', startDraw('touch'), { passive: false });
+      canvas.addEventListener('touchmove', draw('touch'), { passive: false });
       window.addEventListener('touchend', stopDraw);
 
       clearBtn.addEventListener('click', () => {
         if (this.fieldDisabledStates && this.fieldDisabledStates[field.id]) return;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        clearPad();
         padState.hasDrawn = false;
         const hadValue = this.hasSignatureAnswer(this.answers[field.key]);
         this.answers[field.key] = '';
         hiddenInput.value = '';
         const typeInput = this._byId('type-input', field.id);
         if (typeInput) typeInput.value = '';
-        // Disconnect ResizeObserver if active to prevent accumulation
-        if (padState.resizeObserver) {
-          padState.resizeObserver.disconnect();
-          padState.resizeObserver = null;
-        }
         if (hadValue) this.handleFieldChanged(field.key);
       });
 
@@ -3071,7 +3119,7 @@ class OpenFormRenderer {
           typeContainer.style.display = 'none';
           if (indicator) indicator.style.display = 'inline-flex';
 
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          clearPad();
           padState.hasDrawn = false;
           const hadValue = this.hasSignatureAnswer(this.answers[field.key]);
           this.answers[field.key] = '';
@@ -3090,7 +3138,7 @@ class OpenFormRenderer {
           typeContainer.style.display = 'block';
           if (indicator) indicator.style.display = 'none';
 
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          clearPad();
           padState.hasDrawn = false;
           const hadValue = this.hasSignatureAnswer(this.answers[field.key]);
           this.answers[field.key] = '';
@@ -3103,7 +3151,7 @@ class OpenFormRenderer {
           if (padState.mode !== 'type') return;
           const val = e.target.value.trim();
 
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          clearPad();
 
           if (val) {
             padState.hasDrawn = true;
@@ -3111,7 +3159,7 @@ class OpenFormRenderer {
             ctx.fillStyle = "#1a1a1a";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
-            ctx.fillText(val, canvas.width / 2, canvas.height / 2);
+            ctx.fillText(val, padState.cssWidth / 2, padState.cssHeight / 2);
 
             const dataUrl = canvas.toDataURL();
             this.answers[field.key] = dataUrl;
@@ -3249,7 +3297,13 @@ class OpenFormRenderer {
       e.preventDefault();
       uploader.classList.remove('drag-over');
       if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        this.handleFileUpload(field, e.dataTransfer.files[0]);
+        const dropped = e.dataTransfer.files[0];
+        // The picker filters through its `accept` attribute; a drop bypasses that, so apply the same rule
+        if (!OpenFormRenderer._matchesAccept(dropped, field.acceptedTypes || OpenFormRenderer.DEFAULT_ACCEPTED_TYPES)) {
+          this.showToast(this.translations.fileTypeNotAllowedError, true);
+          return;
+        }
+        this.handleFileUpload(field, dropped);
       }
     });
 
@@ -3320,6 +3374,9 @@ class OpenFormRenderer {
 
       if (lightbox && img && caption) {
         img.src = file.content;
+        img.alt = this.translations.lightboxImageAlt;
+        const closeBtn = document.getElementById('lightbox-close');
+        if (closeBtn) closeBtn.setAttribute('aria-label', this.translations.lightboxCloseLabel);
         caption.textContent = file.name;
         lightbox.style.display = 'flex';
       }
@@ -3424,13 +3481,37 @@ class OpenFormRenderer {
     }
   }
 
+  /**
+   * Same matching as an <input type="file" accept="..."> list: `.ext`, `type/*` or `type/subtype`
+   * entries separated by commas.
+   */
+  static _matchesAccept(file, accept) {
+    const tokens = String(accept || '').split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+    if (tokens.length === 0) return true;
+    const name = String(file && file.name || '').toLowerCase();
+    const type = String(file && file.type || '').toLowerCase();
+    return tokens.some(token => {
+      if (token.startsWith('.')) return name.endsWith(token);
+      if (token.endsWith('/*')) return type.startsWith(token.slice(0, -1));
+      return type === token;
+    });
+  }
+
   formatFileSize(bytes) {
     if (bytes === undefined || bytes === null || isNaN(bytes)) return '';
-    if (bytes === 0) return '0 Bytes';
+    const units = String(this.translations.fileSizeUnits).split('|');
     const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    const i = bytes === 0 ? 0 : Math.min(Math.floor(Math.log(bytes) / Math.log(k)), units.length - 1);
+    return this._formatNumberFraction(bytes / Math.pow(k, i), 1) + ' ' + units[i];
+  }
+
+  _formatNumberFraction(value, digits) {
+    const locale = this.locale && this.locale !== 'default' ? this.locale : undefined;
+    try {
+      return new Intl.NumberFormat(locale, { maximumFractionDigits: digits }).format(value);
+    } catch (e) {
+      return String(parseFloat(value.toFixed(digits)));
+    }
   }
 
   /**
@@ -3534,7 +3615,11 @@ class OpenFormRenderer {
                       let isFieldInvalid = false;
                       let errorMessage = '';
                       let errorType = 'required';
-                      const isRequired = subField.required;
+                      // The sub-field's own conditional rules (resolved against this item):
+                      // a hidden or disabled sub-field is never required or pattern-checked
+                      const subState = this._withItemScope(field, item, () => this.evaluateFieldState(subField, null));
+                      if (!subState.visible || subState.disabled) return;
+                      const isRequired = subState.required;
 
                       if (isRequired) {
                         if (subField.type === 'file') {
@@ -3567,7 +3652,7 @@ class OpenFormRenderer {
                           if (!regex.test(val)) {
                             isFieldInvalid = true;
                             errorType = 'pattern';
-                            errorMessage = subField.errorMessage || this.translations.patternValidationBubble;
+                            errorMessage = this.getTranslatedValue('fields', subField.key, 'errorMessage', null, subField.errorMessage) || this.translations.patternValidationBubble;
                           }
                         } catch (e) {
                           console.error("Invalid configuration regex:", subField.validationRegex);
@@ -3657,7 +3742,7 @@ class OpenFormRenderer {
                 if (!regex.test(val)) {
                   isFieldInvalid = true;
                   errorType = 'pattern';
-                  errorMessage = field.errorMessage || this.translations.patternValidationBubble;
+                  errorMessage = this.getTranslatedValue('fields', field.key, 'errorMessage', null, field.errorMessage) || this.translations.patternValidationBubble;
                 }
               } catch (e) {
                 console.error("Invalid configuration regex:", field.validationRegex);
@@ -3736,18 +3821,19 @@ class OpenFormRenderer {
         }
         if (!isValid) {
           hasErrors = true;
+          const ruleMessage = this.getTranslatedValue('crossFieldRules', rule.ruleId, null, null, rule.errorMessage) || this.translations.crossFieldDefaultError;
 
           (rule.targetFields || []).forEach(targetFieldKey => {
             const targetField = pageFieldsMap.get(targetFieldKey);
             if (targetField) {
-              errors.push({ key: targetFieldKey, message: rule.errorMessage || 'Invalid field combination.', pageIndex, type: 'crossField' });
+              errors.push({ key: targetFieldKey, message: ruleMessage, pageIndex, type: 'crossField' });
               const wrapper = paint ? this._byId('wrapper', targetField.id) : null;
               const errorEl = paint ? this._byId('error', targetField.id) : null;
               if (wrapper && errorEl) {
                 wrapper.classList.add('is-invalid');
                 const inputEl = wrapper.querySelector('input, textarea, select');
                 if (inputEl) inputEl.setAttribute('aria-invalid', 'true');
-                errorEl.innerHTML = `${OpenFormRenderer.icon('alert-circle')} ${OpenFormRenderer.escapeHtml(rule.errorMessage || 'Invalid field combination.')}`;
+                errorEl.innerHTML = `${OpenFormRenderer.icon('alert-circle')} ${OpenFormRenderer.escapeHtml(ruleMessage)}`;
               }
             }
           });
@@ -3805,13 +3891,32 @@ class OpenFormRenderer {
             if (['header', 'paragraph'].includes(field.type) || !OpenFormRenderer.FIELD_TYPES.includes(field.type)) return;
 
             if (this.isFieldActiveInSchema(field, section)) {
-              submittedAnswers[field.key] = OpenFormRenderer._deepClone(this.answers[field.key]);
+              let value = OpenFormRenderer._deepClone(this.answers[field.key]);
+              if (field.type === 'repeater' && Array.isArray(value)) value = this._activeRepeaterItems(field, value);
+              submittedAnswers[field.key] = value;
             }
           });
         });
       });
     });
     return submittedAnswers;
+  }
+
+  /** Repeater items without the sub-fields their own rules hide or disable (same as top-level fields). */
+  _activeRepeaterItems(field, items) {
+    const ruled = [];
+    (field.rows || []).forEach(row => (row.columns || []).forEach(col => {
+      if (col && col.field && (col.field.conditionalRules || []).length > 0) ruled.push(col.field);
+    }));
+    if (ruled.length === 0) return items;
+    return items.map(item => {
+      const out = Object.assign({}, item);
+      ruled.forEach(subField => {
+        const state = this._withItemScope(field, item, () => this.evaluateFieldState(subField, null));
+        if (!state.visible || state.disabled) delete out[subField.key];
+      });
+      return out;
+    });
   }
 
   /** Finds a top-level field by key: `{ field, section, pageIndex }` or null. */
@@ -4073,7 +4178,7 @@ class OpenFormRenderer {
 
         const title = document.createElement('span');
         title.className = 'form-repeater-card-title';
-        title.textContent = `Item #${itemIndex + 1}`;
+        title.textContent = this.translations.repeaterItemTitle.replace('{n}', String(itemIndex + 1));
         header.appendChild(title);
 
         // Delete button if not read-only and above minItems
@@ -4181,7 +4286,7 @@ class OpenFormRenderer {
                   } else if (subField.type === 'radio') {
                     val = e.target.value;
                   } else {
-                    val = e.target.value;
+                    val = this._readMaskedInput(subField, e.target);
                   }
 
                   if (subField.type === 'number') {
@@ -4217,6 +4322,9 @@ class OpenFormRenderer {
         listEl.appendChild(card);
       });
 
+      // Newly drawn items get their sub-field rules applied (the first render is covered by
+      // evalBusinessRules once the page is in the DOM)
+      if (this.formEl && this.formEl.contains(listEl)) this._applyRepeaterItemRules(field);
     };
 
     // Render "Add Item" button first if not read-only, so DOM order matches the visual
@@ -4226,7 +4334,7 @@ class OpenFormRenderer {
       const addBtn = document.createElement('button');
       addBtn.type = 'button';
       addBtn.className = 'pg-btn pg-btn-secondary form-repeater-add-btn';
-      const displayAddBtnLabel = this.getTranslatedValue('fields', field.key, 'addButtonLabel', null, field.addButtonLabel || 'Add Item');
+      const displayAddBtnLabel = this.getTranslatedValue('fields', field.key, 'addButtonLabel', null, field.addButtonLabel || this.translations.repeaterAddButtonLabel);
       addBtn.innerHTML = `${OpenFormRenderer.icon('plus-circle', '', 'width: 14px; height: 14px;')} ${OpenFormRenderer.escapeHtml(displayAddBtnLabel)}`;
 
       checkAddButtonState = () => {
@@ -4267,61 +4375,13 @@ class OpenFormRenderer {
 
   /**
    * Applies a custom formatting mask pattern to user input strings.
-   * Wildcards: '9' (digit), 'a' (letter), '*' (alphanumeric).
+   * Wildcards: '9' (digit), 'a' (letter, any Unicode letter), '*' (letter or digit).
    * Literals: Any other character.
    */
   applyMask(value, maskPattern) {
     if (!value) return '';
     if (!maskPattern) return value;
-
-    let formatted = "";
-    let maskIndex = 0;
-    let valIndex = 0;
-
-    const isDigit = (c) => /\d/.test(c);
-    const isLetter = (c) => /[a-zA-Z]/.test(c);
-    const isAlphanumeric = (c) => /[a-zA-Z0-9]/.test(c);
-
-    while (maskIndex < maskPattern.length && valIndex < value.length) {
-      const maskChar = maskPattern[maskIndex];
-      const valChar = value[valIndex];
-
-      if (maskChar === '9') {
-        if (isDigit(valChar)) {
-          formatted += valChar;
-          maskIndex++;
-          valIndex++;
-        } else {
-          valIndex++;
-        }
-      } else if (maskChar === 'a') {
-        if (isLetter(valChar)) {
-          formatted += valChar;
-          maskIndex++;
-          valIndex++;
-        } else {
-          valIndex++;
-        }
-      } else if (maskChar === '*') {
-        if (isAlphanumeric(valChar)) {
-          formatted += valChar;
-          maskIndex++;
-          valIndex++;
-        } else {
-          valIndex++;
-        }
-      } else {
-        // It's a literal character (like '.', '-', '(', etc.)
-        formatted += maskChar;
-        maskIndex++;
-
-        if (valChar === maskChar) {
-          valIndex++;
-        }
-      }
-    }
-
-    return formatted;
+    return OpenFormRenderer._walkMask(value, maskPattern, true);
   }
 
   /**
@@ -4330,52 +4390,40 @@ class OpenFormRenderer {
   getCleanValue(value, maskPattern) {
     if (!value) return '';
     if (!maskPattern) return value;
+    return OpenFormRenderer._walkMask(value, maskPattern, false);
+  }
 
-    let clean = "";
+  /** Shared walker for applyMask (keepLiterals) and getCleanValue (wildcard matches only). */
+  static _walkMask(value, maskPattern, keepLiterals) {
+    // Code points (not UTF-16 units) and NFC, so "é" typed as e + combining accent is one letter
+    const chars = Array.from(String(value).normalize('NFC'));
+    const mask = Array.from(maskPattern);
+    const matchers = {
+      '9': (c) => /\d/.test(c),
+      'a': (c) => /\p{L}/u.test(c),
+      '*': (c) => /[\p{L}\d]/u.test(c)
+    };
+
+    let out = '';
     let maskIndex = 0;
     let valIndex = 0;
-
-    const isDigit = (c) => /\d/.test(c);
-    const isLetter = (c) => /[a-zA-Z]/.test(c);
-    const isAlphanumeric = (c) => /[a-zA-Z0-9]/.test(c);
-
-    while (maskIndex < maskPattern.length && valIndex < value.length) {
-      const maskChar = maskPattern[maskIndex];
-      const valChar = value[valIndex];
-
-      if (maskChar === '9') {
-        if (isDigit(valChar)) {
-          clean += valChar;
+    while (maskIndex < mask.length && valIndex < chars.length) {
+      const maskChar = mask[maskIndex];
+      const valChar = chars[valIndex];
+      if (matchers[maskChar]) {
+        if (matchers[maskChar](valChar)) {
+          out += valChar;
           maskIndex++;
-          valIndex++;
-        } else {
-          valIndex++;
         }
-      } else if (maskChar === 'a') {
-        if (isLetter(valChar)) {
-          clean += valChar;
-          maskIndex++;
-          valIndex++;
-        } else {
-          valIndex++;
-        }
-      } else if (maskChar === '*') {
-        if (isAlphanumeric(valChar)) {
-          clean += valChar;
-          maskIndex++;
-          valIndex++;
-        } else {
-          valIndex++;
-        }
+        valIndex++;
       } else {
+        // Literal character (like '.', '-', '(', etc.)
+        if (keepLiterals) out += maskChar;
         maskIndex++;
-        if (valChar === maskChar) {
-          valIndex++;
-        }
+        if (valChar === maskChar) valIndex++;
       }
     }
-
-    return clean;
+    return out;
   }
 
   /**
@@ -4795,7 +4843,7 @@ class OpenFormRenderer {
                   // Update input value in active DOM
                   const inputEl = this._byId('input', field.id);
                   if (inputEl) {
-                    inputEl.value = newVal;
+                    inputEl.value = this._formatNumber(newVal);
                   }
                 }
               }
@@ -4943,7 +4991,7 @@ class OpenFormRenderer {
     });
 
     const title = document.createElement('div');
-    title.textContent = 'Select Attachment Source';
+    title.textContent = this.translations.actionSheetTitle;
     Object.assign(title.style, {
       fontSize: '14px',
       fontWeight: '600',
@@ -4956,7 +5004,7 @@ class OpenFormRenderer {
     const cameraBtn = document.createElement('button');
     cameraBtn.type = 'button';
     cameraBtn.className = 'pg-btn';
-    cameraBtn.innerHTML = `${OpenFormRenderer.icon('camera', '', 'width: 16px; height: 16px; margin-right: var(--of-space-s); vertical-align: middle;')} Take Photo`;
+    cameraBtn.innerHTML = `${OpenFormRenderer.icon('camera', '', 'width: 16px; height: 16px; margin-right: var(--of-space-s); vertical-align: middle;')} ${OpenFormRenderer.escapeHtml(this.translations.actionSheetTakePhoto)}`;
     Object.assign(cameraBtn.style, {
       padding: 'var(--of-space-m)',
       fontSize: '14px',
@@ -4976,7 +5024,7 @@ class OpenFormRenderer {
     const fileBtn = document.createElement('button');
     fileBtn.type = 'button';
     fileBtn.className = 'pg-btn pg-btn-secondary';
-    fileBtn.innerHTML = `${OpenFormRenderer.icon('file-text', '', 'width: 16px; height: 16px; margin-right: var(--of-space-s); vertical-align: middle;')} Choose Document/File`;
+    fileBtn.innerHTML = `${OpenFormRenderer.icon('file-text', '', 'width: 16px; height: 16px; margin-right: var(--of-space-s); vertical-align: middle;')} ${OpenFormRenderer.escapeHtml(this.translations.actionSheetChooseFile)}`;
     Object.assign(fileBtn.style, {
       padding: 'var(--of-space-m)',
       fontSize: '14px',
@@ -4996,7 +5044,7 @@ class OpenFormRenderer {
     const cancelBtn = document.createElement('button');
     cancelBtn.type = 'button';
     cancelBtn.className = 'pg-btn pg-btn-secondary';
-    cancelBtn.textContent = 'Cancel';
+    cancelBtn.textContent = this.translations.actionSheetCancel;
     Object.assign(cancelBtn.style, {
       padding: 'var(--of-space-m)',
       fontSize: '14px',

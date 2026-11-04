@@ -27,7 +27,7 @@ function debounce(fn, delay) {
  * License: Apache-2.0
  */
 class OpenFormBuilder {
-  static VERSION = '1.2.0';
+  static VERSION = '1.3.0';
 
   /** Current schema format version written by the builder (schemas without it are version 1). */
   static SCHEMA_VERSION = 2;
@@ -83,6 +83,24 @@ class OpenFormBuilder {
     'x-circle': '<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>'
   };
 
+  /** Palette entries in display order: field type, icon and the translation key of its label. */
+  static PALETTE_ITEMS = [
+    { type: 'header', icon: 'heading', label: 'sectionHeaderLabel' },
+    { type: 'paragraph', icon: 'align-justify', label: 'paragraphLabel' },
+    { type: 'text', icon: 'text-cursor-input', label: 'textInputLabel' },
+    { type: 'textarea', icon: 'align-left', label: 'longTextAreaLabel' },
+    { type: 'number', icon: 'binary', label: 'numericInputLabel' },
+    { type: 'date', icon: 'calendar', label: 'dateFieldLabel' },
+    { type: 'boolean', icon: 'toggle-left', label: 'booleanToggleLabel' },
+    { type: 'dropdown', icon: 'list-collapse', label: 'dropdownLabel' },
+    { type: 'radio', icon: 'circle-dot', label: 'radioButtonLabel' },
+    { type: 'checkbox', icon: 'check-square', label: 'checkboxLabel' },
+    { type: 'file', icon: 'upload-cloud', label: 'fileUploadLabel' },
+    { type: 'signature', icon: 'pen-tool', label: 'canvasSignatureLabel' },
+    { type: 'repeater', icon: 'layers', label: 'repeaterLabel' },
+    { type: 'matrix', icon: 'grid', label: 'matrixLabel' }
+  ];
+
   /**
    * Returns the markup of an inline SVG icon (decorative: aria-hidden, not focusable).
    * @param {string} name Key of OpenFormBuilder.ICONS (unknown names fall back to a help icon)
@@ -116,14 +134,53 @@ class OpenFormBuilder {
   }
 
   /**
+   * B10: translated UI string with `{name}` placeholders filled from `vars`.
+   * Every user-visible string of the builder goes through this dictionary (`translations`).
+   */
+  t(key, vars) {
+    const raw = this.translations[key];
+    const text = typeof raw === 'string' ? raw : String(key);
+    return vars ? text.replace(/\{(\w+)\}/g, (m, name) => (Object.prototype.hasOwnProperty.call(vars, name) ? String(vars[name]) : m)) : text;
+  }
+
+  /** `t()` that picks `<key>One` when `vars.count === 1`, `<key>Other` otherwise. */
+  tn(key, count, vars) {
+    return this.t(key + (count === 1 ? 'One' : 'Other'), Object.assign({ count }, vars));
+  }
+
+  /**
+   * `t()` for strings that carry light formatting, returned as safe HTML: the text is
+   * escaped first, then `**x**` becomes <strong> and `` `x` `` becomes <code>.
+   */
+  tHtml(key, vars) {
+    return this.esc(this.t(key, vars))
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/`(.+?)`/g, '<code>$1</code>');
+  }
+
+  /**
    * @param {Object} options
    * @param {HTMLElement} options.containerEl Container element of the widget
    * @param {Function} options.onSchemaChange Callback fired when the schema changes
    * @param {Object} [options.translations] Custom translation overrides
+   * @param {Object} [options.schema] Initial schema (cloned; same as calling loadSchema() right after construction, without the undo history)
+   * @param {string[]} [options.fieldTypes] Allow-list of field types shown in the palette (default: all of OpenFormBuilder.FIELD_TYPES)
+   * @param {boolean} [options.readOnly] View-only builder: no palette, no drag, no editing, no undo/redo shortcuts
+   * @param {Array<{code: string, label: string}>} [options.locales] Languages offered in the "Editing Language" switcher (the base language is always first)
+   * @param {Function} [options.confirm] `(message) => boolean | Promise<boolean>` replacing the built-in confirm dialog
+   * @param {Function} [options.prompt] `(message, defaultValue) => string|null | Promise<string|null>` replacing the built-in prompt dialog
    */
-  constructor({ containerEl, onSchemaChange, translations }) {
+  constructor({ containerEl, onSchemaChange, translations, schema, fieldTypes, readOnly, locales, confirm: confirmHook, prompt: promptHook }) {
     this.containerEl = containerEl;
     this.onSchemaChange = onSchemaChange;
+
+    // A7: builder options.
+    this.readOnly = !!readOnly;
+    this.allowedFieldTypes = OpenFormBuilder._normalizeFieldTypes(fieldTypes);
+    this.locales = OpenFormBuilder._normalizeLocales(locales);
+    this._confirmHook = typeof confirmHook === 'function' ? confirmHook : null;
+    this._promptHook = typeof promptHook === 'function' ? promptHook : null;
+    this._dialog = null;
 
     // A1: everything this instance attaches outside its own container (document listeners,
     // toast nodes in the host's #toast-container, pending timers) is tracked here so
@@ -151,6 +208,7 @@ class OpenFormBuilder {
       canvasSignatureLabel: "Canvas Signature",
       fileUploadLabel: "File Upload",
       paragraphLabel: "Text Block",
+      repeaterLabel: "Repeatable List",
 
       // Canvas / Editor Workspace
       formTitlePlaceholder: "Form Title",
@@ -161,7 +219,6 @@ class OpenFormBuilder {
       addPageLabel: "Add Page",
       emptyPageTitle: "is empty",
       emptyPageDesc: "Start by adding a row or dragging a field from the side palette to create responsive elements.",
-      emptyPageAddRow: "Add Row",
       rowLabel: "Row",
       addColTitle: "Add Column in this Row",
       deleteRowTitle: "Delete Row",
@@ -171,7 +228,6 @@ class OpenFormBuilder {
       colDeleteTitle: "Delete Column",
       dropFieldHere: "Drop field here",
       removeFieldTitle: "Remove Field",
-      addGridRowZone: "Add New Grid Row",
 
       // Properties Panel
       propertiesPageTitle: "Page Properties",
@@ -193,22 +249,10 @@ class OpenFormBuilder {
       fieldOptionsSourceLabel: "Options Source",
       fieldOptionsStaticLabel: "Static Options (Configured)",
       fieldOptionsApiLabel: "Dynamic REST API (URL Address)",
-      fieldOptionsStaticPlaceholder: "Label1:value1\nLabel2:value2",
-      fieldOptionsStaticHint: "Configure one per line using 'Label:value'.",
       fieldOptionsApiUrlLabel: "REST API URL",
       fieldOptionsApiUrlPlaceholder: "e.g. /api/countries",
       fieldOptionsApiUrlHint: "Options are supplied at runtime by the host page's optionsProvider; this URL is passed to it as a hint.",
-      fieldHasVisibilityLabel: "Has Visibility Rule?",
-      fieldCondIfField: "If field:",
       fieldCondNoOtherFields: "-- No other fields available --",
-      fieldCondIsOperator: "Is:",
-      fieldCondEquals: "Equals to",
-      fieldCondNotEquals: "Not Equals to",
-      fieldCondContains: "Contains",
-      fieldCondGreaterThan: "Greater than",
-      fieldCondLessThan: "Less than",
-      fieldCondValueLabel: "This Value:",
-      fieldCondValuePlaceholder: "e.g. true or text",
 
       // Default names
       defaultSectionTitle: "Section Title",
@@ -271,7 +315,105 @@ class OpenFormBuilder {
       cfrErrorMessageLabel: "Error Message",
       cfrErrorMessagePlaceholder: "e.g. End date must be after start date",
       cfrMarkAsInvalidLabel: "Mark as invalid:",
-      cfrNoFieldsAvailableText: "No fields available."
+      cfrNoFieldsAvailableText: "No fields available.",
+
+      // Dialogs (the built-in replacement for window.confirm / window.prompt)
+      dialogOkLabel: "OK",
+      dialogCancelLabel: "Cancel",
+      addLocalePrompt: "Enter the language code (e.g. fr-FR, de-DE):",
+      addLocaleTitle: "Add Custom Language Code",
+      editingLanguageLabel: "Editing Language",
+      localeDefaultLabel: "Default (Base)",
+      localeCustomLabel: "{code} (Custom)",
+
+      // Canvas
+      addSectionLabel: "Add Section",
+      addRowLabel: "Add Row",
+      insertSectionHereTitle: "Insert Section Here",
+      insertRowHereTitle: "Insert Row Here",
+      sectionLabelPrefix: "Section:",
+      sectionTitlePlaceholder: "Section Title...",
+      emptySectionHint: "This Section is empty. Click \"+ Add Row\" in the header to start adding layout rows.",
+      repeaterEmptyHint: "Empty Repeater list. Click 'Add Row' to start designing subfields.",
+      formulaHiddenBadge: "hidden",
+
+      // Toasts
+      keepOneSectionToast: "You must keep at least one section on the page.",
+      nestedRepeaterMatrixToast: "Nested repeaters or matrices are not supported.",
+      nestedRepeaterToast: "Nested repeaters are not supported.",
+      keyEmptyToast: "Field key cannot be empty.",
+      keyInUseToast: "Key \"{key}\" is already used by another field.",
+      keyRenamedToastOne: "Key renamed: updated {count} reference from \"{oldKey}\" to \"{newKey}\".",
+      keyRenamedToastOther: "Key renamed: updated {count} references from \"{oldKey}\" to \"{newKey}\".",
+      schemaProblemsToastOne: "Schema loaded with {count} problem: {message} [{path}]{more}",
+      schemaProblemsToastOther: "Schema loaded with {count} problems: {message} [{path}]{more}",
+      schemaProblemsMore: " (+{count} more)",
+      cleanupRemovedPrefix: "Removed references to the deleted field: {parts}.",
+      cleanupFormulaNotice: "Formula still references a deleted field: {formulas}.",
+      cleanupConditionsOne: "{count} rule condition",
+      cleanupConditionsOther: "{count} rule conditions",
+      cleanupEmptiedRulesOne: "{count} emptied rule",
+      cleanupEmptiedRulesOther: "{count} emptied rules",
+      cleanupCrossTargetsOne: "{count} cross-field target",
+      cleanupCrossTargetsOther: "{count} cross-field targets",
+      cleanupCrossRulesOne: "{count} cross-field rule",
+      cleanupCrossRulesOther: "{count} cross-field rules",
+      cleanupTranslationsOne: "{count} translation entry",
+      cleanupTranslationsOther: "{count} translation entries",
+
+      // Properties panels
+      propertiesSectionTitle: "Properties: Section",
+      duplicateSectionLabel: "Duplicate Section",
+      propertiesParagraphTitle: "Properties: Text Block",
+      paragraphContentLabel: "Paragraph Content",
+      paragraphBlockHint: "Use this block to display instructions, descriptions, or general text content in the form.",
+      keyLocaleNotice: "Switch to Default Language to edit database keys.",
+      maskLabel: "Custom Input Mask",
+      maskPlaceholder: "e.g., 999.999.999-99",
+      maskHint: "Use `9` for digits, `a` for letters, and `*` for alphanumeric. All other characters are literals.",
+      maskCleanValueLabel: "Save Clean Value? (Strip symbols in answers)",
+      calculatedFieldLabel: "Is Calculated Field? (Formula)",
+      formulaExpressionLabel: "Formula Expression",
+      formulaExpressionPlaceholder: "e.g., {price} * {quantity}",
+      formulaInsertFieldLabel: "Insert field:",
+      formulaNoNumericFields: "No other numeric fields available.",
+      formulaInsertFunctionLabel: "Insert function:",
+      formulaHelpText: "Wrap other numeric database keys in curly braces (e.g. `{price}`). Supported: operators `+ - * / %`, parentheses `( )`, comparisons `> < >= <= == !=`, ternary `condition ? a : b`, and `Math.min/max/round/abs/floor/ceil(...)`. Nothing else is evaluated.",
+      formulaVisibleOnFormLabel: "Visible on Form?",
+      formulaVisibleOnFormHint: "Uncheck to keep computing this value silently (e.g. as an input to a Cross-Field Validation) without showing it as a field on the rendered form.",
+      fileAcceptedTypesLabel: "Accepted Attachment Types",
+      fileAcceptedTypesPlaceholder: "e.g. .pdf,.docx,image/*",
+      fileAcceptedTypesHint: "Comma-separated extensions or mime types (e.g. .pdf,image/*,.docx)",
+      fileRequirementsLabel: "File Requirements Text",
+      fileRequirementsPlaceholder: "e.g. Maximum size 10MB",
+      fileRequirementsHint: "Help text indicating format/size limits.",
+      fileMaxSizeLabel: "Maximum File Size (MB)",
+      fileMaxSizeHint: "File size limit in Megabytes.",
+      useNativeCameraLabel: "Use Native Camera (Cordova/Capacitor)?",
+      nativeCameraSourceLabel: "Native Camera Source",
+      nativeCameraOptionCamera: "Camera Only",
+      nativeCameraOptionPhotos: "Photo Library Only",
+      nativeCameraOptionPrompt: "Prompt (Camera or Library)",
+      addOptionLabel: "Add Option",
+      optionLabelPlaceholder: "Label",
+      optionValuePlaceholder: "value",
+      removeOptionTitle: "Remove option",
+      translateOptionLabelsLabel: "Translate Option Labels",
+      translationPlaceholder: "Translation...",
+      repeaterMinItemsLabel: "Minimum Items",
+      repeaterMaxItemsLabel: "Maximum Items",
+      repeaterAddButtonLabel: "Add Button Label",
+      removeRowTitle: "Remove Row",
+
+      // Defaults written into newly created fields (authored content, editable afterwards)
+      defaultRegexErrorMessage: "Incorrect value pattern.",
+      defaultParagraphText: "This is an explanatory text block. You can write instructions here.",
+      defaultRepeaterAddButton: "Add Item",
+      defaultRepeaterItemName: "Item Name",
+      defaultOptionLabel: "Option {n}",
+      defaultMatrixRowLabel: "Question Row {n}",
+      duplicatedSectionSuffix: "(Copy)",
+      duplicatedSectionTitle: "Section Copy"
     }, translations || {});
 
     // Active page state
@@ -288,8 +430,10 @@ class OpenFormBuilder {
     this.draggedSectionId = null;
     this.draggedSubRowId = null;
 
-    // Initial Schema State (Opens empty as requested by the user)
-    this.schema = this.normalizeSchema({
+    // Initial Schema State: the `schema` option when given, otherwise an empty form.
+    const initialSchema = schema && typeof schema === 'object' && !Array.isArray(schema) ? schema : null;
+    const initialReport = initialSchema ? OpenFormBuilder.validateSchema(initialSchema) : null;
+    this.schema = this.normalizeSchema(initialSchema ? JSON.parse(JSON.stringify(initialSchema)) : {
       formTitle: "Untitled Form",
       formDescription: "",
       pages: []
@@ -327,6 +471,49 @@ class OpenFormBuilder {
 
     // Bind Keyboard Shortcuts for Undo/Redo
     this.bindKeyboardShortcuts();
+    this._bindReadOnlyGuards();
+
+    // Like loadSchema(): the schema always loads, problems are only reported.
+    if (initialReport && initialReport.errors.length > 0) this._reportSchemaProblems(initialReport);
+  }
+
+  /** A7: keeps only known, unique field types; `null` means "all types". */
+  static _normalizeFieldTypes(fieldTypes) {
+    if (!Array.isArray(fieldTypes)) return null;
+    const known = OpenFormBuilder.FIELD_TYPES;
+    const result = [];
+    fieldTypes.forEach(type => {
+      if (!known.includes(type)) {
+        if (typeof console !== 'undefined') console.warn(`OpenFormBuilder: unknown field type "${type}" in the fieldTypes option was ignored.`);
+      } else if (!result.includes(type)) {
+        result.push(type);
+      }
+    });
+    return result;
+  }
+
+  /** A7: `[{ code, label }]` (invalid entries dropped); the default list when not an array. */
+  static _normalizeLocales(locales) {
+    if (!Array.isArray(locales)) {
+      return [
+        { code: 'pt-BR', label: 'Português (pt-BR)' },
+        { code: 'en-US', label: 'English (en-US)' },
+        { code: 'es-ES', label: 'Español (es-ES)' }
+      ];
+    }
+    const result = [];
+    locales.forEach(loc => {
+      if (!loc || typeof loc.code !== 'string' || !loc.code.trim()) return;
+      const code = loc.code.trim();
+      if (code === 'default' || result.some(l => l.code === code)) return;
+      result.push({ code, label: typeof loc.label === 'string' && loc.label ? loc.label : code });
+    });
+    return result;
+  }
+
+  /** A7: true when a palette type may be created (always true without a `fieldTypes` allow-list). */
+  isFieldTypeAllowed(type) {
+    return !this.readOnly && (!this.allowedFieldTypes || this.allowedFieldTypes.includes(type));
   }
 
   /**
@@ -366,6 +553,7 @@ class OpenFormBuilder {
    * Sets localized translations branch dynamically inside schema properties dictionary
    */
   setTranslationValue(category, targetKey, subCategory, optKeyOrValue, value) {
+    if (this.readOnly) return;
     if (!this.schema.translations) {
       this.schema.translations = {};
     }
@@ -414,6 +602,7 @@ class OpenFormBuilder {
    * Removes unused empty keys from properties translations dictionary
    */
   deleteTranslationValue(category, targetKey, subCategory, optKey) {
+    if (this.readOnly) return;
     if (!this.schema.translations || !this.schema.translations[this.editingLocale]) return;
     const dict = this.schema.translations[this.editingLocale];
     if (category === 'form') {
@@ -469,17 +658,12 @@ class OpenFormBuilder {
    * Generates elegant, harmonized language switcher panel
    */
   renderLocaleSwitcherHTML() {
-    const locales = [
-      { code: 'default', label: 'Default (Base)' },
-      { code: 'pt-BR', label: 'Português (pt-BR)' },
-      { code: 'en-US', label: 'English (en-US)' },
-      { code: 'es-ES', label: 'Español (es-ES)' }
-    ];
+    const locales = [{ code: 'default', label: this.translations.localeDefaultLabel }].concat(this.locales);
 
     if (this.schema.translations) {
       Object.keys(this.schema.translations).forEach(code => {
         if (!locales.some(l => l.code === code)) {
-          locales.push({ code, label: `${code} (Custom)` });
+          locales.push({ code, label: this.t('localeCustomLabel', { code }) });
         }
       });
     }
@@ -490,12 +674,12 @@ class OpenFormBuilder {
 
     return `
       <div class="properties-locale-switcher" style="">
-        <label class="prop-label" style="margin-bottom: 6px; display: block; font-size: var(--of-font-size-xs); text-transform: uppercase; letter-spacing: 0.5px; color: var(--of-color-neutral-7); font-weight: var(--of-font-weight-bold);">Editing Language</label>
+        <label class="prop-label" style="margin-bottom: 6px; display: block; font-size: var(--of-font-size-xs); text-transform: uppercase; letter-spacing: 0.5px; color: var(--of-color-neutral-7); font-weight: var(--of-font-weight-bold);">${this.esc(this.translations.editingLanguageLabel)}</label>
         <div style="display: flex; gap: var(--of-space-s); align-items: center;">
           <select id="prop-editing-locale" class="prop-input" style="flex: 1; padding: var(--of-space-xs) var(--of-space-s); font-size: var(--of-font-size-s); height: 30px; margin-bottom: 0;">
             ${selectOptionsHTML}
           </select>
-          <button id="btn-add-locale" class="pg-btn pg-btn-secondary" style="padding: 0 var(--of-space-s); font-size: var(--of-font-size-xs); height: 30px; display: flex; align-items: center; justify-content: center;" title="Add Custom Language Code">
+          <button id="btn-add-locale" class="pg-btn pg-btn-secondary" style="padding: 0 var(--of-space-s); font-size: var(--of-font-size-xs); height: 30px; display: flex; align-items: center; justify-content: center;" title="${this.esc(this.translations.addLocaleTitle)}">
             ${OpenFormBuilder.icon('plus', '', 'width: 14px; height: 14px;')}
           </button>
         </div>
@@ -518,9 +702,10 @@ class OpenFormBuilder {
 
     const addBtn = this.propertiesEl.querySelector('#btn-add-locale');
     if (addBtn) {
-      addBtn.addEventListener('click', () => {
-        const code = prompt("Enter standard language code (e.g., fr-FR, de-DE):\nDigite o código do idioma (ex: fr-FR, de-DE):");
-        if (code) {
+      addBtn.addEventListener('click', async () => {
+        if (this.readOnly) return;
+        const code = await this.prompt(this.translations.addLocalePrompt, '');
+        if (code && !this._destroyed && !this.readOnly) {
           const sanitized = code.trim().replace(/[^a-zA-Z\-]/g, '');
           if (sanitized) {
             this.editingLocale = sanitized;
@@ -876,71 +1061,17 @@ class OpenFormBuilder {
   buildHTMLShell() {
     this.containerEl.innerHTML = `
       <div class="builder-layout">
-        <!-- Palette Sidebar -->
-        <aside class="builder-palette">
+        <!-- Palette Sidebar (not rendered in read-only mode) -->
+        ${this.readOnly ? '' : `<aside class="builder-palette">
           <h4 class="section-label">${this.esc(this.translations.paletteTitle)}</h4>
           <div class="palette-grid">
-            <!-- Section Title Heading -->
-            <div class="palette-item" draggable="true" data-type="header" style="">
-              ${OpenFormBuilder.icon('heading')}
-              <span>${this.esc(this.translations.sectionHeaderLabel)}</span>
-            </div>
-            <!-- Text Block / Paragraph -->
-            <div class="palette-item" draggable="true" data-type="paragraph">
-              ${OpenFormBuilder.icon('align-justify')}
-              <span>${this.esc(this.translations.paragraphLabel || 'Text Block')}</span>
-            </div>
-            
-            <div class="palette-item" draggable="true" data-type="text">
-              ${OpenFormBuilder.icon('text-cursor-input')}
-              <span>${this.esc(this.translations.textInputLabel)}</span>
-            </div>
-            <div class="palette-item" draggable="true" data-type="textarea">
-              ${OpenFormBuilder.icon('align-left')}
-              <span>${this.esc(this.translations.longTextAreaLabel)}</span>
-            </div>
-            <div class="palette-item" draggable="true" data-type="number">
-              ${OpenFormBuilder.icon('binary')}
-              <span>${this.esc(this.translations.numericInputLabel)}</span>
-            </div>
-            <div class="palette-item" draggable="true" data-type="date">
-              ${OpenFormBuilder.icon('calendar')}
-              <span>${this.esc(this.translations.dateFieldLabel)}</span>
-            </div>
-            <div class="palette-item" draggable="true" data-type="boolean">
-              ${OpenFormBuilder.icon('toggle-left')}
-              <span>${this.esc(this.translations.booleanToggleLabel)}</span>
-            </div>
-            <div class="palette-item" draggable="true" data-type="dropdown">
-              ${OpenFormBuilder.icon('list-collapse')}
-              <span>${this.esc(this.translations.dropdownLabel)}</span>
-            </div>
-            <div class="palette-item" draggable="true" data-type="radio">
-              ${OpenFormBuilder.icon('circle-dot')}
-              <span>${this.esc(this.translations.radioButtonLabel)}</span>
-            </div>
-            <div class="palette-item" draggable="true" data-type="checkbox">
-              ${OpenFormBuilder.icon('check-square')}
-              <span>${this.esc(this.translations.checkboxLabel)}</span>
-            </div>
-            <div class="palette-item" draggable="true" data-type="file">
-              ${OpenFormBuilder.icon('upload-cloud')}
-              <span>${this.esc(this.translations.fileUploadLabel)}</span>
-            </div>
-            <div class="palette-item" draggable="true" data-type="signature">
-              ${OpenFormBuilder.icon('pen-tool')}
-              <span>${this.esc(this.translations.canvasSignatureLabel)}</span>
-            </div>
-            <div class="palette-item" draggable="true" data-type="repeater">
-              ${OpenFormBuilder.icon('layers')}
-              <span>${this.esc(this.translations.repeaterLabel || 'Repeatable List')}</span>
-            </div>
-            <div class="palette-item" draggable="true" data-type="matrix">
-              ${OpenFormBuilder.icon('grid')}
-              <span>${this.esc(this.translations.matrixLabel || 'Question Matrix')}</span>
-            </div>
+            ${OpenFormBuilder.PALETTE_ITEMS.filter(item => this.isFieldTypeAllowed(item.type)).map(item => `
+            <div class="palette-item" draggable="true" data-type="${item.type}">
+              ${OpenFormBuilder.icon(item.icon)}
+              <span>${this.esc(this.translations[item.label])}</span>
+            </div>`).join('')}
           </div>
-        </aside>
+        </aside>`}
         
         <!-- Center Designer Canvas Workspace -->
         <div class="builder-canvas"></div>
@@ -954,6 +1085,8 @@ class OpenFormBuilder {
         </aside>
       </div>
     `;
+
+    if (this.readOnly) this.containerEl.querySelector('.builder-layout').classList.add('is-readonly');
 
     // Cache structural queries locally
     this.canvasEl = this.containerEl.querySelector('.builder-canvas');
@@ -1036,7 +1169,7 @@ class OpenFormBuilder {
 
     if (type === 'text') {
       field.validationRegex = '';
-      field.errorMessage = 'Incorrect value pattern.';
+      field.errorMessage = this.translations.defaultRegexErrorMessage;
     }
 
     if (type === 'number') {
@@ -1052,8 +1185,8 @@ class OpenFormBuilder {
     if (['dropdown', 'radio', 'checkbox'].includes(type)) {
       field.optionsType = 'static';
       field.options = [
-        { label: "Option 1", value: "option1" },
-        { label: "Option 2", value: "option2" }
+        { label: this.t('defaultOptionLabel', { n: 1 }), value: "option1" },
+        { label: this.t('defaultOptionLabel', { n: 2 }), value: "option2" }
       ];
       field.optionsUrl = '';
     }
@@ -1065,7 +1198,7 @@ class OpenFormBuilder {
     }
 
     if (type === 'paragraph') {
-      field.label = 'This is an explanatory text block. You can write instructions here.';
+      field.label = this.translations.defaultParagraphText;
       delete field.required;
       delete field.key;
     }
@@ -1073,14 +1206,14 @@ class OpenFormBuilder {
     if (type === 'repeater') {
       field.minItems = 1;
       field.maxItems = 10;
-      field.addButtonLabel = 'Add Item';
+      field.addButtonLabel = this.translations.defaultRepeaterAddButton;
       field.rows = [
         {
           rowId: `r-sub-${this.generateUniqueId('s')}`,
           columns: [
             {
               width: 12,
-              field: { id: this.generateUniqueId('sub'), key: 'sub_col_1', type: 'text', label: 'Item Name', required: true }
+              field: { id: this.generateUniqueId('sub'), key: 'sub_col_1', type: 'text', label: this.translations.defaultRepeaterItemName, required: true }
             }
           ]
         }
@@ -1089,13 +1222,13 @@ class OpenFormBuilder {
 
     if (type === 'matrix') {
       field.matrixRows = [
-        { key: "row_1", label: "Question Row 1" },
-        { key: "row_2", label: "Question Row 2" }
+        { key: "row_1", label: this.t('defaultMatrixRowLabel', { n: 1 }) },
+        { key: "row_2", label: this.t('defaultMatrixRowLabel', { n: 2 }) }
       ];
       field.optionsType = 'static';
       field.options = [
-        { label: "Option 1", value: "option1" },
-        { label: "Option 2", value: "option2" }
+        { label: this.t('defaultOptionLabel', { n: 1 }), value: "option1" },
+        { label: this.t('defaultOptionLabel', { n: 2 }), value: "option2" }
       ];
       field.optionsUrl = '';
     }
@@ -1153,6 +1286,7 @@ class OpenFormBuilder {
    * Add a new page tab in the visual designer
    */
   addNewPage() {
+    if (this.readOnly) return;
     const pageId = `page-${Math.random().toString(36).substr(2, 9)}`;
     const pageNum = this.schema.pages.length + 1;
 
@@ -1174,31 +1308,36 @@ class OpenFormBuilder {
   /**
    * Remove page layout tab and its internal row schemas
    */
-  deletePage(pageId) {
+  async deletePage(pageId) {
+    if (this.readOnly) return;
     if (this.schema.pages.length <= 1) return;
+    if (!this.schema.pages.some(p => p.pageId === pageId)) return;
 
+    const confirmed = await this.confirm(this.translations.deletePageConfirm);
+    if (!confirmed || this._destroyed || this.readOnly) return;
+
+    // The schema may have changed while the dialog was open: look the page up again.
     const pageIndex = this.schema.pages.findIndex(p => p.pageId === pageId);
-    if (pageIndex !== -1) {
-      if (confirm(this.translations.deletePageConfirm)) {
-        const removedFields = [];
-        (this.schema.pages[pageIndex].sections || []).forEach(sec => this._collectFieldsInRows(sec.rows, removedFields));
-        this.schema.pages.splice(pageIndex, 1);
-        this.activePageIndex = Math.min(this.activePageIndex, this.schema.pages.length - 1);
-        this.selectedFieldId = null;
-        this._reconcileState();
-        this._cleanupAndReportRemovedFields(removedFields);
+    if (pageIndex === -1 || this.schema.pages.length <= 1) return;
 
-        this.notifyChange();
-        this.render();
-        this.renderProperties();
-      }
-    }
+    const removedFields = [];
+    (this.schema.pages[pageIndex].sections || []).forEach(sec => this._collectFieldsInRows(sec.rows, removedFields));
+    this.schema.pages.splice(pageIndex, 1);
+    this.activePageIndex = Math.min(this.activePageIndex, this.schema.pages.length - 1);
+    this.selectedFieldId = null;
+    this._reconcileState();
+    this._cleanupAndReportRemovedFields(removedFields);
+
+    this.notifyChange();
+    this.render();
+    this.renderProperties();
   }
 
   /**
    * Overwrite page title string
    */
   renamePage(pageId, newTitle) {
+    if (this.readOnly) return;
     const page = this.schema.pages.find(p => p.pageId === pageId);
     if (page) {
       page.title = newTitle || `${this.translations.pagePrefix} ${this.schema.pages.indexOf(page) + 1}`;
@@ -1280,6 +1419,7 @@ class OpenFormBuilder {
   }
 
   duplicateSection(sectionId) {
+    if (this.readOnly) return;
     const activePage = this.schema.pages[this.activePageIndex];
     if (!activePage.sections) return;
 
@@ -1291,7 +1431,7 @@ class OpenFormBuilder {
 
     // Update section ID and title
     clonedSection.sectionId = `sec-${this.generateUniqueId('s')}`;
-    clonedSection.title = clonedSection.title ? `${clonedSection.title} (Copy)` : "Section Copy";
+    clonedSection.title = clonedSection.title ? `${clonedSection.title} ${this.translations.duplicatedSectionSuffix}` : this.translations.duplicatedSectionTitle;
 
     // B2: old -> new key/id maps so references among the duplicated fields (rules, formulas,
     // translations) can be pointed at the copies instead of the originals.
@@ -1395,6 +1535,7 @@ class OpenFormBuilder {
    * Appends a new layout Section to the active page
    */
   addNewSection() {
+    if (this.readOnly) return;
     const activePage = this.schema.pages[this.activePageIndex];
     if (!activePage.sections) activePage.sections = [];
 
@@ -1414,6 +1555,7 @@ class OpenFormBuilder {
    * Inserts a new layout Section at a specific index in the active page
    */
   addNewSectionAt(index) {
+    if (this.readOnly) return;
     const activePage = this.schema.pages[this.activePageIndex];
     if (!activePage.sections) activePage.sections = [];
 
@@ -1433,9 +1575,10 @@ class OpenFormBuilder {
    * Deletes a layout Section and all rows contained within it
    */
   deleteSection(sectionId) {
+    if (this.readOnly) return;
     const activePage = this.schema.pages[this.activePageIndex];
     if (!activePage.sections || activePage.sections.length <= 1) {
-      this.showToast("You must keep at least one section on the page.", true);
+      this.showToast(this.translations.keepOneSectionToast, true);
       return;
     }
 
@@ -1469,6 +1612,7 @@ class OpenFormBuilder {
    * Appends a new grid row at the bottom of the active page layout
    */
   addNewRow(sectionId = null) {
+    if (this.readOnly) return;
     const activePage = this.schema.pages[this.activePageIndex];
 
     // Ensure at least one section exists
@@ -1501,6 +1645,7 @@ class OpenFormBuilder {
    * Inserts a new grid row at a specific index in the section rows list
    */
   addNewRowAt(sectionId, index) {
+    if (this.readOnly) return;
     const activePage = this.schema.pages[this.activePageIndex];
     if (!activePage.sections || activePage.sections.length === 0) {
       this.addNewSection();
@@ -1528,6 +1673,7 @@ class OpenFormBuilder {
    * Delete row schema entirely
    */
   deleteRow(rowId) {
+    if (this.readOnly) return;
     const res = this.getRow(rowId);
     if (res) {
       const { row, section, repeaterField } = res;
@@ -1561,6 +1707,7 @@ class OpenFormBuilder {
   }
 
   addRepeaterRow(repeaterField) {
+    if (this.readOnly) return;
     if (!repeaterField.rows) repeaterField.rows = [];
     repeaterField.rows.push({
       rowId: `r-sub-${this.generateUniqueId('s')}`,
@@ -1579,6 +1726,7 @@ class OpenFormBuilder {
    * Insert column cell inside a row and automatically rebalances spans
    */
   addColumnToRow(rowId) {
+    if (this.readOnly) return;
     const res = this.getRow(rowId);
     if (res) {
       const { row } = res;
@@ -1597,6 +1745,7 @@ class OpenFormBuilder {
    * Remove column cell and balance the remaining ones to fill exactly 12 grid spaces
    */
   deleteColumnFromRow(rowId, colIndex) {
+    if (this.readOnly) return;
     const res = this.getRow(rowId);
     if (res) {
       const { row } = res;
@@ -1648,6 +1797,7 @@ class OpenFormBuilder {
    * Increase or decrease column width manually
    */
   adjustColumnWidth(rowId, colIndex, delta) {
+    if (this.readOnly) return;
     const res = this.getRow(rowId);
     if (res) {
       const { row } = res;
@@ -1665,6 +1815,7 @@ class OpenFormBuilder {
    * Delete field data contained inside a column cell
    */
   deleteField(rowId, colIndex) {
+    if (this.readOnly) return;
     const res = this.getRow(rowId);
     if (res) {
       const { row } = res;
@@ -1812,6 +1963,35 @@ class OpenFormBuilder {
     return list;
   }
 
+  /**
+   * B16: the fields of the top-level key namespace — every field outside a repeater, plus the
+   * repeater fields themselves (their sub-fields live in their own namespace).
+   */
+  getTopLevelFields() {
+    const list = [];
+    this.schema.pages.forEach(page => {
+      (page.sections || []).forEach(section => {
+        (section.rows || []).forEach(row => {
+          (row.columns || []).forEach(col => {
+            if (col.field) list.push(col.field);
+          });
+        });
+      });
+    });
+    return list;
+  }
+
+  /** B16: the sub-fields (direct children) of a repeater. */
+  getRepeaterSubFields(repeaterField) {
+    const list = [];
+    (repeaterField.rows || []).forEach(row => {
+      (row.columns || []).forEach(col => {
+        if (col.field) list.push(col.field);
+      });
+    });
+    return list;
+  }
+
   _collectFieldsRecursive(field, list) {
     list.push(field);
     if (field.type === 'repeater' && field.rows) {
@@ -1878,51 +2058,88 @@ class OpenFormBuilder {
 
   /**
    * Rewrites every reference to `oldKey` so it points at `newKey`. Call after the field's
-   * own key has been changed. If another field still uses `oldKey` (a repeater sub-field
-   * and a top-level field may legitimately share a key), references are ambiguous and are
-   * left untouched. Returns the number of references updated.
+   * own key has been changed. Returns the number of references updated.
+   *
+   * B16: keys are scoped like `validateSchema` scopes them — top-level fields share one
+   * namespace, each repeater's sub-fields have their own (a sub-field may reuse a top-level
+   * key). Pass the renamed `field` so only references in its scope are rewritten:
+   *  - a sub-field: rules and formulas of the fields in the same repeater;
+   *  - a top-level field: top-level fields, sections, cross-field rules, and the rules of
+   *    sub-fields in repeaters that have no sub-field of their own called `oldKey`.
+   * Translations are keyed by plain `key`, so they only move when no other field is left
+   * using `oldKey` or already uses `newKey` (otherwise the entry is ambiguous and stays).
+   * Without `field` (legacy call) the scope is unknown: nothing is rewritten while another
+   * field still uses `oldKey`.
    */
-  renameFieldKeyReferences(oldKey, newKey) {
+  renameFieldKeyReferences(oldKey, newKey, field = null) {
     if (!oldKey || !newKey || oldKey === newKey) return 0;
-    if (this.getAllFields().some(f => f.key === oldKey)) return 0;
+    const allFields = this.getAllFields();
+    const parentRepeater = field ? this.getParentRepeaterField(field.id) : null;
+    if (!field && allFields.some(f => f.key === oldKey)) return 0;
+    if (field && !parentRepeater && this.getTopLevelFields().some(f => f !== field && f.key === oldKey)) return 0;
+    if (parentRepeater && this.getRepeaterSubFields(parentRepeater).some(f => f !== field && f.key === oldKey)) return 0;
 
     let count = 0;
     const remapCond = (cond) => {
       if (cond.dependentFieldKey === oldKey) { cond.dependentFieldKey = newKey; count++; }
       if (cond.compareToFieldKey === oldKey) { cond.compareToFieldKey = newKey; count++; }
     };
-
-    this._getRuleOwners().forEach(owner => {
+    const remapOwner = (owner) => {
       (owner.conditionalRules || []).forEach(rule => this._forEachRuleCondition(rule, remapCond));
       if (typeof owner.formulaExpression === 'string') {
         const res = this._replaceKeyToken(owner.formulaExpression, oldKey, newKey);
         owner.formulaExpression = res.value;
         count += res.count;
       }
-    });
+    };
 
-    (this.schema.crossFieldRules || []).forEach(rule => {
-      if (Array.isArray(rule.targetFields)) {
-        rule.targetFields = rule.targetFields.map(k => {
-          if (k === oldKey) { count++; return newKey; }
-          return k;
+    if (parentRepeater) {
+      // Sub-field rename: references can only come from the repeater's own fields.
+      this.getRepeaterSubFields(parentRepeater).forEach(remapOwner);
+    } else {
+      // Owners whose references resolve in the top-level namespace.
+      const subFieldsByRepeater = new Map();
+      allFields.forEach(f => {
+        if (f.type === 'repeater') subFieldsByRepeater.set(f, this.getRepeaterSubFields(f));
+      });
+      const subFieldSet = new Set();
+      subFieldsByRepeater.forEach(subs => subs.forEach(f => subFieldSet.add(f)));
+      this._getRuleOwners().forEach(owner => {
+        if (!subFieldSet.has(owner)) remapOwner(owner);
+      });
+      // A sub-field's reference means a sibling when its repeater has a sub-field with that key.
+      if (field) {
+        subFieldsByRepeater.forEach(subs => {
+          if (!subs.some(f => f.key === oldKey)) subs.forEach(remapOwner);
         });
       }
-      this._forEachRuleCondition(rule, remapCond);
-      if (typeof rule.expression === 'string') {
-        const res = this._replaceKeyToken(rule.expression, oldKey, newKey);
-        rule.expression = res.value;
-        count += res.count;
-      }
-    });
 
-    Object.values(this.schema.translations || {}).forEach(dict => {
-      if (dict && dict.fields && dict.fields[oldKey] !== undefined && dict.fields[newKey] === undefined) {
-        dict.fields[newKey] = dict.fields[oldKey];
-        delete dict.fields[oldKey];
-        count++;
-      }
-    });
+      (this.schema.crossFieldRules || []).forEach(rule => {
+        if (Array.isArray(rule.targetFields)) {
+          rule.targetFields = rule.targetFields.map(k => {
+            if (k === oldKey) { count++; return newKey; }
+            return k;
+          });
+        }
+        this._forEachRuleCondition(rule, remapCond);
+        if (typeof rule.expression === 'string') {
+          const res = this._replaceKeyToken(rule.expression, oldKey, newKey);
+          rule.expression = res.value;
+          count += res.count;
+        }
+      });
+    }
+
+    const keyStillUsed = allFields.some(f => f !== field && (f.key === oldKey || f.key === newKey));
+    if (!keyStillUsed) {
+      Object.values(this.schema.translations || {}).forEach(dict => {
+        if (dict && dict.fields && dict.fields[oldKey] !== undefined && dict.fields[newKey] === undefined) {
+          dict.fields[newKey] = dict.fields[oldKey];
+          delete dict.fields[oldKey];
+          count++;
+        }
+      });
+    }
 
     return count;
   }
@@ -2041,19 +2258,18 @@ class OpenFormBuilder {
     if (!summary) return null;
 
     const parts = [];
-    const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
-    if (summary.conditions) parts.push(plural(summary.conditions, 'rule condition'));
-    if (summary.rules) parts.push(plural(summary.rules, 'emptied rule'));
-    if (summary.crossFieldTargets) parts.push(plural(summary.crossFieldTargets, 'cross-field target'));
-    if (summary.crossFieldRules) parts.push(plural(summary.crossFieldRules, 'cross-field rule'));
-    if (summary.translations) parts.push(plural(summary.translations, 'translation entry').replace('entrys', 'entries'));
+    if (summary.conditions) parts.push(this.tn('cleanupConditions', summary.conditions));
+    if (summary.rules) parts.push(this.tn('cleanupEmptiedRules', summary.rules));
+    if (summary.crossFieldTargets) parts.push(this.tn('cleanupCrossTargets', summary.crossFieldTargets));
+    if (summary.crossFieldRules) parts.push(this.tn('cleanupCrossRules', summary.crossFieldRules));
+    if (summary.translations) parts.push(this.tn('cleanupTranslations', summary.translations));
 
-    let message = parts.length > 0 ? `Removed references to the deleted field: ${parts.join(', ')}.` : '';
+    let message = parts.length > 0 ? this.t('cleanupRemovedPrefix', { parts: parts.join(', ') }) : '';
     if (summary.formulas.length > 0) {
       const formulaText = summary.formulas
         .map(f => `${f.field} (${f.keys.map(k => `{${k}}`).join(', ')})`)
         .join('; ');
-      message += `${message ? ' ' : ''}Formula still references a deleted field: ${formulaText}.`;
+      message += `${message ? ' ' : ''}${this.t('cleanupFormulaNotice', { formulas: formulaText })}`;
     }
     this.showToast(message, summary.formulas.length > 0);
     return summary;
@@ -2085,11 +2301,14 @@ class OpenFormBuilder {
     this.renderProperties();
 
     // The schema always loads; problems are only reported so the author can fix them.
-    if (report.errors.length > 0) {
-      const first = report.errors[0];
-      const more = report.errors.length > 1 ? ` (+${report.errors.length - 1} more)` : '';
-      this.showToast(`Schema loaded with ${report.errors.length} problem${report.errors.length === 1 ? '' : 's'}: ${first.message} [${first.path}]${more}`, true);
-    }
+    if (report.errors.length > 0) this._reportSchemaProblems(report);
+  }
+
+  /** Toast summarising the first validation error of a loaded schema. */
+  _reportSchemaProblems(report) {
+    const first = report.errors[0];
+    const more = report.errors.length > 1 ? this.t('schemaProblemsMore', { count: report.errors.length - 1 }) : '';
+    this.showToast(this.tn('schemaProblemsToast', report.errors.length, { message: first.message, path: first.path, more }), true);
   }
 
   /**
@@ -2131,7 +2350,7 @@ class OpenFormBuilder {
     if (this.selectedFieldId && !this.getSelectedField()) {
       this.selectedFieldId = null;
     }
-    const presetLocales = ['default', 'pt-BR', 'en-US', 'es-ES'];
+    const presetLocales = ['default'].concat(this.locales.map(l => l.code));
     const loc = this.editingLocale;
     if (!presetLocales.includes(loc) && !(this.schema.translations && this.schema.translations[loc])) {
       this.editingLocale = 'default';
@@ -2278,7 +2497,7 @@ class OpenFormBuilder {
 
     const btn = document.createElement('button');
     btn.className = 'insertion-btn';
-    btn.title = 'Insert Section Here';
+    btn.title = this.translations.insertSectionHereTitle;
     btn.type = 'button';
     btn.innerHTML = `${OpenFormBuilder.icon('plus')}`;
     btn.addEventListener('click', (e) => {
@@ -2296,7 +2515,7 @@ class OpenFormBuilder {
 
     const btn = document.createElement('button');
     btn.className = 'insertion-btn';
-    btn.title = 'Insert Row Here';
+    btn.title = this.translations.insertRowHereTitle;
     btn.type = 'button';
     btn.innerHTML = `${OpenFormBuilder.icon('plus')}`;
     btn.addEventListener('click', (e) => {
@@ -2312,6 +2531,11 @@ class OpenFormBuilder {
    * Renders primary visual designer canvas tree
    */
   render() {
+    this._renderCanvas();
+    if (this.readOnly) this._applyReadOnlyCanvas();
+  }
+
+  _renderCanvas() {
     this.canvasEl.innerHTML = '';
 
     // Form Title Heading Input Edit Bar
@@ -2409,7 +2633,7 @@ class OpenFormBuilder {
     // Create New Section Button
     const addSectionBtn = document.createElement('button');
     addSectionBtn.className = 'canvas-page-add-btn is-accent';
-    addSectionBtn.innerHTML = `${OpenFormBuilder.icon('folder-plus')} Add Section`;
+    addSectionBtn.innerHTML = `${OpenFormBuilder.icon('folder-plus')} ${this.esc(this.translations.addSectionLabel)}`;
     addSectionBtn.addEventListener('click', () => this.addNewSection());
     pagesBar.appendChild(addSectionBtn);
 
@@ -2427,7 +2651,7 @@ class OpenFormBuilder {
         <h3>${this.esc(this.translations.pagePrefix)} "${this.esc(activePage.title)}" ${this.esc(this.translations.emptyPageTitle)}</h3>
         <p>${this.esc(this.translations.emptyPageDesc)}</p>
         <button id="btn-empty-add-section" class="pg-btn" style="margin-top: var(--of-space-s);">
-          ${OpenFormBuilder.icon('folder-plus')} Add Section
+          ${OpenFormBuilder.icon('folder-plus')} ${this.esc(this.translations.addSectionLabel)}
         </button>
       `;
       this.canvasEl.appendChild(emptyState);
@@ -2455,13 +2679,13 @@ class OpenFormBuilder {
         <div class="section-drag-handle">
           ${OpenFormBuilder.icon('grip-vertical', '', 'width: 14px; height: 14px; color: var(--of-color-neutral-6); cursor: grab; margin-right: var(--of-space-xs);')}
           <span style="font-weight: var(--of-font-weight-bold); font-size: var(--of-font-size-xs); text-transform: uppercase; letter-spacing: 0.8px; color: var(--of-color-primary); display: flex; align-items: center; gap: var(--of-space-xs);">
-            ${OpenFormBuilder.icon('folder', '', 'width: var(--of-font-size-s); height: var(--of-font-size-s);')} Section:
+            ${OpenFormBuilder.icon('folder', '', 'width: var(--of-font-size-s); height: var(--of-font-size-s);')} ${this.esc(this.translations.sectionLabelPrefix)}
           </span>
-          <input type="text" class="section-title-input" value="${this.esc(sectionTitleVal)}" placeholder="${this.esc(this.editingLocale === 'default' ? 'Section Title...' : (section.title || 'Section Title...'))}" style="flex: 1; font-weight: var(--of-font-weight-bold); background: transparent; border: none; ${sectionTitleVal == "" || sectionTitleVal == "Default Section" ? "color: var(--of-text-secondary);" : ""} font-size: var(--of-font-size-s); outline: none; margin-left: 6px; color: var(--of-color-neutral-10);" />
+          <input type="text" class="section-title-input" value="${this.esc(sectionTitleVal)}" placeholder="${this.esc(this.editingLocale === 'default' ? this.translations.sectionTitlePlaceholder : (section.title || this.translations.sectionTitlePlaceholder))}" style="flex: 1; font-weight: var(--of-font-weight-bold); background: transparent; border: none; ${sectionTitleVal == "" || sectionTitleVal == "Default Section" ? "color: var(--of-text-secondary);" : ""} font-size: var(--of-font-size-s); outline: none; margin-left: 6px; color: var(--of-color-neutral-10);" />
         </div>
         <div class="section-operations" style="display: flex; gap: 6px; align-items: center;">
           <button class="pg-btn pg-btn-secondary btn-sec-add-row" style="padding: var(--of-space-xs) 10px; font-size: var(--of-font-size-xs);">
-            ${OpenFormBuilder.icon('plus', '', 'width: 12px; height: 12px;')} Add Row
+            ${OpenFormBuilder.icon('plus', '', 'width: 12px; height: 12px;')} ${this.esc(this.translations.addRowLabel)}
           </button>
           <button class="pg-btn pg-btn-secondary btn-sec-delete">
             ${OpenFormBuilder.icon('trash-2', '', 'width: 12px; height: 12px;')}
@@ -2556,7 +2780,7 @@ class OpenFormBuilder {
         emptySecDrop.className = 'empty-section-drop-zone';
         emptySecDrop.innerHTML = `
           <div style="font-size: var(--of-font-size-xs); color: var(--of-color-neutral-6); text-align: center; padding: 20px; border: 1px dashed var(--of-border); border-radius: var(--of-border-radius-s);">
-            This Section is empty. Click "+ Add Row" in the header to start adding layout rows.
+            ${this.esc(this.translations.emptySectionHint)}
           </div>
         `;
         rowsContainer.appendChild(emptySecDrop);
@@ -2729,7 +2953,7 @@ class OpenFormBuilder {
                   ${OpenFormBuilder.icon('align-justify', 'canvas-field-icon', 'color: var(--of-color-neutral-7)')}
                   <div style="flex: 1; min-width: 0;">
                     <div class="canvas-field-title" style="font-weight: var(--of-font-weight-normal); color: var(--of-color-neutral-8); font-size: var(--of-font-size-s); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.4; max-height: 2.8em;">${this.esc(displayLabel)}</div>
-                    <span style="font-size: 9px; color: var(--of-color-neutral-6); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Text Block</span>
+                    <span style="font-size: 9px; color: var(--of-color-neutral-6); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${this.esc(this.translations.paragraphLabel)}</span>
                   </div>
                 </div>
                 <div class="canvas-field-actions">
@@ -2750,8 +2974,8 @@ class OpenFormBuilder {
                       <span class="canvas-field-key">${this.esc(field.key)}</span>
                     </div>
                     <div class="repeater-operations">
-                      <button class="repeater-op-btn add-row" title="Add Row" style="background: none; border: none; cursor: pointer; display: flex; align-items: center; color: var(--of-color-primary); font-size: var(--of-font-size-xs); gap: var(--of-space-xs); padding: 2px 6px;">
-                        ${OpenFormBuilder.icon('plus', '', 'width: 12px; height: 12px;')} Add Row
+                      <button class="repeater-op-btn add-row" title="${this.esc(this.translations.addRowLabel)}" style="background: none; border: none; cursor: pointer; display: flex; align-items: center; color: var(--of-color-primary); font-size: var(--of-font-size-xs); gap: var(--of-space-xs); padding: 2px 6px;">
+                        ${OpenFormBuilder.icon('plus', '', 'width: 12px; height: 12px;')} ${this.esc(this.translations.addRowLabel)}
                       </button>
                     </div>
                   </div>
@@ -2787,7 +3011,7 @@ class OpenFormBuilder {
               if (!field.rows || field.rows.length === 0) {
                 const emptyZone = document.createElement('div');
                 emptyZone.style.cssText = "font-size: var(--of-font-size-xs); color: var(--of-color-neutral-6); text-align: center; padding: 15px; border: 1px dashed var(--of-border); border-radius: var(--of-border-radius-s); width: 100%;";
-                emptyZone.textContent = "Empty Repeater list. Click 'Add Row' to start designing subfields.";
+                emptyZone.textContent = this.translations.repeaterEmptyHint;
                 rowsContainer.appendChild(emptyZone);
               } else {
                 field.rows.forEach((subRow, subRowIndex) => {
@@ -2801,7 +3025,7 @@ class OpenFormBuilder {
                   subRowBar.className = 'row-actions-bar';
                   subRowBar.innerHTML = `
                     <div style="font-size: var(--of-font-size-xs); color: var(--of-color-neutral-7); font-weight: var(--of-font-weight-semibold);">
-                      Row ${subRowIndex + 1}
+                      ${this.esc(this.translations.rowLabel)} ${subRowIndex + 1}
                     </div>
                     <div class="row-operations">
                       <button class="row-op-btn add-col" title="${this.esc(this.translations.addColTitle)}">
@@ -3011,7 +3235,7 @@ class OpenFormBuilder {
                     <div class="canvas-field-title">
                       ${this.esc(displayLabel)} ${field.required ? '<span style="color: var(--of-color-error)">*</span>' : ''}
                       ${field.isCalculated ? `<span class="canvas-formula-badge" style="font-size: 9px; padding: 2px 6px; border-radius: 10px; background: color-mix(in srgb, var(--of-color-primary) 10%, transparent); color: var(--of-color-primary); margin-left: 6px; font-weight: var(--of-font-weight-semibold); display: inline-flex; align-items: center; gap: 3px;">${OpenFormBuilder.icon('calculator', '', 'width: 10px; height: 10px;')} fx</span>` : ''}
-                      ${field.isCalculated && field.isVisibleOnForm === false ? `<span class="canvas-formula-badge" style="font-size: 9px; padding: 2px 6px; border-radius: 10px; background: var(--of-color-neutral-3); color: var(--of-color-neutral-7); margin-left: 6px; font-weight: var(--of-font-weight-semibold); display: inline-flex; align-items: center; gap: 3px;">${OpenFormBuilder.icon('eye-off', '', 'width: 10px; height: 10px;')} hidden</span>` : ''}
+                      ${field.isCalculated && field.isVisibleOnForm === false ? `<span class="canvas-formula-badge" style="font-size: 9px; padding: 2px 6px; border-radius: 10px; background: var(--of-color-neutral-3); color: var(--of-color-neutral-7); margin-left: 6px; font-weight: var(--of-font-weight-semibold); display: inline-flex; align-items: center; gap: 3px;">${OpenFormBuilder.icon('eye-off', '', 'width: 10px; height: 10px;')} ${this.esc(this.translations.formulaHiddenBadge)}</span>` : ''}
                     </div>
                     <span class="canvas-field-key">${this.esc(field.key)}</span>
                   </div>
@@ -3083,14 +3307,16 @@ class OpenFormBuilder {
       e.stopPropagation();
       cellEl.classList.remove('drag-over');
 
+      if (this.readOnly) return;
       if (this.draggedFieldType) {
         // Drop new field from sidebar palette
+        if (!this.isFieldTypeAllowed(this.draggedFieldType)) return;
         const res = this.getRow(rowId);
         if (res) {
           const { row, repeaterField } = res;
           // Prevent nesting repeaters/matrices inside repeaters
           if (repeaterField && ['repeater', 'matrix'].includes(this.draggedFieldType)) {
-            this.showToast("Nested repeaters or matrices are not supported.", true);
+            this.showToast(this.translations.nestedRepeaterMatrixToast, true);
             return;
           }
           const newField = this.createDefaultField(this.draggedFieldType);
@@ -3120,7 +3346,7 @@ class OpenFormBuilder {
           const targetField = targetRow.columns[colIndex].field || null;
 
           if (targetRes.repeaterField && sourceField.type === 'repeater') {
-            this.showToast("Nested repeaters are not supported.", true);
+            this.showToast(this.translations.nestedRepeaterToast, true);
             return;
           }
 
@@ -3148,6 +3374,11 @@ class OpenFormBuilder {
    * one focused method per panel (A1).
    */
   renderProperties() {
+    this._renderPropertiesPanel();
+    if (this.readOnly) this._applyReadOnlyProperties();
+  }
+
+  _renderPropertiesPanel() {
     if (this.selectedSectionId) {
       const activePage = this.schema.pages[this.activePageIndex];
       const section = activePage.sections.find(s => s.sectionId === this.selectedSectionId);
@@ -3185,12 +3416,12 @@ class OpenFormBuilder {
           ${this.renderLocaleSwitcherHTML()}
           <div class="prop-header">
             ${OpenFormBuilder.icon('folder')}
-            <span class="prop-title">Properties: Section</span>
+            <span class="prop-title">${this.esc(this.translations.propertiesSectionTitle)}</span>
           </div>
 
           <!-- Section Title Input -->
           <div class="prop-group">
-            <label class="prop-label">Section Title</label>
+            <label class="prop-label">${this.esc(this.translations.sectionTitleLabel)}</label>
             <input type="text" id="prop-section-title" class="prop-input" 
                    value="${this.esc(this.editingLocale === 'default' ? (section.title || '') : (this.getTranslationValue('sections', section.sectionId) || ''))}" 
                    placeholder="${this.esc(this.editingLocale === 'default' ? '' : (section.title || ''))}" />
@@ -3199,7 +3430,7 @@ class OpenFormBuilder {
           <div class="prop-group" style="margin-top: var(--of-space-m);">
             <button type="button" class="pg-btn pg-btn-secondary" id="btn-duplicate-section" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: var(--of-space-s);"
                     ${this.editingLocale !== 'default' ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
-              ${OpenFormBuilder.icon('copy', '', 'width: 14px; height: 14px;')} Duplicate Section
+              ${OpenFormBuilder.icon('copy', '', 'width: 14px; height: 14px;')} ${this.esc(this.translations.duplicateSectionLabel)}
             </button>
           </div>
 
@@ -3304,18 +3535,18 @@ class OpenFormBuilder {
           ${this.renderLocaleSwitcherHTML()}
           <div class="prop-header">
             ${OpenFormBuilder.icon('align-justify')}
-            <span class="prop-title">Properties: Text Block</span>
+            <span class="prop-title">${this.esc(this.translations.propertiesParagraphTitle)}</span>
           </div>
           
           <!-- Text Content -->
           <div class="prop-group">
-            <label class="prop-label">Paragraph Content</label>
+            <label class="prop-label">${this.esc(this.translations.paragraphContentLabel)}</label>
             <textarea id="prop-paragraph-label" class="prop-input" rows="6" style="resize: vertical; font-family: inherit; font-size: var(--of-font-size-s); line-height: 1.5; padding: var(--of-space-s);">${this.esc(this.editingLocale === 'default' ? field.label : (this.getTranslationValue('fields', field.key || field.id, 'label') || ''))}</textarea>
           </div>
           
           <hr style="border: none; border-top: 1px solid var(--of-color-neutral-4); margin: var(--of-space-m) 0;" />
           <div style="font-size: var(--of-font-size-xs); color: var(--of-color-neutral-7); line-height: 1.4;">
-            Use this block to display instructions, descriptions, or general text content in the form.
+            ${this.esc(this.translations.paragraphBlockHint)}
           </div>
         </div>
       `;
@@ -3444,7 +3675,7 @@ class OpenFormBuilder {
           <label class="prop-label">${this.esc(this.translations.fieldKeyLabel)}</label>
           <input type="text" id="prop-field-key" class="prop-input" value="${this.esc(field.key)}" 
                  ${this.editingLocale !== 'default' ? 'disabled style="background: var(--of-color-neutral-3); cursor: not-allowed;"' : ''} />
-          ${this.editingLocale !== 'default' ? `<span style="font-size: var(--of-font-size-xs); color: var(--of-color-neutral-7); margin-top: 2px; display: block;">Switch to Default Language to edit database keys.</span>` : ''}
+          ${this.editingLocale !== 'default' ? `<span style="font-size: var(--of-font-size-xs); color: var(--of-color-neutral-7); margin-top: 2px; display: block;">${this.esc(this.translations.keyLocaleNotice)}</span>` : ''}
         </div>
         
         <!-- Optional Placeholder -->
@@ -3468,11 +3699,11 @@ class OpenFormBuilder {
         <!-- Custom Input Masking (Only applies to text and number inputs) -->
         ${['text', 'number'].includes(field.type) ? `
         <div class="prop-group">
-          <label class="prop-label">Custom Input Mask</label>
-          <input type="text" id="prop-field-mask" class="prop-input" value="${this.esc(field.mask || '')}" placeholder="e.g., 999.999.999-99" 
+          <label class="prop-label">${this.esc(this.translations.maskLabel)}</label>
+          <input type="text" id="prop-field-mask" class="prop-input" value="${this.esc(field.mask || '')}" placeholder="${this.esc(this.translations.maskPlaceholder)}" 
                  ${this.editingLocale !== 'default' ? 'disabled style="background: var(--of-color-neutral-3); cursor: not-allowed;"' : ''} />
           <span style="font-size: var(--of-font-size-xs); color: var(--of-color-neutral-7); margin-top: var(--of-space-xs); display: block; line-height: 1.4;">
-            Use <strong>9</strong> for digits, <strong>a</strong> for letters, and <strong>*</strong> for alphanumeric. All other characters are literals.
+            ${this.tHtml('maskHint')}
           </span>
         </div>
         
@@ -3480,7 +3711,7 @@ class OpenFormBuilder {
           <label class="prop-checkbox-label">
             <input type="checkbox" id="prop-field-mask-clean" ${field.maskCleanValue !== false ? 'checked' : ''} 
                    ${this.editingLocale !== 'default' ? 'disabled' : ''} />
-            <span>Save Clean Value? (Strip symbols in answers)</span>
+            <span>${this.esc(this.translations.maskCleanValueLabel)}</span>
           </label>
         </div>
         ` : ''}
@@ -3491,23 +3722,23 @@ class OpenFormBuilder {
           <label class="prop-checkbox-label">
             <input type="checkbox" id="prop-field-calculated" ${field.isCalculated ? 'checked' : ''} 
                    ${this.editingLocale !== 'default' ? 'disabled' : ''} />
-            <span>Is Calculated Field? (Formula)</span>
+            <span>${this.esc(this.translations.calculatedFieldLabel)}</span>
           </label>
         </div>
         
         <div class="prop-group" id="prop-field-formula-group" style="${field.isCalculated ? '' : 'display: none;'}">
-          <label class="prop-label">Formula Expression</label>
-          <input type="text" id="prop-field-formula-expression" class="prop-input" value="${this.esc(field.formulaExpression || '')}" placeholder="e.g., {price} * {quantity}"
+          <label class="prop-label">${this.esc(this.translations.formulaExpressionLabel)}</label>
+          <input type="text" id="prop-field-formula-expression" class="prop-input" value="${this.esc(field.formulaExpression || '')}" placeholder="${this.esc(this.translations.formulaExpressionPlaceholder)}"
                  ${this.editingLocale !== 'default' ? 'disabled style="background: var(--of-color-neutral-3); cursor: not-allowed;"' : ''} />
 
           <div class="formula-token-chips">
-            <span class="formula-chip-row-label">Insert field:</span>
+            <span class="formula-chip-row-label">${this.esc(this.translations.formulaInsertFieldLabel)}</span>
             <div class="formula-chip-row">
               ${this.getAllFields().filter(f => f.type === 'number' && f.key !== field.key).map(f =>
                 `<button type="button" class="formula-token-chip" data-token="{${this.esc(f.key)}}" title="${this.esc(f.key)}" ${this.editingLocale !== 'default' ? 'disabled' : ''}>${this.esc(f.label)}</button>`
-              ).join('') || '<span class="formula-chip-empty">No other numeric fields available.</span>'}
+              ).join('') || `<span class="formula-chip-empty">${this.esc(this.translations.formulaNoNumericFields)}</span>`}
             </div>
-            <span class="formula-chip-row-label">Insert function:</span>
+            <span class="formula-chip-row-label">${this.esc(this.translations.formulaInsertFunctionLabel)}</span>
             <div class="formula-chip-row">
               ${['min', 'max', 'round', 'abs', 'floor', 'ceil'].map(fn =>
                 `<button type="button" class="formula-token-chip formula-fn-chip" data-token="Math.${fn}(" title="Math.${fn}(...)" ${this.editingLocale !== 'default' ? 'disabled' : ''}>${fn}</button>`
@@ -3516,16 +3747,16 @@ class OpenFormBuilder {
           </div>
 
           <span style="font-size: var(--of-font-size-xs); color: var(--of-color-neutral-7); margin-top: var(--of-space-xs); display: block; line-height: 1.4;">
-            Wrap other numeric database keys in curly braces (e.g. <code>{price}</code>). Supported: operators <code>+ - * / %</code>, parentheses <code>( )</code>, comparisons <code>&gt; &lt; &gt;= &lt;= == !=</code>, ternary <code>condition ? a : b</code>, and <code>Math.min/max/round/abs/floor/ceil(...)</code>. Nothing else is evaluated.
+            ${this.tHtml('formulaHelpText')}
           </span>
 
           <label class="prop-checkbox-label" style="margin-top: var(--of-space-s);">
             <input type="checkbox" id="prop-field-visible-on-form" ${field.isVisibleOnForm === false ? '' : 'checked'}
                    ${this.editingLocale !== 'default' ? 'disabled' : ''} />
-            <span>Visible on Form?</span>
+            <span>${this.esc(this.translations.formulaVisibleOnFormLabel)}</span>
           </label>
           <span style="font-size: var(--of-font-size-xs); color: var(--of-color-neutral-7); margin-top: 2px; display: block; line-height: 1.4;">
-            Uncheck to keep computing this value silently (e.g. as an input to a Cross-Field Validation) without showing it as a field on the rendered form.
+            ${this.esc(this.translations.formulaVisibleOnFormHint)}
           </span>
         </div>
         ` : ''}
@@ -3547,40 +3778,40 @@ class OpenFormBuilder {
         <!-- Custom Accepted Types (Only applies to file uploaders) -->
         ${field.type === 'file' ? `
         <div class="prop-group">
-          <label class="prop-label">Accepted Attachment Types</label>
-          <input type="text" id="prop-field-accepted-types" class="prop-input" value="${this.esc(field.acceptedTypes || '.pdf,.docx,image/*')}" placeholder="e.g. .pdf,.docx,image/*" 
+          <label class="prop-label">${this.esc(this.translations.fileAcceptedTypesLabel)}</label>
+          <input type="text" id="prop-field-accepted-types" class="prop-input" value="${this.esc(field.acceptedTypes || '.pdf,.docx,image/*')}" placeholder="${this.esc(this.translations.fileAcceptedTypesPlaceholder)}" 
                  ${this.editingLocale !== 'default' ? 'disabled style="background: var(--of-color-neutral-3); cursor: not-allowed;"' : ''} />
-          <span style="font-size: var(--of-font-size-xs); color: var(--of-color-neutral-7); margin-top: 2px;">Comma-separated extensions or mime types (e.g. .pdf,image/*,.docx)</span>
+          <span style="font-size: var(--of-font-size-xs); color: var(--of-color-neutral-7); margin-top: 2px;">${this.esc(this.translations.fileAcceptedTypesHint)}</span>
         </div>
         <div class="prop-group">
-          <label class="prop-label">File Requirements Text</label>
+          <label class="prop-label">${this.esc(this.translations.fileRequirementsLabel)}</label>
           <input type="text" id="prop-field-requirements-text" class="prop-input" 
                  value="${this.esc(this.editingLocale === 'default' ? (field.fileRequirementsText || '') : (this.getTranslationValue('fields', field.key || field.id, 'fileRequirementsText') || ''))}" 
-                 placeholder="${this.esc(this.editingLocale === 'default' ? 'e.g. Maximum size 10MB' : (field.fileRequirementsText || 'e.g. Maximum size 10MB'))}" />
-          <span style="font-size: var(--of-font-size-xs); color: var(--of-color-neutral-7); margin-top: 2px;">Help text indicating format/size limits.</span>
+                 placeholder="${this.esc(this.editingLocale === 'default' ? this.translations.fileRequirementsPlaceholder : (field.fileRequirementsText || this.translations.fileRequirementsPlaceholder))}" />
+          <span style="font-size: var(--of-font-size-xs); color: var(--of-color-neutral-7); margin-top: 2px;">${this.esc(this.translations.fileRequirementsHint)}</span>
         </div>
         <div class="prop-group">
-          <label class="prop-label">Maximum File Size (MB)</label>
+          <label class="prop-label">${this.esc(this.translations.fileMaxSizeLabel)}</label>
           <input type="number" id="prop-field-max-size" class="prop-input" 
                  value="${this.esc(field.maxFileSizeMB !== undefined ? field.maxFileSizeMB : 5)}" 
                  placeholder="5" 
                  ${this.editingLocale !== 'default' ? 'disabled style="background: var(--of-color-neutral-3); cursor: not-allowed;"' : ''} />
-          <span style="font-size: var(--of-font-size-xs); color: var(--of-color-neutral-7); margin-top: 2px;">File size limit in Megabytes.</span>
+          <span style="font-size: var(--of-font-size-xs); color: var(--of-color-neutral-7); margin-top: 2px;">${this.esc(this.translations.fileMaxSizeHint)}</span>
         </div>
         <div class="prop-group">
           <label class="prop-checkbox-label">
             <input type="checkbox" id="prop-field-use-native-camera" ${field.useNativeCamera ? 'checked' : ''} 
                    ${this.editingLocale !== 'default' ? 'disabled' : ''} />
-            <span>Use Native Camera (Cordova/Capacitor)?</span>
+            <span>${this.esc(this.translations.useNativeCameraLabel)}</span>
           </label>
         </div>
         <div class="prop-group" id="prop-field-native-camera-source-group" style="${field.useNativeCamera ? '' : 'display: none;'}">
-          <label class="prop-label">Native Camera Source</label>
+          <label class="prop-label">${this.esc(this.translations.nativeCameraSourceLabel)}</label>
           <select id="prop-field-native-camera-source" class="prop-input" style="padding: 6px 10px;"
                   ${this.editingLocale !== 'default' ? 'disabled style="background: var(--of-color-neutral-3); cursor: not-allowed;"' : ''}>
-            <option value="camera" ${field.nativeCameraSource === 'camera' ? 'selected' : ''}>Camera Only</option>
-            <option value="photos" ${field.nativeCameraSource === 'photos' ? 'selected' : ''}>Photo Library Only</option>
-            <option value="prompt" ${field.nativeCameraSource === 'prompt' ? 'selected' : ''}>Prompt (Camera or Library)</option>
+            <option value="camera" ${field.nativeCameraSource === 'camera' ? 'selected' : ''}>${this.esc(this.translations.nativeCameraOptionCamera)}</option>
+            <option value="photos" ${field.nativeCameraSource === 'photos' ? 'selected' : ''}>${this.esc(this.translations.nativeCameraOptionPhotos)}</option>
+            <option value="prompt" ${field.nativeCameraSource === 'prompt' ? 'selected' : ''}>${this.esc(this.translations.nativeCameraOptionPrompt)}</option>
           </select>
         </div>` : ''}
 
@@ -3600,7 +3831,7 @@ class OpenFormBuilder {
             <label class="prop-label" style="display: flex; justify-content: space-between; align-items: center;">
               <span>${this.esc(this.translations.fieldOptionsStaticLabel)}</span>
               <button type="button" class="pg-btn pg-btn-secondary" id="btn-static-option-add" style="padding: 2px 8px; font-size: var(--of-font-size-xs); height: auto;">
-                ${OpenFormBuilder.icon('plus', '', 'width: 10px; height: 10px;')} Add Option
+                ${OpenFormBuilder.icon('plus', '', 'width: 10px; height: 10px;')} ${this.esc(this.translations.addOptionLabel)}
               </button>
             </label>
             <div class="static-options-list" style="display: flex; flex-direction: column; gap: var(--of-space-s); margin-top: var(--of-space-xs);">
@@ -3608,19 +3839,19 @@ class OpenFormBuilder {
                 <div class="static-option-row" data-option-index="${idx}" style="display: flex; align-items: center; gap: var(--of-space-s);">
                   <input type="text" class="prop-input static-option-label-input" data-option-index="${idx}"
                          style="flex: 2; font-size: var(--of-font-size-xs); padding: var(--of-space-xs) var(--of-space-s); margin-bottom: 0;"
-                         value="${this.esc(opt.label)}" placeholder="Label" />
+                         value="${this.esc(opt.label)}" placeholder="${this.esc(this.translations.optionLabelPlaceholder)}" />
                   <input type="text" class="prop-input static-option-value-input" data-option-index="${idx}"
                          style="flex: 1; font-size: var(--of-font-size-xs); padding: var(--of-space-xs) var(--of-space-s); margin-bottom: 0; font-family: monospace; color: var(--of-color-neutral-7);"
-                         value="${this.esc(opt.value)}" placeholder="value" />
+                         value="${this.esc(opt.value)}" placeholder="${this.esc(this.translations.optionValuePlaceholder)}" />
                   <button type="button" class="pg-btn pg-btn-secondary static-option-delete-btn" data-option-index="${idx}"
-                          style="padding: 2px 6px; height: auto; color: var(--of-color-error); border-color: transparent; background: transparent; flex-shrink: 0;" title="Remove option">
+                          style="padding: 2px 6px; height: auto; color: var(--of-color-error); border-color: transparent; background: transparent; flex-shrink: 0;" title="${this.esc(this.translations.removeOptionTitle)}">
                     ${OpenFormBuilder.icon('x', '', 'width: 12px; height: 12px;')}
                   </button>
                 </div>
               `).join('')}
             </div>
           ` : `
-            <label class="prop-label" style="margin-bottom: 6px;">Translate Option Labels</label>
+            <label class="prop-label" style="margin-bottom: 6px;">${this.esc(this.translations.translateOptionLabelsLabel)}</label>
             <div style="display: flex; flex-direction: column; gap: var(--of-space-s);">
               ${(field.options || []).map(opt => `
                 <div style="display: flex; align-items: center; gap: var(--of-space-s);">
@@ -3628,7 +3859,7 @@ class OpenFormBuilder {
                   <input type="text" class="prop-input option-translation-input" style="flex: 2; font-size: var(--of-font-size-xs); padding: var(--of-space-xs) var(--of-space-s); margin-bottom: 0;"
                          data-option-value="${this.esc(opt.value)}" 
                          value="${this.esc(this.getTranslationValue('fields', field.key, 'options', opt.value) || '')}"
-                         placeholder="Translation..." />
+                         placeholder="${this.esc(this.translations.translationPlaceholder)}" />
                 </div>
               `).join('')}
             </div>
@@ -3644,20 +3875,20 @@ class OpenFormBuilder {
         <!-- Custom Repeater Configuration (Only applies to repeaters) -->
         ${field.type === 'repeater' ? `
         <div class="prop-group">
-          <label class="prop-label">Minimum Items</label>
+          <label class="prop-label">${this.esc(this.translations.repeaterMinItemsLabel)}</label>
           <input type="number" id="prop-field-min-items" class="prop-input" value="${this.esc(field.minItems || 1)}" min="0" 
                  ${this.editingLocale !== 'default' ? 'disabled style="background: var(--of-color-neutral-3); cursor: not-allowed;"' : ''} />
         </div>
         <div class="prop-group">
-          <label class="prop-label">Maximum Items</label>
+          <label class="prop-label">${this.esc(this.translations.repeaterMaxItemsLabel)}</label>
           <input type="number" id="prop-field-max-items" class="prop-input" value="${this.esc(field.maxItems || 10)}" min="1" 
                  ${this.editingLocale !== 'default' ? 'disabled style="background: var(--of-color-neutral-3); cursor: not-allowed;"' : ''} />
         </div>
         <div class="prop-group">
-          <label class="prop-label">Add Button Label</label>
+          <label class="prop-label">${this.esc(this.translations.repeaterAddButtonLabel)}</label>
           <input type="text" id="prop-field-add-btn-label" class="prop-input" 
-                 value="${this.esc(this.editingLocale === 'default' ? (field.addButtonLabel || 'Add Item') : (this.getTranslationValue('fields', field.key, 'addButtonLabel') || ''))}" 
-                 placeholder="${this.esc(this.editingLocale === 'default' ? '' : (field.addButtonLabel || 'Add Item'))}" />
+                 value="${this.esc(this.editingLocale === 'default' ? (field.addButtonLabel || this.translations.defaultRepeaterAddButton) : (this.getTranslationValue('fields', field.key, 'addButtonLabel') || ''))}" 
+                 placeholder="${this.esc(this.editingLocale === 'default' ? '' : (field.addButtonLabel || this.translations.defaultRepeaterAddButton))}" />
         </div>
         
         ` : ''}
@@ -3731,19 +3962,19 @@ class OpenFormBuilder {
       return field.matrixRows.map((row, index) => `
         <div class="matrix-row-card" data-row-index="${index}" style="border: 1px solid var(--of-color-neutral-4); border-radius: var(--of-border-radius-s); padding: 10px; background: var(--of-color-neutral-2); display: flex; flex-direction: column; gap: 6px;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-size: var(--of-font-size-xs); font-weight: var(--of-font-weight-bold); color: var(--of-color-neutral-8);">Row #${index + 1}</span>
-            <button type="button" class="pg-btn pg-btn-secondary matrix-row-delete-btn" style="padding: 2px; color: var(--of-color-error); border-color: transparent; background: transparent; height: auto;" title="Remove Row">
+            <span style="font-size: var(--of-font-size-xs); font-weight: var(--of-font-weight-bold); color: var(--of-color-neutral-8);">${this.esc(this.translations.matrixRowLabel)} #${index + 1}</span>
+            <button type="button" class="pg-btn pg-btn-secondary matrix-row-delete-btn" style="padding: 2px; color: var(--of-color-error); border-color: transparent; background: transparent; height: auto;" title="${this.esc(this.translations.removeRowTitle)}">
               ${OpenFormBuilder.icon('trash-2', '', 'width: 12px; height: 12px;')}
             </button>
           </div>
           
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
             <div class="prop-group" style="margin-bottom: 0;">
-              <label class="prop-label" style="font-size: var(--of-font-size-xs); margin-bottom: var(--of-space-xs);">Label</label>
+              <label class="prop-label" style="font-size: var(--of-font-size-xs); margin-bottom: var(--of-space-xs);">${this.esc(this.translations.fieldLabelLabel)}</label>
               <input type="text" class="prop-input matrix-row-label-input" style="font-size: var(--of-font-size-xs); padding: var(--of-space-xs); margin-bottom: 0;" value="${this.esc(row.label || '')}" />
             </div>
             <div class="prop-group" style="margin-bottom: 0;">
-              <label class="prop-label" style="font-size: var(--of-font-size-xs); margin-bottom: var(--of-space-xs);">Row Key</label>
+              <label class="prop-label" style="font-size: var(--of-font-size-xs); margin-bottom: var(--of-space-xs);">${this.esc(this.translations.matrixRowKeyLabel)}</label>
               <input type="text" class="prop-input matrix-row-key-input" style="font-size: var(--of-font-size-xs); padding: var(--of-space-xs); margin-bottom: 0;" value="${this.esc(row.key || '')}" />
             </div>
           </div>
@@ -3758,7 +3989,7 @@ class OpenFormBuilder {
               <input type="text" class="prop-input matrix-row-translation-input" style="flex: 2; font-size: var(--of-font-size-xs); padding: var(--of-space-xs) var(--of-space-s); margin-bottom: 0;"
                      data-row-key="${this.esc(row.key)}" 
                      value="${this.esc(this.getTranslationValue('fields', field.key, 'matrixRows', row.key) || '')}"
-                     placeholder="Translation..." />
+                     placeholder="${this.esc(this.translations.translationPlaceholder)}" />
             </div>
           `).join('')}
         </div>
@@ -3835,15 +4066,15 @@ class OpenFormBuilder {
         const parentRepeater = this.getParentRepeaterField(field.id);
         const existingKeys = parentRepeater
           ? this.getRepeaterSubFieldKeys(parentRepeater, field.id)
-          : this.getAllFields().filter(f => f.id !== field.id).map(f => f.key);
+          : this.getTopLevelFields().filter(f => f.id !== field.id).map(f => f.key);
 
         if (!sanitized) {
-          this.showToast("Field key cannot be empty.", true);
+          this.showToast(this.translations.keyEmptyToast, true);
           e.target.value = field.key;
           return;
         }
         if (existingKeys.includes(sanitized)) {
-          this.showToast(`Key "${sanitized}" is already used by another field.`, true);
+          this.showToast(this.t('keyInUseToast', { key: sanitized }), true);
           e.target.value = field.key;
           return;
         }
@@ -3854,11 +4085,11 @@ class OpenFormBuilder {
         // B2: rename the field and every reference to it in one step (single undo entry).
         const oldKey = field.key;
         field.key = sanitized;
-        const updated = this.renameFieldKeyReferences(oldKey, sanitized);
+        const updated = this.renameFieldKeyReferences(oldKey, sanitized, field);
         this.notifyChange();
         this.render();
         if (updated > 0) {
-          this.showToast(`Key renamed: updated ${updated} reference${updated === 1 ? '' : 's'} from "${oldKey}" to "${sanitized}".`);
+          this.showToast(this.tn('keyRenamedToast', updated, { oldKey, newKey: sanitized }));
         }
       });
     }
@@ -4530,6 +4761,7 @@ class OpenFormBuilder {
    * Reverts the visual form builder canvas back to the previous historical state
    */
   undo() {
+    if (this.readOnly) return;
     if (this.undoStack.length === 0) return;
 
     // Save current state to redo stack
@@ -4556,6 +4788,7 @@ class OpenFormBuilder {
    * Re-applies the next historically recorded template builder state
    */
   redo() {
+    if (this.readOnly) return;
     if (this.redoStack.length === 0) return;
 
     // Save current state to undo stack
@@ -4597,7 +4830,7 @@ class OpenFormBuilder {
     this._addDocumentListener('focusin', trackActivity, true);
 
     this._addDocumentListener('keydown', (e) => {
-      if (this._destroyed) return;
+      if (this._destroyed || this.readOnly) return;
 
       const target = e.target;
       const targetInside = !!(target && target.nodeType === 1 && this.containerEl.contains(target));
@@ -4640,6 +4873,181 @@ class OpenFormBuilder {
     });
   }
 
+  // ---------------------------------------------------------------------------------------
+  // A7: read-only mode
+  // ---------------------------------------------------------------------------------------
+
+  /**
+   * Read-only is enforced three ways: mutating methods return early, the render passes below
+   * strip every editing control, and these capture-phase listeners swallow drag/drop and
+   * edit events before any handler runs (the Properties panel stays inspectable).
+   */
+  _bindReadOnlyGuards() {
+    if (!this.readOnly || !this.containerEl) return;
+    const block = (e) => {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    };
+    ['dragstart', 'dragover', 'drop'].forEach(type => this._addContainerListener(type, block, true));
+    const blockInProperties = (e) => {
+      if (!this.propertiesEl || !this.propertiesEl.contains(e.target)) return;
+      // Switching the language being *viewed* is allowed; everything else is inert.
+      if (e.target.id === 'prop-editing-locale') return;
+      e.stopImmediatePropagation();
+    };
+    ['click', 'input', 'change'].forEach(type => this._addContainerListener(type, blockInProperties, true));
+  }
+
+  /** Adds a listener on the container and records it so destroy() can remove it. */
+  _addContainerListener(type, handler, capture = false) {
+    this.containerEl.addEventListener(type, handler, capture);
+    this._containerListeners = this._containerListeners || [];
+    this._containerListeners.push({ type, handler, capture });
+  }
+
+  /** Removes editing affordances from the freshly rendered canvas. */
+  _applyReadOnlyCanvas() {
+    const remove = [
+      '.canvas-page-add-btn', '.canvas-page-tab-delete', '.section-insertion-divider', '.row-insertion-divider',
+      '.section-operations', '.row-operations', '.col-btn', '.canvas-field-actions', '.repeater-operations',
+      '.empty-section-drop-zone', '#btn-empty-add-section'
+    ].join(',');
+    this.canvasEl.querySelectorAll(remove).forEach(el => el.remove());
+    this.canvasEl.querySelectorAll('[draggable]').forEach(el => el.removeAttribute('draggable'));
+    this.canvasEl.querySelectorAll('input, textarea').forEach(el => el.setAttribute('readonly', ''));
+  }
+
+  /** Disables every control of the Properties panel (except the language being viewed). */
+  _applyReadOnlyProperties() {
+    this.propertiesEl.querySelectorAll('input, select, textarea, button').forEach(el => {
+      if (el.id !== 'prop-editing-locale') el.setAttribute('disabled', '');
+    });
+  }
+
+  // ---------------------------------------------------------------------------------------
+  // A7: confirm / prompt (hooks or the built-in accessible modal)
+  // ---------------------------------------------------------------------------------------
+
+  /**
+   * Asks the user to confirm `message`. Uses the `confirm` option when given
+   * (`(message) => boolean | Promise<boolean>`), otherwise the built-in dialog.
+   * Always resolves to a boolean (a throwing or rejecting hook counts as "no").
+   */
+  async confirm(message) {
+    if (this._confirmHook) {
+      try {
+        return (await this._confirmHook(message)) === true;
+      } catch (err) {
+        if (typeof console !== 'undefined') console.error('OpenFormBuilder: confirm hook failed', err);
+        return false;
+      }
+    }
+    const result = await this._openDialog({ message, withInput: false });
+    return result === true;
+  }
+
+  /**
+   * Asks the user for a text value. Uses the `prompt` option when given
+   * (`(message, defaultValue) => string | null | Promise<string | null>`), otherwise the
+   * built-in dialog. Resolves to a string, or `null` when cancelled.
+   */
+  async prompt(message, defaultValue = '') {
+    if (this._promptHook) {
+      try {
+        const value = await this._promptHook(message, defaultValue);
+        return value === null || value === undefined ? null : String(value);
+      } catch (err) {
+        if (typeof console !== 'undefined') console.error('OpenFormBuilder: prompt hook failed', err);
+        return null;
+      }
+    }
+    const result = await this._openDialog({ message, withInput: true, defaultValue });
+    return typeof result === 'string' ? result : null;
+  }
+
+  /**
+   * Built-in modal: role="dialog" + aria-modal, focus moves in and is trapped, Escape and a
+   * click on the backdrop cancel, Enter confirms a prompt, focus returns to where it was.
+   * Resolves to `true`/`false` (confirm) or the typed string/`null` (prompt).
+   */
+  _openDialog({ message, withInput, defaultValue }) {
+    if (this._destroyed) return Promise.resolve(withInput ? null : false);
+    this._closeDialog(withInput ? null : false); // only one dialog at a time
+
+    return new Promise(resolve => {
+      const host = this.containerEl.querySelector('.builder-layout') || this.containerEl;
+      const uid = this.generateUniqueId('dlg');
+      const backdrop = document.createElement('div');
+      backdrop.className = 'of-dialog-backdrop';
+      backdrop.innerHTML = `
+        <div class="of-dialog" role="dialog" aria-modal="true" aria-labelledby="${uid}-msg">
+          <p class="of-dialog-message" id="${uid}-msg">${this.esc(message)}</p>
+          ${withInput ? `<input type="text" class="prop-input of-dialog-input" aria-labelledby="${uid}-msg" />` : ''}
+          <div class="of-dialog-actions">
+            <button type="button" class="pg-btn pg-btn-secondary of-dialog-cancel">${this.esc(this.translations.dialogCancelLabel)}</button>
+            <button type="button" class="pg-btn of-dialog-ok">${this.esc(this.translations.dialogOkLabel)}</button>
+          </div>
+        </div>
+      `;
+      const dialogEl = backdrop.querySelector('.of-dialog');
+      const input = backdrop.querySelector('.of-dialog-input');
+      const okBtn = backdrop.querySelector('.of-dialog-ok');
+      const cancelBtn = backdrop.querySelector('.of-dialog-cancel');
+      if (input) input.value = defaultValue === undefined || defaultValue === null ? '' : String(defaultValue);
+
+      const finish = (confirmed) => {
+        if (withInput) this._closeDialog(confirmed ? input.value : null);
+        else this._closeDialog(confirmed === true);
+      };
+      okBtn.addEventListener('click', () => finish(true));
+      cancelBtn.addEventListener('click', () => finish(false));
+      backdrop.addEventListener('mousedown', (e) => {
+        if (e.target === backdrop) finish(false);
+      });
+      backdrop.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          finish(false);
+        } else if (e.key === 'Enter' && e.target === input) {
+          e.preventDefault();
+          finish(true);
+        } else if (e.key === 'Tab') {
+          const focusables = Array.from(dialogEl.querySelectorAll('input, button')).filter(el => !el.disabled);
+          if (focusables.length === 0) return;
+          const first = focusables[0];
+          const last = focusables[focusables.length - 1];
+          const active = document.activeElement;
+          if (e.shiftKey && (active === first || !dialogEl.contains(active))) {
+            e.preventDefault();
+            last.focus();
+          } else if (!e.shiftKey && (active === last || !dialogEl.contains(active))) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      });
+
+      host.appendChild(backdrop);
+      this._dialog = { el: backdrop, resolve, previousFocus: document.activeElement };
+      // Destructive confirmations start on "Cancel"; prompts start in the text field.
+      (input || cancelBtn).focus();
+      if (input && input.select) input.select();
+    });
+  }
+
+  /** Closes the open built-in dialog (if any) and resolves its promise with `result`. */
+  _closeDialog(result) {
+    const dialog = this._dialog;
+    if (!dialog) return;
+    this._dialog = null;
+    dialog.el.remove();
+    if (dialog.previousFocus && typeof dialog.previousFocus.focus === 'function' && document.contains(dialog.previousFocus)) {
+      dialog.previousFocus.focus();
+    }
+    dialog.resolve(result);
+  }
+
   /** Adds a listener on `document` and records it so destroy() can remove it. */
   _addDocumentListener(type, handler, capture = false) {
     document.addEventListener(type, handler, capture);
@@ -4669,6 +5077,11 @@ class OpenFormBuilder {
       document.removeEventListener(type, handler, capture);
     });
     this._documentListeners = [];
+    (this._containerListeners || []).forEach(({ type, handler, capture }) => {
+      if (this.containerEl) this.containerEl.removeEventListener(type, handler, capture);
+    });
+    this._containerListeners = [];
+    this._closeDialog(null);
 
     if (this.debouncedRender && this.debouncedRender.cancel) {
       this.debouncedRender.cancel();
@@ -4730,9 +5143,9 @@ class OpenFormBuilder {
             <option value="equals" ${cond.operator === 'equals' ? 'selected' : ''}>=</option>
             <option value="notEquals" ${cond.operator === 'notEquals' ? 'selected' : ''}>≠</option>
             <option value="greaterThan" ${cond.operator === 'greaterThan' ? 'selected' : ''}>&gt;</option>
-            <option value="greaterThanOrEquals" ${cond.operator === 'greaterThanOrEquals' ? 'selected' : ''}>&gt;=</option>
+            <option value="greaterThanOrEquals" ${cond.operator === 'greaterThanOrEquals' || cond.operator === 'gte' ? 'selected' : ''}>&gt;=</option>
             <option value="lessThan" ${cond.operator === 'lessThan' ? 'selected' : ''}>&lt;</option>
-            <option value="lessThanOrEquals" ${cond.operator === 'lessThanOrEquals' ? 'selected' : ''}>&lt;=</option>
+            <option value="lessThanOrEquals" ${cond.operator === 'lessThanOrEquals' || cond.operator === 'lte' ? 'selected' : ''}>&lt;=</option>
             <option value="contains" ${cond.operator === 'contains' ? 'selected' : ''}>${this.esc(this.translations.cfrOperatorContains)}</option>
             <option value="notContains" ${cond.operator === 'notContains' ? 'selected' : ''}>${this.esc(this.translations.cfrOperatorNotContains)}</option>
           </select>
