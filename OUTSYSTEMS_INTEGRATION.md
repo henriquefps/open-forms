@@ -1,7 +1,7 @@
 # OpenForms — OutSystems Integration Guide
 
 > **Compatible with:** OutSystems 11 (Reactive Web) and OutSystems Developer Cloud (ODC)  
-> **Component version:** the examples pin `open-forms@1.4.0` on jsDelivr; use the version you are deploying.  
+> **Component version:** the examples pin `open-forms@1.5.0` on jsDelivr; use the version you are deploying.  
 > **Author:** Henrique Silva (contact@hfps.dev) — [hfps.dev](https://hfps.dev)
 
 This guide shows how to run the OpenForms **renderer** (and, optionally, the **builder**) inside an OutSystems Reactive app, in both O11 and ODC. For the generic API see [INTEGRATION_GUIDE.md](./INTEGRATION_GUIDE.md); for the schema see [SCHEMA_REFERENCE.md](./SCHEMA_REFERENCE.md); for theming see [customization.md](./customization.md).
@@ -25,7 +25,8 @@ This guide shows how to run the OpenForms **renderer** (and, optionally, the **b
 13. [Storing answers](#storing-answers)
 14. [Files and signatures in the answers](#files-and-signatures-in-the-answers)
 15. [Uploading files (`uploadProvider`)](#uploading-files-uploadprovider)
-16. [Troubleshooting](#troubleshooting)
+16. [Drafts and resume](#drafts-and-resume)
+17. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -77,9 +78,9 @@ Every action used in this guide lists its input parameters in call order.
 **Option A — Scripts resource (recommended, works offline).**
 
 1. Download the files pinned to the version you use:
-   - `https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.4.0/src/renderer.js`
-   - `https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.4.0/src/builder.js` (only for designer screens)
-   - `https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.4.0/src/openforms.css`
+   - `https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.0/src/renderer.js`
+   - `https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.0/src/builder.js` (only for designer screens)
+   - `https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.0/src/openforms.css`
 2. O11 Reactive: **Interface → Scripts → Import Script…**. ODC: **Interface → Scripts → Import script**. Import `renderer.js` (and `builder.js`).
 3. Select your Block (or Screen) and add the script to its **Required Scripts**.
    Adding the same script to both a Block and a Screen is safe: loading it twice keeps the first definition and only logs a warning if the versions differ.
@@ -92,10 +93,10 @@ Every action used in this guide lists its input parameters in call order.
 - CSS: first line of the Theme style sheet:
 
   ```css
-  @import url("https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.4.0/src/openforms.css");
+  @import url("https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.0/src/openforms.css");
   ```
 
-- JS: in the Block's `OnInitialize`, use the OutSystems UI **RequireScript** action with `URL = "https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.4.0/src/renderer.js"`. Make sure the script has finished loading before the `OnReady` JavaScript node runs.
+- JS: in the Block's `OnInitialize`, use the OutSystems UI **RequireScript** action with `URL = "https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.0/src/renderer.js"`. Make sure the script has finished loading before the `OnReady` JavaScript node runs.
 
 > Use the CDN only if your environment allows external scripts (CSP, offline use). Pin the version (`@1.1.0`), never `@latest`.
 
@@ -136,7 +137,7 @@ window._openForms[$parameters.ContainerId] = renderer;
 
 Constructor options: `containerEl`, `onSubmit(answers)` (required), `onFieldChange(answers, changedKey)` (optional, fired on every answer change, including signatures and uploads), `onPageChange(index, page)`, `onValidationError(errors)`, `locale`, `translations`, `optionsProvider`, `idPrefix`. `OpenFormRenderer.VERSION` returns the library version at runtime.
 
-The renderer also has methods you can call from other JavaScript nodes through `window._openForms[ContainerId]`: `validate()`, `submit()`, `getAnswers()`, `setValue(key, value)` and `goToPage(index)`. See the [Integration Guide](INTEGRATION_GUIDE.md#methods).
+The renderer also has methods you can call from other JavaScript nodes through `window._openForms[ContainerId]`: `validate()`, `submit()`, `getAnswers()`, `setValue(key, value)`, `goToPage(index)` and `getVisiblePages()`. Pages can be skipped with page-level `conditionalRules` (see the [Schema Reference](SCHEMA_REFERENCE.md#page-branching-rules-on-a-page)); `goToPage` returns `false` for a skipped page. See the [Integration Guide](INTEGRATION_GUIDE.md#methods).
 
 On the parent screen, handle the Block's `OnSubmitted` event with a Client Action `OnFormSubmitted` (input `AnswersJSON`, Text) — see [Handle the submitted answers](#handle-the-submitted-answers).
 
@@ -641,6 +642,53 @@ The answer keeps only `{ name, size, type, id }`; your sync logic replaces the l
 It is never called for Base64 answers. With the mobile queue pattern, `reference.id` is the local id: cancel or delete the queue entry (and the server record, if it already synced).
 
 **Submitting.** While an upload runs, `submit()` reports an error on that field ("Wait for the upload to finish.", `type: "uploadPending"`) instead of waiting; a required file field is satisfied only by a completed upload. Show references back with `reference.url` (only `https:`, `http:`, `blob:` or `data:` URLs are linked or previewed; without one the file is listed by name).
+
+---
+
+## Drafts and resume
+
+Let users leave a long form and continue later. The renderer gives you the draft (`getDraft()`, `onDraftChange`) and takes it back (`restoreDraft()`); you decide where it lives. See "Drafts and resume" in the Integration Guide for the full API.
+
+**Option 1 — an entity (works across devices).** Create an entity `FormDraft` with `FormKey` (Text), `UserId` (User Identifier), `DraftJSON` (Text), `UpdatedOn` (Date Time), and two Client Actions that call a Server Action / aggregate:
+
+- `SaveDraft` — inputs, in this order: `FormKey` (Text), `DraftJSON` (Text)
+- `LoadDraft` — input: `FormKey` (Text); output: `DraftJSON` (Text, empty when there is none)
+
+Save through `draftStorage` (the renderer already debounces it, so the action runs after typing pauses, not on every key):
+
+```javascript
+draftStorage: {
+  get: function (key) {
+    // LoadDraft inputs, in order: FormKey
+    return $actions.LoadDraft(key).then(function (result) { return result.DraftJSON || null; });
+  },
+  set: function (key, value) {
+    // SaveDraft inputs, in order: FormKey, DraftJSON
+    return $actions.SaveDraft(key, value);
+  },
+  remove: function (key) {
+    return $actions.DeleteDraft(key);
+  }
+},
+draftKey: $parameters.FormKey
+```
+
+Add `SaveDraft`, `LoadDraft` and `DeleteDraft` to the JavaScript node's *Client Actions* list. By default the user is asked "Resume your draft?"; pass `resumeDraft: "auto"` to restore silently. The draft is deleted when `onSubmit` succeeds, which only counts as success if your submit action finishes without error.
+
+**Option 2 — only `onDraftChange` + `restoreDraft`**, if you prefer to control the flow from Service Studio (for instance to load the draft in the screen's *OnInitialize* and pass it as an input parameter):
+
+```javascript
+onDraftChange: function (draft) {
+  // SaveDraft inputs, in order: FormKey, DraftJSON
+  $actions.SaveDraft($parameters.FormKey, JSON.stringify(draft));
+}
+// ...after renderer.render(schema):
+if ($parameters.DraftJSON) renderer.restoreDraft($parameters.DraftJSON); // also accepts the JSON text
+```
+
+**Mobile apps (offline).** Use `draftStorage: "local"` for a quick start, or a Local Storage entity: the same adapter shape with `get` / `set` / `remove` Client Actions that read and write that entity (they run offline).
+
+Keep drafts small: files and signatures are Base64 inside the draft unless you use an `uploadProvider` (see above), and Text attributes are limited in size. With an `uploadProvider` the draft only holds the references.
 
 ---
 

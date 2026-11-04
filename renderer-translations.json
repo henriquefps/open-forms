@@ -62,6 +62,11 @@
   "printNo": "No",
   "printGeneratedOn": "Generated on {date}",
 
+  "draftResumePrompt": "Resume your draft?",
+  "draftResumeButton": "Resume",
+  "draftDiscardButton": "Start over",
+  "draftSavedAt": "Saved {date}",
+
   "normalizeFormUntitled": "Untitled Form",
   "normalizePageDefault": "Page"
 }

@@ -3,6 +3,7 @@
 This guide describes how to integrate **OpenForms** (both the visual form builder and form player/renderer) into any modern web application (such as React, Vue, Angular, or pure HTML/JS sites).
 
 > Looking for the JSON schema shape (field types, conditional rules, cross-field validation, calculated fields)? See **[SCHEMA_REFERENCE.md](./SCHEMA_REFERENCE.md)**.
+> Want an AI (ChatGPT, Claude, Gemini) to write the schema for you? See **[AI_SCHEMA_PROMPT.md](./AI_SCHEMA_PROMPT.md)**: a ready-made prompt plus how to validate the answer.
 
 ---
 
@@ -12,13 +13,13 @@ You can load OpenForms assets directly using **jsDelivr**:
 
 ```html
 <!-- Stylesheet -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.4.0/src/openforms.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.0/src/openforms.css">
 
 <!-- Visual Builder (OpenFormBuilder) -->
-<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.4.0/src/builder.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.0/src/builder.js"></script>
 
 <!-- Form Player / Renderer (OpenFormRenderer) -->
-<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.4.0/src/renderer.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.0/src/renderer.js"></script>
 ```
 
 Both scripts are plain classic `<script>` tags — no bundler, no ES module imports required. Each one is fully self-contained; load only `renderer.js` if you just need to play back forms, without ever loading `builder.js`.
@@ -36,7 +37,7 @@ Importing never touches `window` or `document`, so it is safe in Node or during 
 **TypeScript.** `src/openforms.d.ts` declares both classes, their options and callbacks, and the schema and answer types (`FormSchema`, `Field`, `FormAnswers`, …). Reference it from your project, for example by copying it next to your sources, or straight from the CDN:
 
 ```ts
-/// <reference path="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.4.0/src/openforms.d.ts" />
+/// <reference path="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.0/src/openforms.d.ts" />
 ```
 
 and `import type { FormSchema } from './openforms'` when you use a local copy.
@@ -117,6 +118,7 @@ Each `render()` call starts a fresh record: attachments, signature pads and load
 | `onSubmit` | `(answers) => void \| Promise` | After a submit passed validation. `answers` is the same object `getAnswers()` returns. |
 | `onFieldChange` | `(answers, changedKey) => void` | After every answer change: typing, choices, signatures (when a stroke ends, and while typing a typed signature), file upload/delete, camera photos, repeater items added/removed, `setValue()`. `answers` is a deep copy of **all** answers (including fields currently hidden or disabled; useful for drafts). `changedKey` is the top-level field key (the repeater's key for an edit inside a repeater item). |
 | `onPageChange` | `(index, page) => void` | After the visible page changes (Next/Previous, step tabs, `goToPage()`, or a failed submit jumping to the invalid page). `page` is a copy of the page's schema. Not called by `render()`. |
+| `onDraftChange` | `(draft) => void` | Debounced after a real change (see "Drafts and resume"). Not called by `render()` or `restoreDraft()`. |
 | `onValidationError` | `(errors) => void` | When validation blocks a user action or `submit()`/`goToPage()`. `errors` has the same shape as `validate().errors`. |
 
 Callbacks always receive copies: changing them does not change the form.
@@ -129,6 +131,10 @@ renderer.validate({ showErrors: true });   // ...and mark the invalid fields on 
 renderer.getAnswers();                     // what a submit would send right now (deep copy)
 renderer.setValue('country', 'PT');        // set an answer from code
 renderer.goToPage(2);                      // true if page 2 is now shown
+renderer.getVisiblePages();                // [0, 3]: indices of the pages not hidden by a page rule
+renderer.getDraft();                       // the form in progress (see "Drafts and resume")
+renderer.restoreDraft(draft);              // put it back
+await renderer.clearDraft();               // delete the stored draft
 await renderer.submit();                   // same as clicking the submit button
 ```
 
@@ -136,6 +142,7 @@ await renderer.submit();                   // same as clicking the submit button
 - **`getAnswers()`** returns `{ fieldKey: value }` for the fields that are visible and enabled according to the rules, the same filtering as a submit. Headers and paragraphs are left out. It is a copy and never contains internal keys.
 - **`setValue(key, value)`** sets a top-level field's answer as if the user had entered it: the field on screen updates, formulas and rules run, and `onFieldChange(answers, key)` fires. It works for fields on other pages too. A repeater takes an array of item objects, a file takes `{ name, size, type, content }`. It returns `false` (and logs a warning) when no field has that key. If a rule hides the field, the rule clears the value again, just as it would after a user edit.
 - **`goToPage(index)`** follows the same rules as the step tabs: going back is always allowed; going forward requires every page from the current one up to the page before `index` to be valid. If one isn't, the form stays on the current page, marks its invalid fields, shows the validation toast, fires `onValidationError` and returns `false`.
+- **`getVisiblePages()`** returns the absolute indices of the pages that page rules (`conditionalRules` on a page, see the [Schema Reference](SCHEMA_REFERENCE.md#page-branching-rules-on-a-page)) currently leave visible. With page branching, `goToPage(index)` returns `false` for a hidden page, Next/Previous and the step tabs skip hidden pages, `onPageChange(index, page)` still reports the absolute index (also when the current page was hidden by an answer and the form moved to a visible one), `getDraft().pageIndex` stays absolute and `restoreDraft()` onto a hidden page opens the nearest visible one.
 - **`submit()`** runs the submit button's path and returns a promise of `{ submitted, answers?, errors, error? }`. If validation fails, it opens the first page with errors, marks them, shows the validation toast and fires `onValidationError`; `onSubmit` is not called. Read-only forms never submit.
 
 ### Validating stored schemas
@@ -284,6 +291,61 @@ With `fetch` the same provider is shorter but has no progress bar (the bar stays
 - Pre-filled answers can be references too: `render(schema, { photo: { name: 'a.jpg', size: 1234, type: 'image/jpeg', id: '9f2c' } })`.
 - Without an `uploadProvider` nothing changes: Base64 in the answers, with the memory cost described above.
 
+### Drafts and resume
+
+Let people leave a long form and come back to it. A draft is the form in progress: the answers and the page the person was on.
+
+```javascript
+const draft = renderer.getDraft();
+// { version: 1, schemaVersion: 2, formId?: 'claim', answers: {...}, pageIndex: 1,
+//   savedAt: '2026-11-04T12:03:11.000Z', complete: false }
+
+renderer.render(schema);
+renderer.restoreDraft(draft);   // true; answers + page restored, rules and formulas re-run
+```
+
+- **`getDraft()`** returns a deep copy. `answers` holds every field, also the ones a rule currently hides or disables (like `onFieldChange`, unlike `getAnswers()`). Uploads still in flight (`uploadProvider`) are never included. It returns `null` before `render()` and after `destroy()`.
+- **`restoreDraft(draft)`** (call it after `render(schema)`; it also accepts the JSON string) puts the answers back and opens the saved page straight away: the page is clamped to the pages that exist, and, unlike `goToPage()`, nothing is validated on the way. Formulas and rules are re-evaluated, signatures and files are redrawn. It fires no `onSubmit`, `onFieldChange`, `onPageChange` or `onDraftChange`. It returns `false` when the draft is not usable.
+- **Schema changed since the draft was saved?** Answers whose key no longer exists (or whose value no longer fits the field, e.g. text where a checkbox is now expected) are dropped, a single `console.warn` lists them, and the form still opens. Nothing throws.
+- **`onDraftChange(draft)`** is called after a real change (typing, choices, signature, upload completed or removed, repeater items, `setValue()`, page changes), debounced by `draftDebounceMs` (default `800`). A change still waiting when `destroy()` runs, or the page is being hidden, is delivered first so nothing is lost.
+
+#### Built-in persistence
+
+```javascript
+const renderer = new OpenFormRenderer({
+  containerEl,
+  draftStorage: 'local',        // 'local' | 'session' | { get, set, remove }
+  // draftKey: 'claim-form',    // default: "openforms-draft:<formId or formTitle>:v<schemaVersion>"
+  // resumeDraft: 'ask',        // 'ask' (default) | 'auto' | 'never'
+  // draftDebounceMs: 800,
+});
+```
+
+| Option | Meaning |
+| :--- | :--- |
+| `draftStorage` | Saves the draft (after the debounce) and looks for one on `render()`. `'local'` / `'session'` use `localStorage` / `sessionStorage`; an adapter object has `get(key)`, `set(key, value)` and `remove(key)`, each of which may return a promise. `value` is always the draft as a **JSON string** (store it as text); `get` may return that string or the draft object. Errors (quota, private mode, network) are logged and never break the form. |
+| `draftKey` | Storage key. The default uses the schema's optional `formId` (set it if two forms share a title) or its `formTitle`, plus `schemaVersion`. |
+| `resumeDraft` | What `render()` does with a stored draft. `'ask'`: a small prompt above the form, announced politely to screen readers (`aria-live="polite"`) without moving focus or scrolling the page; "Resume your draft?" with *Resume* and *Start over* buttons (translated; the keys are `draftResumePrompt`, `draftResumeButton`, `draftDiscardButton`, `draftSavedAt`). `'auto'`: restores it without asking. `'never'`: ignores it (it is still overwritten by the next change). Read-only forms never resume. |
+
+The stored draft is offered once per record: a plain `render(schema)` refresh of the same form (for example a live preview) does not ask again, but `render(schema, answers)` starts a new record and does. After `onSubmit` succeeds (its promise resolves) the stored draft is deleted; if `onSubmit` throws or rejects, the draft stays. `renderer.clearDraft()` deletes it on demand (for example from a "Discard" button) and returns a promise.
+
+> **Size.** Without an `uploadProvider`, files and signatures are Base64 inside the draft, and `localStorage` holds only about 5 MB, so a draft with photos can fail to save (logged, form unaffected). For forms with uploads use an `uploadProvider`: the draft then holds small references only.
+>
+> **Privacy.** A draft in `localStorage` is readable by anyone using that browser profile. For sensitive forms prefer `'session'` or your own adapter, and call `clearDraft()` on sign-out.
+
+Server-side drafts are just an adapter (or `onDraftChange` + `restoreDraft`):
+
+```javascript
+new OpenFormRenderer({
+  containerEl,
+  draftStorage: {
+    get: (key) => fetch(`/api/drafts/${key}`).then(r => (r.ok ? r.text() : null)),
+    set: (key, value) => fetch(`/api/drafts/${key}`, { method: 'PUT', body: value }),
+    remove: (key) => fetch(`/api/drafts/${key}`, { method: 'DELETE' })
+  }
+});
+```
+
 ### Unmounting (`destroy()`)
 
 In single-page apps, call `renderer.destroy()` before removing the form's container or navigating away:
@@ -429,7 +491,7 @@ Under the hood, `print()`:
    - radios, checkboxes and matrices list every option with the selected ones marked using borders, so they still show when "Background graphics" is off in the dialog (the default);
    - signatures (drawn or typed, also inside repeater items) print as the stored image; empty ones as a blank box to sign on paper;
    - image attachments print as a preview, other attachments by file name and size;
-   - hidden fields/sections (conditional rules), wizard steps and buttons are left out;
+   - hidden fields/sections/pages (conditional rules), wizard steps and buttons are left out;
    - a "Generated on &lt;date&gt;" line is added under the form title.
 3. Waits for API-loaded options and for images to decode, then calls `window.print()`, and cleans up once the dialog closes (`afterprint`).
 

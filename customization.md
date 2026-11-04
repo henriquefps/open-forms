@@ -13,6 +13,7 @@ This guide explains how to style **OpenForms** with CSS custom properties (CSS v
 | `.lightbox-overlay` | the renderer's image preview, appended to `<body>` |
 | `.openforms-action-sheet-backdrop` | the renderer's mobile "camera / file" picker, appended to `<body>` |
 | `#openforms-print-root` | the snapshot drawn by `renderer.print()` |
+| `.openforms-toast-container` | the builder's toast container, appended to `<body>` (`#toast-container` carries the tokens for a host-provided one) |
 
 So the stylesheet doesn't:
 
@@ -76,7 +77,7 @@ Used for backgrounds, borders, inputs, and text hierarchies.
 | `--of-color-primary-selected` | `--color-primary-selected` | Background for selected elements | `#e7f0fd` |
 | `--of-color-primary-hover` | `--color-primary-hover` | Hover state for primary actions | `#0d52ba` |
 | `--of-color-secondary` | `--color-secondary` | Secondary action text & icons | `#4a5673` |
-| `--of-color-error` | `--color-error` | Destructive actions, validation errors | `#db3c3c` |
+| `--of-color-error` | `--color-error` | Destructive actions, validation errors | `#d43838` |
 | `--of-color-success` | `--color-success` | Success confirmations & valid states | `#2e7d32` |
 | `--of-color-warning` | `--color-warning` | Warning state alerts | `#f9a825` |
 
@@ -129,6 +130,27 @@ Own values: these don't read `--shadow-*` from the host.
 | `--of-shadow-sm` | Subtle elevation: inputs, small cards | `0 1px 3px rgba(0, 0, 0, 0.1)` |
 | `--of-shadow-md` | Standard elevation: panels, dropdowns | `0 4px 6px rgba(0, 0, 0, 0.1)` |
 | `--of-shadow-lg` | Prominent elevation: modals, the renderer form card | `0 10px 15px rgba(0, 0, 0, 0.15)` |
+
+### Borders, focus ring, inputs and the form card
+
+These tokens were added so the usual brand decisions don't need selector overrides. Their defaults reproduce the previous look exactly. The ones marked *alias* are derived from another token by default, so they follow it until you set them on their own. Like spacing and typography, they never read host tokens.
+
+| OpenForms token | Description | Default |
+| :--- | :--- | :--- |
+| `--of-border-width` | Width of input, card and divider borders | `1px` |
+| `--of-color-border` | Colour of input, card and divider borders (*alias* of `--of-color-neutral-4`) | `#dedede` |
+| `--of-color-border-subtle` | Lighter dividers (*alias* of `--of-color-neutral-3`) | `#eeeeee` |
+| `--of-focus-ring-color` | Keyboard focus outline colour (*alias* of `--of-color-primary`) | `#1068eb` |
+| `--of-focus-ring-width` | Keyboard focus outline width | `2px` |
+| `--of-focus-ring-offset` | Gap between the element and its focus outline | `2px` |
+| `--of-focus-halo-color` | Soft glow around the focus outline (*alias* of `--of-color-primary-selected`) | `#e7f0fd` |
+| `--of-focus-halo-width` | Width of that glow; `0px` turns it off | `3px` |
+| `--of-input-bg` | Input background (*alias* of `--of-color-neutral-0`) | `#ffffff` |
+| `--of-input-color` | Input text (*alias* of `--of-color-neutral-10`) | `#1a1a1a` |
+| `--of-input-padding-y` | Input vertical padding | `10px` |
+| `--of-card-bg` | Form card background (*alias* of `--of-color-neutral-0`) | `#ffffff` |
+| `--of-card-padding` | Form card padding (*alias* of `--of-space-xl`) | `32px` |
+| `--of-card-shadow` | Form card shadow | `0 4px 16px rgba(0, 0, 0, 0.05)` |
 
 ### OpenForms-only tokens
 
@@ -234,6 +256,21 @@ For a more compact UI (e.g. inside a dense admin dashboard), set the `--of-*` sp
 ```
 
 ---
+
+## Theme builder (Playground)
+
+The Playground has a **Customize** button next to the theme selector. It opens a panel that edits every token above with a live preview of both the designer and the form:
+
+- **Presets** to start from: the four page themes (Lime Dark, Lime Light, Premium Dark, Default Light) and *OutSystems UI*, *Minimal mono*, *Soft pastel*, *High contrast* and *Rounded friendly*. Every preset reaches WCAG AA (4.5:1) for the text pairs the form draws; a test enforces it.
+- **Controls**: colour pickers with hex input, sliders for sizes, a font-stack select (system and web-safe stacks only, nothing is downloaded), shadow presets. A contrast list checks the pairs the form draws (text, secondary text, primary, button text, errors) against 4.5:1 and warns next to the colour you are editing.
+- **Reset section** and **Reset all** put the values back to the preset you started from.
+- **Save** keeps a named theme in this browser (`localStorage`, key `openforms-playground:themes:v1`). Saved themes appear under *My themes* in the theme selector and can be renamed, duplicated, deleted and edited again. The active theme and any unsaved edits survive a reload.
+- **Export** gives you the CSS to paste, with two scopes, plus **Copy** and **Download**:
+  - *Whole page*: the tokens on the component roots (`.builder-layout`, `.renderer-sandbox`, `.lightbox-overlay`, `.openforms-action-sheet-backdrop`, `#openforms-print-root`, `#toast-container`, `.openforms-toast-container`). Load it after `openforms.css`.
+  - *One class*: the tokens under a class of your choice, e.g. `.my-form-theme`. Put the class on the element you pass as `containerEl` and the form picks it up. The roots declare every token on themselves, so the generated selector is `.my-form-theme :is(<roots>)`; a bare `.my-form-theme { --of-color-primary: ... }` would not win. The image viewer, the mobile picker, the print snapshot and the toasts are appended to `<body>`, outside your container: put the class on `<body>` to theme them too.
+  - By default only values that differ from the OpenForms defaults are exported, so everything else keeps following your host's tokens.
+- **Theme JSON** export/import (format `openforms-theme`, version 1) to share a theme. Import validates every value and refuses anything that is not a known token with a safe value.
+- **Get code** can inline the exported theme in the Web snippet when a non-page theme is active.
 
 ## Migrating from 1.1.x and earlier
 

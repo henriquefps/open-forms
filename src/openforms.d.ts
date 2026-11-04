@@ -131,6 +131,12 @@ export interface Section {
 export interface Page {
   pageId?: string;
   title?: string;
+  /**
+   * Page branching: only `targetProperty: 'visibility'` rules apply to a page. A hidden page is
+   * skipped by Next/Previous, has no step tab, is not validated and adds nothing to `getAnswers()`.
+   * Rules should depend on fields of earlier pages.
+   */
+  conditionalRules?: ConditionalRule[];
   sections: Section[];
 }
 
@@ -153,6 +159,8 @@ export interface LocaleTranslations {
 export interface FormSchema {
   /** Format version (currently 2). Written by the builder; absent means version 1. */
   schemaVersion?: number;
+  /** Optional stable identifier of the form, set by the host. Used only for the default draft storage key and stored in drafts. */
+  formId?: string;
   formTitle?: string;
   formDescription?: string;
   pages?: Page[];
@@ -272,7 +280,7 @@ export interface OpenFormRendererOptions {
   onSubmit?: (answers: FormAnswers) => void | Promise<unknown>;
   /** Fired on every answer change. `changedKey` is the public field key. */
   onFieldChange?: (answers: FormAnswers, changedKey: string) => void;
-  /** Fired after the visible page changes. */
+  /** Fired after the visible page changes. `index` is the absolute page index (position in `pages`). */
   onPageChange?: (index: number, page: Page) => void;
   /** Fired when validation blocks an action. */
   onValidationError?: (errors: ValidationError[]) => void;
@@ -295,6 +303,36 @@ export interface OpenFormRendererOptions {
   idPrefix?: string;
   /** Stylesheet URL for the handwriting font used by typed signatures (e.g. Caveat). */
   handwritingFontUrl?: string;
+  /** Fired (debounced by `draftDebounceMs`) after a real change: answer edit, page change, upload completed/removed. Never by `render()` / `restoreDraft()`. */
+  onDraftChange?: (draft: FormDraft) => void;
+  /** Debounce for `onDraftChange` and `draftStorage` saves, in ms. Default `800`. */
+  draftDebounceMs?: number;
+  /** Built-in persistence of the draft: `'local'`, `'session'` or your own adapter. */
+  draftStorage?: 'local' | 'session' | DraftStorageAdapter;
+  /** Storage key. Default derived from the schema's `formId` (or `formTitle`) and `schemaVersion`. */
+  draftKey?: string;
+  /** What `render()` does with a stored draft: ask (default), restore silently, or ignore it. */
+  resumeDraft?: 'ask' | 'auto' | 'never';
+}
+
+/** A form in progress, as returned by `getDraft()` and accepted by `restoreDraft()`. */
+export interface FormDraft {
+  version: 1;
+  schemaVersion: number;
+  formId?: string;
+  /** Every field's answer, including fields currently hidden or disabled. */
+  answers: FormAnswers;
+  pageIndex: number;
+  /** ISO 8601 timestamp. */
+  savedAt: string;
+  complete: false;
+}
+
+/** Storage for drafts. Each method may return a promise. `value` is the draft as a JSON string; `get` may return that string or the draft object. */
+export interface DraftStorageAdapter {
+  get(key: string): string | FormDraft | null | undefined | Promise<string | FormDraft | null | undefined>;
+  set(key: string, value: string): unknown;
+  remove(key: string): unknown;
 }
 
 export interface PrintOptions {
@@ -325,8 +363,16 @@ export class OpenFormRenderer {
   getAnswers(): FormAnswers;
   /** Returns false when no answerable field has that key. */
   setValue(key: string, value: unknown): boolean;
-  /** Returns true if the page was shown. */
+  /** Returns true if the page was shown. False for an out-of-range index, a page hidden by its rules, or when forward validation blocks the move. */
   goToPage(index: number): boolean;
+  /** Absolute indices of the pages not hidden by a page rule, in order. Empty before `render()` / after `destroy()`. */
+  getVisiblePages(): number[];
+  /** The in-progress record (null before `render()` / after `destroy()`). Never includes uploads in flight. */
+  getDraft(): FormDraft | null;
+  /** Restores answers and the saved page (no validation, no callbacks). Returns false for an unusable draft. */
+  restoreDraft(draft: FormDraft | string): boolean;
+  /** Deletes the stored draft (when `draftStorage` is set) and cancels a pending save. */
+  clearDraft(): Promise<void>;
   setLocale(locale: string): void;
   print(options?: PrintOptions): void;
   destroy(): void;

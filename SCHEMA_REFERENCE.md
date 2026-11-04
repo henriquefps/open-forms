@@ -20,6 +20,7 @@ This is the complete reference for `FormSchemaJSON`, the plain JSON object that 
 | Property | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
 | `schemaVersion` | `integer` | written by the builder | Format version of the schema (currently `2`). A schema without it is version 1 (the older forms). See "Schema version and migrations" below |
+| `formId` | `string` | optional | A stable identifier you choose for the form. Not shown; the renderer uses it only for the default draft storage key (and puts it in drafts). The builder keeps it as is |
 | `formTitle` | `string` | recommended | The form's heading |
 | `formDescription` | `string` | optional | Subtitle displayed below the title |
 | `pages` | `Page[]` | recommended | Array of pages. A single page renders without a step/progress bar; 2+ pages get one automatically |
@@ -57,6 +58,7 @@ This is the complete reference for `FormSchemaJSON`, the plain JSON object that 
 | `unknown-field-reference` | error | A rule condition (`dependentFieldKey`, `compareToFieldKey`), a cross-field `targetFields` entry or a `{key}` in a formula/expression names a key that no field has |
 | `invalid-width` | error | A column `width` that is not an integer from 1 to 12 |
 | `invalid-pages` / `invalid-rows` / `invalid-rules` | error | `pages`, `rows` or `conditionalRules`/`crossFieldRules` is not an array |
+| `page-rule-self-reference` / `page-rule-forward-reference` | warning | A page rule depends on a field on the same page / on a later page (section 5, page branching) |
 | `missing-options-url` | warning | `optionsType: "api"` without `optionsUrl` |
 | `newer-schema-version` / `invalid-schema-version` | warning | `schemaVersion` is newer than supported / not a positive integer |
 
@@ -93,6 +95,7 @@ This is the complete reference for `FormSchemaJSON`, the plain JSON object that 
 | :--- | :--- | :--- | :--- |
 | **Page** | `pageId` | `string` | Unique. Auto-generated if omitted |
 | | `title` | `string` | Shown in the page tabs / step progress bar |
+| | `conditionalRules` | `Rule[]` | Optional. Visibility rules for the whole page (page branching, see section 5) |
 | | `sections` | `Section[]` | A page is always made of sections, never bare rows |
 | **Section** | `sectionId` | `string` | Unique. Auto-generated if omitted |
 | | `title` | `string` | Optional visual sub-heading |
@@ -231,7 +234,7 @@ This shows the two conditional-logic mechanisms side by side: `reminderDays` onl
 
 ## 5. Conditional Business Rules (`conditionalRules`)
 
-Used on **Field** objects (any `targetProperty`) and **Section** objects (visibility only) to react to another field's answer.
+Used on **Field** objects (any `targetProperty`), **Section** objects and **Page** objects (visibility only) to react to another field's answer.
 
 ```json
 {
@@ -245,7 +248,7 @@ Used on **Field** objects (any `targetProperty`) and **Section** objects (visibi
 
 | Rule property | Type | Notes |
 | :--- | :--- | :--- |
-| `targetProperty` | `string` | `"visibility"` \| `"required"` \| `"disabled"`. Sections only ever use `"visibility"` |
+| `targetProperty` | `string` | `"visibility"` \| `"required"` \| `"disabled"`. Sections and pages only ever use `"visibility"` |
 | `andGroups` | `AndGroup[]` | The rule is satisfied when **every** group has **at least one** satisfied condition — AND between groups, OR within a group |
 
 ### Condition object
@@ -259,6 +262,34 @@ Used on **Field** objects (any `targetProperty`) and **Section** objects (visibi
 | `compareToFieldKey` | `string` | Another field's key to compare against live — used when `compareMode` is `"field"` |
 
 **Rules on repeater sub-fields.** A sub-field inside a repeater can carry `conditionalRules` too. They are evaluated **per item**: `dependentFieldKey` (and `compareToFieldKey`) naming another sub-field of the same repeater reads that item's value; any other key reads the form's top-level answer. So in one item a field can be shown while in the next it is hidden. A hidden sub-field is reset and left out of `getAnswers()` / `onSubmit` (same as a hidden top-level field), its required asterisk and `aria-required` follow `"required"` rules, and a hidden or disabled sub-field is not required when validating. Rules are re-evaluated on every change and when items are added or removed.
+
+### Page branching (rules on a page)
+
+A `Page` can carry `conditionalRules` with `"targetProperty": "visibility"`, written exactly like the rules of a section or field (same `andGroups`, same operators). A page with no visibility rule is always shown; with rules it is shown when **any** of them is satisfied. This is how a form skips ahead: **"if the answer on page 1 is No, jump to page 4" means pages 2 and 3 are hidden when the answer is No.**
+
+```json
+{
+  "pages": [
+    { "pageId": "page-1", "title": "Interest", "sections": [ /* radio "interested" Yes / No */ ] },
+    { "pageId": "page-2", "title": "Details",
+      "conditionalRules": [ { "targetProperty": "visibility", "andGroups": [ { "conditions": [ { "dependentFieldKey": "interested", "operator": "equals", "equalsValue": "Yes" } ] } ] } ],
+      "sections": [ /* ... */ ] },
+    { "pageId": "page-3", "title": "Budget",
+      "conditionalRules": [ { "targetProperty": "visibility", "andGroups": [ { "conditions": [ { "dependentFieldKey": "interested", "operator": "equals", "equalsValue": "Yes" } ] } ] } ],
+      "sections": [ /* ... */ ] },
+    { "pageId": "page-4", "title": "Contact", "sections": [ /* always shown */ ] }
+  ]
+}
+```
+
+A hidden page behaves as follows, re-evaluated live as the answers change:
+
+- **Navigation:** Next/Previous go to the next/previous visible page; the step tabs list only the visible pages, numbered `1..n` again, and the progress bar and the "Step x of n" header count visible pages. The Submit button is on the last visible page. A form whose pages are all hidden but one becomes a single-page form.
+- **Current page hidden:** if an answer hides the page the user is on (for example after `setValue()`), the form moves to the nearest previous visible page (or the next one if there is none before it) and fires `onPageChange`.
+- **Answers:** fields on a hidden page are not validated and are left out of `getAnswers()` / `onSubmit`. As with a hidden field or section, their answers are **reset** when the page becomes hidden (an uploaded file reference is reported through `onFileRemoved` with reason `"hidden"`), so showing the page again starts empty.
+- **API:** `goToPage(index)` returns `false` for a hidden page, `getVisiblePages()` returns the visible indices, `getDraft().pageIndex` stays the absolute index in `pages` and `restoreDraft()` onto a hidden page opens the nearest visible one. `print()` leaves hidden pages out.
+- **Which fields a page rule can use:** answers from **earlier pages**. A page rule that depends on a field on its own page is meaningless (the page would hide itself while it is being answered) and one that depends on a later page reads an answer that does not exist yet the first time through; `validateSchema()` warns about both (`page-rule-self-reference`, `page-rule-forward-reference`). The Builder only offers fields of earlier pages.
+- **Schema version:** unchanged (`schemaVersion` 2): `conditionalRules` on a page is purely additive, and a renderer from before this feature ignores it and shows every page.
 
 The `greaterThan`/`lessThan` family of operators is date-aware: `"2026-07-01"` compares chronologically against `"2026-06-30"`, not lexicographically.
 
@@ -357,7 +388,8 @@ renderer.validate({ showErrors }); // { valid, errors: [{ key, message, pageInde
 renderer.submit();             // same as the submit button; Promise<{ submitted, answers?, errors, error? }>
 renderer.getAnswers();         // deep copy of what a submit would send (visible + enabled fields)
 renderer.setValue(key, value); // sets an answer as if typed: DOM, formulas, rules, onFieldChange
-renderer.goToPage(index);      // true if shown; forward moves need the pages in between to be valid
+renderer.goToPage(index);      // true if shown; forward moves need the pages in between to be valid; false for a page hidden by a page rule
+renderer.getVisiblePages();    // absolute indices of the pages not hidden by a page rule
 renderer.setLocale('pt-BR');   // switches locale reactively, keeps current answers
 renderer.answers;              // the live internal answers object (prefer getAnswers())
 OpenFormRenderer.validateSchema(schema); // static: { valid, errors: [{ path, code, message }], warnings } (section 1)

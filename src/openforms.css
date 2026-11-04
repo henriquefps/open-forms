@@ -24,7 +24,7 @@
   --of-color-primary-selected: var(--color-primary-selected, #e7f0fd);
   --of-color-primary-hover: var(--color-primary-hover, #0d52ba);
   --of-color-secondary: var(--color-secondary, #4a5673);
-  --of-color-error: var(--color-error, #db3c3c);
+  --of-color-error: var(--color-error, #d43838);
   --of-color-success: var(--color-success, #2e7d32);
   --of-color-warning: var(--color-warning, #f9a825);
 
@@ -57,6 +57,26 @@
   --of-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
   --of-shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
   --of-shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.15);
+
+  /* Borders. Aliases of the neutral scale by default, so they follow it unless set on their own. */
+  --of-border-width: 1px;
+  --of-color-border: var(--of-color-neutral-4);
+  --of-color-border-subtle: var(--of-color-neutral-3);
+
+  /* Focus ring (outline) and halo (soft glow around it) */
+  --of-focus-ring-color: var(--of-color-primary);
+  --of-focus-ring-width: 2px;
+  --of-focus-ring-offset: 2px;
+  --of-focus-halo-color: var(--of-color-primary-selected);
+  --of-focus-halo-width: 3px;
+
+  /* Inputs and the form card */
+  --of-input-bg: var(--of-color-neutral-0);
+  --of-input-color: var(--of-color-neutral-10);
+  --of-input-padding-y: 10px;
+  --of-card-bg: var(--of-color-neutral-0);
+  --of-card-padding: var(--of-space-xl);
+  --of-card-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
 
   /* OpenForms-only tokens (no OutSystems UI equivalent): borders and text on the image lightbox */
   --of-border: rgba(255, 255, 255, 0.08);
@@ -145,7 +165,7 @@
 /* 1. Palette Panel (Left Column) */
 :where(.builder-layout) .builder-palette {
   background-color: var(--of-color-neutral-0);
-  border: 1px solid var(--of-color-neutral-4);
+  border: var(--of-border-width) solid var(--of-color-border);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -171,7 +191,7 @@
 /* Drag Item Tiles */
 :where(.builder-layout) .palette-item {
   background-color: var(--of-color-neutral-2);
-  border: 1px solid var(--of-color-neutral-4);
+  border: var(--of-border-width) solid var(--of-color-border);
   color: var(--of-color-neutral-10);
   font-size: var(--of-font-size-s);
   font-weight: var(--of-font-weight-medium);
@@ -303,7 +323,7 @@
   align-items: center;
   margin-bottom: 14px;
   padding-bottom: var(--of-space-s);
-  border-bottom: 1px solid var(--of-color-neutral-3);
+  border-bottom: var(--of-border-width) solid var(--of-color-border-subtle);
 }
 
 :where(.builder-layout) .section-drag-handle {
@@ -344,7 +364,7 @@
  ========================================================================== */
 :where(.builder-layout) .business-rules-panel {
   padding: var(--of-space-s) 0;
-  border-top: 1px solid var(--of-color-neutral-4);
+  border-top: var(--of-border-width) solid var(--of-color-border);
   margin-top: var(--of-space-base);
 }
 
@@ -414,7 +434,7 @@
   cursor: pointer;
   background: var(--of-color-neutral-3);
   color: var(--of-color-neutral-7);
-  border: 1px solid var(--of-color-neutral-4);
+  border: var(--of-border-width) solid var(--of-color-border);
   font-family: monospace;
   transition: all 0.15s ease;
 }
@@ -432,7 +452,7 @@
 }
 
 :where(.builder-layout) .rule-card {
-  border: 1px solid var(--of-color-neutral-4);
+  border: var(--of-border-width) solid var(--of-color-border);
   border-radius: var(--of-border-radius-soft);
   padding: var(--of-space-m);
   background-color: var(--of-color-neutral-1);
@@ -479,7 +499,7 @@
 
 :where(.builder-layout) .and-group-card {
   background-color: var(--of-color-neutral-0);
-  border: 1px solid var(--of-color-neutral-3);
+  border: var(--of-border-width) solid var(--of-color-border-subtle);
   border-radius: var(--of-border-radius-s);
   padding: var(--of-space-s) 10px;
   display: flex;
@@ -564,7 +584,7 @@
 /* Custom Outlined Style Buttons in Business Rules Editor */
 :where(.builder-layout) .business-rules-panel .pg-btn-secondary {
   background: var(--of-color-neutral-0);
-  border: 1px solid var(--of-color-neutral-4);
+  border: var(--of-border-width) solid var(--of-color-border);
   color: var(--of-color-neutral-8);
   padding: var(--of-space-xs) var(--of-space-s);
   font-size: var(--of-font-size-xs);
@@ -668,7 +688,7 @@
 /* Canvas Designer Preview Styles */
 :where(.builder-layout) .canvas-field-repeater-wrapper {
   background-color: var(--of-color-neutral-0);
-  border: 1px solid var(--of-color-neutral-3);
+  border: var(--of-border-width) solid var(--of-color-border-subtle);
   border-radius: var(--of-border-radius-soft);
   padding: var(--of-space-m);
   width: 100%;
@@ -684,7 +704,7 @@
 
 :where(.builder-layout) .canvas-repeater-subfield-tag {
   background: var(--of-color-neutral-2);
-  border: 1px solid var(--of-color-neutral-4);
+  border: var(--of-border-width) solid var(--of-color-border);
   border-radius: var(--of-border-radius-xs);
   padding: var(--of-space-xs) var(--of-space-s);
   display: flex;
@@ -727,7 +747,7 @@
 
 :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-repeater-card {
   background-color: var(--of-color-neutral-0);
-  border: 1px solid var(--of-color-neutral-4);
+  border: var(--of-border-width) solid var(--of-color-border);
   border-radius: var(--of-border-radius-soft);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
   display: flex;
@@ -743,7 +763,7 @@
 
 :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-repeater-card-header {
   background-color: var(--of-color-neutral-1);
-  border-bottom: 1px solid var(--of-color-neutral-3);
+  border-bottom: var(--of-border-width) solid var(--of-color-border-subtle);
   padding: var(--of-space-s) 14px;
   display: flex;
   justify-content: space-between;
@@ -882,7 +902,7 @@
  ========================================================================== */
 :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-section {
   background-color: var(--of-color-neutral-0);
-  border: 1px solid var(--of-color-neutral-4);
+  border: var(--of-border-width) solid var(--of-color-border);
   border-radius: var(--of-border-radius-soft);
   padding: var(--of-space-l);
   margin-bottom: var(--of-space-l);
@@ -918,7 +938,7 @@
 /* Grid Layout rows and columns styling */
 :where(.builder-layout) .canvas-row {
   background-color: var(--of-color-neutral-0);
-  border: 1px solid var(--of-color-neutral-4);
+  border: var(--of-border-width) solid var(--of-color-border);
   border-radius: var(--of-border-radius-soft);
   padding: var(--of-space-base);
   position: relative;
@@ -1047,7 +1067,7 @@
   right: 6px;
   display: flex;
   background-color: var(--of-color-neutral-0);
-  border: 1px solid var(--of-color-neutral-4);
+  border: var(--of-border-width) solid var(--of-color-border);
   border-radius: var(--of-border-radius-pill);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
   padding: 1px 3px;
@@ -1078,7 +1098,7 @@
 
 :where(.builder-layout) .properties-locale-switcher {
   padding: var(--of-space-m) 14px;
-  border: 1px solid var(--of-color-neutral-4);
+  border: var(--of-border-width) solid var(--of-color-border);
   background: var(--of-color-neutral-2);
   margin-bottom: var(--of-space-base);
   border-radius: var(--of-border-radius-xs);
@@ -1102,7 +1122,7 @@
 /* Dropped Fields in Columns */
 :where(.builder-layout) .canvas-field {
   background-color: var(--of-color-neutral-0);
-  border: 1px solid var(--of-color-neutral-4);
+  border: var(--of-border-width) solid var(--of-color-border);
   border-radius: var(--of-border-radius-s);
   padding: 10px var(--of-space-m);
   display: flex;
@@ -1285,7 +1305,7 @@
 /* 3. Properties Panel (Right Column) */
 :where(.builder-layout) .builder-properties {
   background-color: var(--of-color-neutral-0);
-  border: 1px solid var(--of-color-neutral-4);
+  border: var(--of-border-width) solid var(--of-color-border);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -1321,7 +1341,7 @@
 }
 
 :where(.builder-layout) .prop-header {
-  border-bottom: 1px solid var(--of-color-neutral-4);
+  border-bottom: var(--of-border-width) solid var(--of-color-border);
   padding-bottom: var(--of-space-m);
   margin-bottom: var(--of-space-xs);
   display: flex;
@@ -1356,7 +1376,7 @@
 :where(.builder-layout) .prop-input {
   width: 100%;
   padding: var(--of-space-s) 10px;
-  border: 1px solid var(--of-color-neutral-4);
+  border: var(--of-border-width) solid var(--of-color-border);
   background: var(--of-color-neutral-0);
   border-radius: var(--of-border-radius-s);
   font-family: inherit;
@@ -1393,7 +1413,7 @@
   appearance: none;
   width: 16px;
   height: 16px;
-  border: 1.5px solid var(--of-color-neutral-4);
+  border: 1.5px solid var(--of-color-border);
   border-radius: var(--of-border-radius-xs);
   background-color: var(--of-color-neutral-1);
   display: inline-flex;
@@ -1435,12 +1455,12 @@
 :where(.builder-layout) .prop-checkbox-label input[type="checkbox"]:focus,
 :where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) input[type="checkbox"]:not(.form-switch input):focus {
   outline: none;
-  box-shadow: 0 0 0 3px var(--of-color-primary-selected);
+  box-shadow: 0 0 0 var(--of-focus-halo-width) var(--of-focus-halo-color);
 }
 
 :where(.builder-layout) .nested-prop-box {
   background-color: var(--of-color-neutral-2);
-  border: 1px solid var(--of-color-neutral-4);
+  border: var(--of-border-width) solid var(--of-color-border);
   border-radius: var(--of-border-radius-s);
   padding: var(--of-space-m);
   display: flex;
@@ -1460,12 +1480,12 @@
 }
 
 :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-form-card {
-  background-color: var(--of-color-neutral-0);
-  border: 1px solid var(--of-color-neutral-4);
+  background-color: var(--of-card-bg);
+  border: var(--of-border-width) solid var(--of-color-border);
   border-radius: var(--of-border-radius-soft);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--of-card-shadow);
   width: 100%;
-  padding: var(--of-space-xl);
+  padding: var(--of-card-padding);
   display: flex;
   flex-direction: column;
   gap: var(--of-space-l);
@@ -1552,11 +1572,11 @@
 
 :where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-input {
   width: 100%;
-  padding: 10px var(--of-space-m);
-  border: 1px solid var(--of-color-neutral-4);
+  padding: var(--of-input-padding-y) var(--of-space-m);
+  border: var(--of-border-width) solid var(--of-color-border);
   border-radius: var(--of-border-radius-soft);
-  background-color: var(--of-color-neutral-0);
-  color: var(--of-color-neutral-10);
+  background-color: var(--of-input-bg);
+  color: var(--of-input-color);
   font-size: var(--of-font-size-base);
   font-family: inherit;
   transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
@@ -1643,7 +1663,7 @@
 }
 
 :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-switch input:focus+.form-slider {
-  box-shadow: 0 0 0 3px var(--of-color-primary-selected);
+  box-shadow: 0 0 0 var(--of-focus-halo-width) var(--of-focus-halo-color);
 }
 
 /* File Upload drag area */
@@ -1695,7 +1715,7 @@
   align-items: center;
   justify-content: space-between;
   background-color: var(--of-color-neutral-2);
-  border: 1px solid var(--of-color-neutral-4);
+  border: var(--of-border-width) solid var(--of-color-border);
   border-radius: var(--of-border-radius-soft);
   padding: var(--of-space-s) var(--of-space-m);
   margin-top: var(--of-space-s);
@@ -1812,7 +1832,7 @@
 /* Signature Drawing Canvas */
 :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-signature-box {
   background-color: var(--of-color-neutral-2);
-  border: 1px solid var(--of-color-neutral-4);
+  border: var(--of-border-width) solid var(--of-color-border);
   border-radius: var(--of-border-radius-soft);
   position: relative;
   overflow: hidden;
@@ -1830,7 +1850,7 @@
 
 :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-signature-bar {
   padding: var(--of-space-s) var(--of-space-m);
-  border-top: 1px solid var(--of-color-neutral-4);
+  border-top: var(--of-border-width) solid var(--of-color-border);
   background-color: var(--of-color-neutral-2);
   display: flex;
   justify-content: space-between;
@@ -1907,7 +1927,7 @@
 :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-actions {
   display: flex;
   justify-content: flex-end;
-  border-top: 1px solid var(--of-color-neutral-3);
+  border-top: var(--of-border-width) solid var(--of-color-border-subtle);
   padding-top: var(--of-space-base);
   margin-top: var(--of-space-s);
 }
@@ -1953,7 +1973,7 @@
   display: flex;
   align-items: center;
   gap: var(--of-space-s);
-  border-bottom: 1px solid var(--of-color-neutral-4);
+  border-bottom: var(--of-border-width) solid var(--of-color-border);
   padding-bottom: var(--of-space-m);
   margin-bottom: var(--of-space-base);
   flex-wrap: wrap;
@@ -1965,7 +1985,7 @@
   align-items: center;
   gap: var(--of-space-s);
   background-color: var(--of-color-neutral-0);
-  border: 1px solid var(--of-color-neutral-4);
+  border: var(--of-border-width) solid var(--of-color-border);
   border-radius: var(--of-border-radius-soft);
   padding: 6px var(--of-space-m);
   font-size: var(--of-font-size-s);
@@ -2304,7 +2324,7 @@
   appearance: none;
   width: 18px;
   height: 18px;
-  border: 1.5px solid var(--of-color-neutral-4);
+  border: 1.5px solid var(--of-color-border);
   border-radius: 50%;
   background-color: var(--of-color-neutral-0);
   display: inline-flex;
@@ -2339,7 +2359,7 @@
 
 :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) input[type="radio"].form-radio-input:focus {
   outline: none;
-  box-shadow: 0 0 0 3px var(--of-color-primary-selected);
+  box-shadow: 0 0 0 var(--of-focus-halo-width) var(--of-focus-halo-color);
 }
 
 /* Checkbox group spacing override to match the Radio inputs */
@@ -2349,7 +2369,7 @@
   appearance: none;
   width: 18px;
   height: 18px;
-  border: 1.5px solid var(--of-color-neutral-4);
+  border: 1.5px solid var(--of-color-border);
   border-radius: var(--of-border-radius-xs);
   background-color: var(--of-color-neutral-0);
   display: inline-flex;
@@ -2386,7 +2406,7 @@
 
 :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-checkbox-group input[type="checkbox"].form-checkbox-input:focus {
   outline: none;
-  box-shadow: 0 0 0 3px var(--of-color-primary-selected);
+  box-shadow: 0 0 0 var(--of-focus-halo-width) var(--of-focus-halo-color);
 }
 
 /* Empty or Loading Options indicators */
@@ -2414,9 +2434,9 @@
 :where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) input[type="radio"]:focus,
 :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .signature-mode-tab:focus,
 :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-signature-clear:focus {
-  outline: 2px solid var(--of-color-primary);
-  outline-offset: 2px;
-  box-shadow: 0 0 0 3px var(--of-color-primary-selected);
+  outline: var(--of-focus-ring-width) solid var(--of-focus-ring-color);
+  outline-offset: var(--of-focus-ring-offset);
+  box-shadow: 0 0 0 var(--of-focus-halo-width) var(--of-focus-halo-color);
 }
 
 :where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-input:focus {
@@ -2430,7 +2450,7 @@
 /* Designer Canvas Preview Styles */
 :where(.builder-layout) .canvas-field-matrix-wrapper {
   background-color: var(--of-color-neutral-0);
-  border: 1px solid var(--of-color-neutral-3);
+  border: var(--of-border-width) solid var(--of-color-border-subtle);
   border-radius: var(--of-border-radius-soft);
   padding: var(--of-space-m);
   width: 100%;
@@ -2446,7 +2466,7 @@
 
 :where(.builder-layout) .canvas-matrix-row-tag {
   background: var(--of-color-neutral-2);
-  border: 1px solid var(--of-color-neutral-4);
+  border: var(--of-border-width) solid var(--of-color-border);
   border-radius: var(--of-border-radius-xs);
   padding: var(--of-space-xs) var(--of-space-s);
   display: flex;
@@ -2477,7 +2497,7 @@
   width: 100%;
   overflow-x: auto;
   margin-top: var(--of-space-s);
-  border: 1px solid var(--of-color-neutral-4);
+  border: var(--of-border-width) solid var(--of-color-border);
   border-radius: var(--of-border-radius-s);
   background: var(--of-color-neutral-0);
 }
@@ -2492,7 +2512,7 @@
 :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-matrix-table th,
 :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-matrix-table td {
   padding: var(--of-space-m);
-  border-bottom: 1px solid var(--of-color-neutral-3);
+  border-bottom: var(--of-border-width) solid var(--of-color-border-subtle);
   text-align: center;
 }
 
@@ -2552,7 +2572,7 @@
 
   :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-matrix-table tr {
     margin-bottom: var(--of-space-base);
-    border: 1px solid var(--of-color-neutral-4);
+    border: var(--of-border-width) solid var(--of-color-border);
     border-radius: var(--of-border-radius-m);
     background: var(--of-color-neutral-0);
     padding: 14px;
@@ -2572,7 +2592,7 @@
     font-size: var(--of-font-size-base);
     color: var(--of-color-neutral-10);
     padding-bottom: 10px;
-    border-bottom: 1px solid var(--of-color-neutral-3);
+    border-bottom: var(--of-border-width) solid var(--of-color-border-subtle);
     margin-bottom: 10px;
   }
 
@@ -2641,7 +2661,7 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  border: 1px solid var(--of-color-neutral-4);
+  border: var(--of-border-width) solid var(--of-color-border);
   background-color: var(--of-color-neutral-0);
   color: var(--of-color-neutral-7);
   cursor: pointer;

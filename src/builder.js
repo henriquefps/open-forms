@@ -27,7 +27,7 @@ function debounce(fn, delay) {
  * License: Apache-2.0
  */
 class OpenFormBuilder {
-  static VERSION = '1.4.0';
+  static VERSION = '1.5.0';
 
   /** Current schema format version written by the builder (schemas without it are version 1). */
   static SCHEMA_VERSION = 2;
@@ -276,6 +276,9 @@ class OpenFormBuilder {
       ruleTargetRequiredOption: "Make required if...",
       ruleTargetDisabledOption: "Disable field if...",
       ruleShowSectionIfLabel: "Show Section if...",
+      ruleShowPageIfLabel: "Show Page if...",
+      pageRulesHint: "A hidden page is skipped by Next/Previous and has no step tab. Conditions can use answers from earlier pages.",
+      pageRulesBadgeTitle: "This page has visibility rules",
       ruleDeleteRuleTitle: "Delete Rule",
       ruleRemoveRuleLabel: "Remove Rule",
       ruleAddAndGroupLabel: "Add AND Group",
@@ -785,6 +788,11 @@ class OpenFormBuilder {
       if (cond.compareMode === 'field') addRef(`${path}.compareToFieldKey`, cond.compareToFieldKey);
     };
 
+    // Page rules: which page each top-level key lives on, and the references to check against it
+    const keyPage = new Map();
+    const pageRefs = [];
+    let currentPageIndex = -1;
+
     // Scopes: top-level fields share one key namespace; each repeater's sub-fields have their own.
     const scopes = new Map();
     const registerKey = (scope, key, path) => {
@@ -827,6 +835,7 @@ class OpenFormBuilder {
           err(`${path}.key`, 'missing-key', 'Data fields need a key (the name their answer is stored under).');
         } else {
           allKeys.add(field.key);
+          if (scope === '') keyPage.set(field.key, currentPageIndex);
           registerKey(scope, field.key, path);
         }
       }
@@ -855,6 +864,22 @@ class OpenFormBuilder {
     (pages || []).forEach((page, pi) => {
       const pagePath = `pages[${pi}]`;
       if (!page || typeof page !== 'object') return;
+      currentPageIndex = pi;
+      // Page rules reuse the field/section condition checks; their references are verified
+      // against the page order below (an answer the page itself or a later page provides).
+      if (page.conditionalRules !== undefined && page.conditionalRules !== null && Array.isArray(page.conditionalRules)) {
+        page.conditionalRules.forEach((rule, ri) => {
+          (rule && Array.isArray(rule.andGroups) ? rule.andGroups : []).forEach((group, gi) => {
+            (group && Array.isArray(group.conditions) ? group.conditions : []).forEach((cond, ci) => {
+              if (!cond || typeof cond !== 'object') return;
+              const condPath = `${pagePath}.conditionalRules[${ri}].andGroups[${gi}].conditions[${ci}]`;
+              if (typeof cond.dependentFieldKey === 'string' && cond.dependentFieldKey !== '') pageRefs.push({ path: `${condPath}.dependentFieldKey`, key: cond.dependentFieldKey, pageIndex: pi });
+              if (cond.compareMode === 'field' && typeof cond.compareToFieldKey === 'string' && cond.compareToFieldKey !== '') pageRefs.push({ path: `${condPath}.compareToFieldKey`, key: cond.compareToFieldKey, pageIndex: pi });
+            });
+          });
+        });
+      }
+      checkRules(`${pagePath}.conditionalRules`, page.conditionalRules);
       let sections = page.sections;
       if (!Array.isArray(sections) && Array.isArray(page.rows)) sections = [{ rows: page.rows }];
       (Array.isArray(sections) ? sections : []).forEach((section, si) => {
@@ -886,6 +911,16 @@ class OpenFormBuilder {
 
     refChecks.forEach(({ path, key }) => {
       if (!allKeys.has(key)) err(path, 'unknown-field-reference', `References unknown field key "${key}".`);
+    });
+
+    pageRefs.forEach(({ path, key, pageIndex }) => {
+      const keyPageIndex = keyPage.get(key);
+      if (keyPageIndex === undefined) return;
+      if (keyPageIndex === pageIndex) {
+        warn(path, 'page-rule-self-reference', `The rule of page ${pageIndex + 1} depends on "${key}", a field on that same page: the page would hide itself while it is being answered.`);
+      } else if (keyPageIndex > pageIndex) {
+        warn(path, 'page-rule-forward-reference', `The rule of page ${pageIndex + 1} depends on "${key}", which is on a later page: it has no answer the first time the form is filled in, so the page starts ${'hidden or shown by an empty value'}.`);
+      }
     });
 
     return { valid: errors.length === 0, errors, warnings };
@@ -1029,6 +1064,7 @@ class OpenFormBuilder {
     schema.pages.forEach((page, index) => {
       if (!page.pageId) page.pageId = `page-${Math.random().toString(36).substr(2, 9)}`;
       if (!page.title) page.title = `${this.translations.pagePrefix} ${index + 1}`;
+      if (!Array.isArray(page.conditionalRules)) page.conditionalRules = [];
 
       if (!Array.isArray(page.sections)) {
         page.sections = [
@@ -1293,6 +1329,7 @@ class OpenFormBuilder {
     this.schema.pages.push({
       pageId: pageId,
       title: `${this.translations.pagePrefix} ${pageNum}`,
+      conditionalRules: [],
       rows: []
     });
 
@@ -2014,10 +2051,11 @@ class OpenFormBuilder {
   // reverts the action and its reference updates together.
   // ---------------------------------------------------------------------------------------
 
-  /** Every object that can own conditionalRules: all fields (incl. repeater sub-fields) and sections. */
+  /** Every object that can own conditionalRules: all fields (incl. repeater sub-fields), sections and pages. */
   _getRuleOwners() {
     const owners = this.getAllFields();
     this.schema.pages.forEach(page => {
+      owners.push(page);
       (page.sections || []).forEach(section => owners.push(section));
     });
     return owners;
@@ -2597,6 +2635,18 @@ class OpenFormBuilder {
       const titleSpan = document.createElement('span');
       titleSpan.textContent = this.editingLocale === 'default' ? page.title : (this.getTranslationValue('pages', page.pageId) || page.title);
       tabEl.appendChild(titleSpan);
+
+      // Pages with visibility rules are skipped for some answers: mark the tab
+      if ((page.conditionalRules || []).some(r => r.targetProperty === 'visibility')) {
+        const badge = document.createElement('span');
+        badge.className = 'canvas-page-tab-rules-badge';
+        badge.title = this.translations.pageRulesBadgeTitle;
+        badge.setAttribute('role', 'img');
+        badge.setAttribute('aria-label', this.translations.pageRulesBadgeTitle);
+        badge.style.cssText = 'display: inline-flex; align-items: center; margin-left: var(--of-space-xs); color: var(--of-color-primary);';
+        badge.innerHTML = OpenFormBuilder.icon('shield', '', 'width: 12px; height: 12px;');
+        tabEl.appendChild(badge);
+      }
 
       // Support deleting layout pages (if more than one page is instantiated)
       if (this.schema.pages.length > 1) {
@@ -3495,6 +3545,13 @@ class OpenFormBuilder {
             <span style="font-size: var(--of-font-size-xs); color: var(--of-color-neutral-7); margin-top: 2px;">${this.esc(this.translations.pageTitleHint)}</span>
           </div>
           
+          <hr style="border: none; border-top: 1px solid var(--of-color-neutral-4); margin: var(--of-space-base) 0;" />
+
+          <!-- Page branching: visibility rules for this page -->
+          <div class="page-rules-hint" style="font-size: var(--of-font-size-xs); color: var(--of-color-neutral-7); line-height: 1.4; margin-bottom: var(--of-space-s);">${this.esc(this.translations.pageRulesHint)}</div>
+          ${this.renderBusinessRulesEditorHTML(activePage, false, 'page')}
+
+          <hr style="border: none; border-top: 1px solid var(--of-color-neutral-4); margin: var(--of-space-base) 0;" />
           ${this.renderCrossFieldRulesEditorHTML()}
 
           <hr style="border: none; border-top: 1px solid var(--of-color-neutral-4); margin: var(--of-space-base) 0;" />
@@ -3505,6 +3562,7 @@ class OpenFormBuilder {
       `;
 
       this.bindLocaleSwitcherEvents();
+      this.bindBusinessRulesEvents(activePage);
       this.bindCrossFieldRulesEvents();
 
       const pageTitleInput = this.propertiesEl.querySelector('#prop-page-title');
@@ -4002,8 +4060,13 @@ class OpenFormBuilder {
   /**
    * Gathers valid conditional dependency field references (excludes headers and self)
    */
-  getConditionalFieldsOptions(currentFieldId, selectedKey) {
-    const fields = this.getAllFields().filter(f => f.id !== currentFieldId && f.type !== 'header' && f.type !== 'paragraph');
+  getConditionalFieldsOptions(currentFieldId, selectedKey, entity = null) {
+    const fields = this._ruleFieldChoices(entity, currentFieldId);
+    // A reference the schema already holds (e.g. to a later page) stays selectable
+    if (selectedKey && !fields.some(f => f.key === selectedKey)) {
+      const kept = this.getAllFields().find(f => f.key === selectedKey && f.type !== 'header' && f.type !== 'paragraph');
+      if (kept) fields.push(kept);
+    }
     if (fields.length === 0) {
       return `<option value="">${this.esc(this.translations.fieldCondNoOtherFields)}</option>`;
     }
@@ -4012,6 +4075,24 @@ class OpenFormBuilder {
       const isSelected = f.key === selectedKey ? 'selected' : '';
       return `<option value="${this.esc(f.key)}" ${isSelected}>${this.esc(f.label)} (${this.esc(f.key)})</option>`;
     }).join('');
+  }
+
+  /**
+   * The fields a rule of `entity` can depend on. A page rule only offers fields on earlier
+   * pages (a page is evaluated before its own fields can be answered); fields and sections
+   * offer every other field.
+   */
+  _ruleFieldChoices(entity, currentFieldId = '') {
+    const answerable = (f) => f.type !== 'header' && f.type !== 'paragraph';
+    const pageIndex = entity ? this.schema.pages.indexOf(entity) : -1;
+    if (pageIndex === -1) {
+      return this.getAllFields().filter(f => f.id !== currentFieldId && answerable(f));
+    }
+    const earlier = [];
+    this.schema.pages.slice(0, pageIndex).forEach(page => {
+      (page.sections || []).forEach(sec => this._collectFieldsInRows(sec.rows, earlier));
+    });
+    return earlier.filter(answerable);
   }
 
   /**
@@ -4459,7 +4540,7 @@ class OpenFormBuilder {
   /**
    * Renders advanced business rules AND-of-ORs HTML block
    */
-  renderBusinessRulesEditorHTML(entity, isField) {
+  renderBusinessRulesEditorHTML(entity, isField, kind = isField ? 'field' : 'section') {
     if (!entity.conditionalRules) {
       entity.conditionalRules = [];
     }
@@ -4482,7 +4563,7 @@ class OpenFormBuilder {
           conditionsHtml += `
             <div class="rules-row" data-rule="${ruleIndex}" data-group="${groupIndex}" data-cond="${condIndex}">
               <select class="prop-input rule-cond-field" ${disabledAttr}>
-                ${this.getConditionalFieldsOptions(entity.id || '', cond.dependentFieldKey)}
+                ${this.getConditionalFieldsOptions(entity.id || '', cond.dependentFieldKey, entity)}
               </select>
               <select class="prop-input rule-cond-operator" ${disabledAttr}>
                 <option value="equals" ${cond.operator === 'equals' ? 'selected' : ''}>==</option>
@@ -4501,7 +4582,7 @@ class OpenFormBuilder {
                 </select>
                 ${compareMode === 'field' ? `
                   <select class="prop-input rule-cond-compare-field" ${disabledAttr}>
-                    ${this.getConditionalFieldsOptions(entity.id || '', cond.compareToFieldKey)}
+                    ${this.getConditionalFieldsOptions(entity.id || '', cond.compareToFieldKey, entity)}
                   </select>
                 ` : `
                   <input type="text" class="prop-input rule-cond-value" value="${this.esc(cond.equalsValue !== undefined ? cond.equalsValue : '')}" placeholder="${this.esc(this.translations.ruleValueInputPlaceholder)}" ${disabledAttr} />
@@ -4551,7 +4632,7 @@ class OpenFormBuilder {
                 <option value="disabled" ${rule.targetProperty === 'disabled' ? 'selected' : ''}>${this.esc(this.translations.ruleTargetDisabledOption)}</option>
               </select>
             ` : `
-              <span class="rule-section-title">${this.esc(this.translations.ruleShowSectionIfLabel)}</span>
+              <span class="rule-section-title">${this.esc(kind === 'page' ? this.translations.ruleShowPageIfLabel : this.translations.ruleShowSectionIfLabel)}</span>
             `}
             <button type="button" class="pg-btn pg-btn-secondary rule-delete-rule" title="${this.esc(this.translations.ruleDeleteRuleTitle)}" ${disabledAttr}>
               ${OpenFormBuilder.icon('trash-2')} ${this.esc(this.translations.ruleRemoveRuleLabel)}
@@ -4610,7 +4691,7 @@ class OpenFormBuilder {
             {
               conditions: [
                 {
-                  dependentFieldKey: this.getAllFields().filter(f => f.id !== entity.id && f.type !== 'header')[0]?.key || '',
+                  dependentFieldKey: this._ruleFieldChoices(entity, entity.id || '')[0]?.key || '',
                   operator: "equals",
                   equalsValue: ""
                 }
@@ -4644,7 +4725,7 @@ class OpenFormBuilder {
         entity.conditionalRules[ruleIdx].andGroups.push({
           conditions: [
             {
-              dependentFieldKey: this.getAllFields().filter(f => f.id !== entity.id && f.type !== 'header')[0]?.key || '',
+              dependentFieldKey: this._ruleFieldChoices(entity, entity.id || '')[0]?.key || '',
               operator: "equals",
               equalsValue: ""
             }
@@ -4674,7 +4755,7 @@ class OpenFormBuilder {
         const ruleIdx = parseInt(groupCard.getAttribute('data-rule'));
         const groupIdx = parseInt(groupCard.getAttribute('data-group'));
         entity.conditionalRules[ruleIdx].andGroups[groupIdx].conditions.push({
-          dependentFieldKey: this.getAllFields().filter(f => f.id !== entity.id && f.type !== 'header')[0]?.key || '',
+          dependentFieldKey: this._ruleFieldChoices(entity, entity.id || '')[0]?.key || '',
           operator: "equals",
           equalsValue: ""
         });

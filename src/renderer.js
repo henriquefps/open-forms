@@ -62,6 +62,10 @@ const BUILT_IN_TRANSLATIONS = {
     uploadCancelLabel: "Cancel",
     uploadRetryLabel: "Retry",
     uploadFailedDefault: "Upload failed. Try again.",
+    draftResumePrompt: "Resume your draft?",
+    draftResumeButton: "Resume",
+    draftDiscardButton: "Start over",
+    draftSavedAt: "Saved {date}",
     uploadInProgressError: "Wait for the upload to finish.",
     fileSizeUnits: "Bytes|KB|MB|GB|TB",
     lightboxCloseLabel: "Close Preview",
@@ -122,6 +126,10 @@ const BUILT_IN_TRANSLATIONS = {
     uploadCancelLabel: "Cancelar",
     uploadRetryLabel: "Tentar novamente",
     uploadFailedDefault: "Falha no envio. Tente novamente.",
+    draftResumePrompt: "Retomar o seu rascunho?",
+    draftResumeButton: "Retomar",
+    draftDiscardButton: "Começar de novo",
+    draftSavedAt: "Guardado em {date}",
     uploadInProgressError: "Aguarde o envio terminar.",
     lightboxCloseLabel: "Fechar visualização",
     lightboxImageAlt: "Visualização do anexo",
@@ -181,6 +189,10 @@ const BUILT_IN_TRANSLATIONS = {
     uploadCancelLabel: "Cancelar",
     uploadRetryLabel: "Reintentar",
     uploadFailedDefault: "Error al subir. Inténtalo de nuevo.",
+    draftResumePrompt: "¿Retomar su borrador?",
+    draftResumeButton: "Retomar",
+    draftDiscardButton: "Empezar de nuevo",
+    draftSavedAt: "Guardado el {date}",
     uploadInProgressError: "Espera a que termine la subida.",
     lightboxCloseLabel: "Cerrar vista previa",
     lightboxImageAlt: "Vista previa del adjunto",
@@ -197,7 +209,7 @@ const BUILT_IN_TRANSLATIONS = {
 };
 
 class OpenFormRenderer {
-  static VERSION = '1.4.0';
+  static VERSION = '1.5.0';
 
   /** Current schema format version written by the builder (schemas without it are version 1). */
   static SCHEMA_VERSION = 2;
@@ -291,12 +303,23 @@ class OpenFormRenderer {
    * @param {Function} [options.onFileRemoved] `(reference, { field })` fired when the user deletes a
    *   file that was uploaded through `uploadProvider` (or a stored reference), so the host can delete
    *   it server-side. Errors thrown here are logged, never shown.
+   * @param {Function} [options.onDraftChange] `(draft)` fired (debounced by `draftDebounceMs`) after a
+   *   real change — an answer edit, a page change, an upload completed/removed — never by render()
+   *   or restoreDraft(). `draft` is what getDraft() returns.
+   * @param {number} [options.draftDebounceMs=800] Debounce for onDraftChange and `draftStorage` saves.
+   * @param {string|Object} [options.draftStorage] Built-in persistence: `'local'`, `'session'` or an
+   *   adapter `{ get(key), set(key, value), remove(key) }` (any method may return a promise; `value`
+   *   is the draft as a JSON string, `get` may return that string or the draft object).
+   * @param {string} [options.draftKey] Storage key (default derived from the schema's `formId` or
+   *   `formTitle` plus its schemaVersion).
+   * @param {string} [options.resumeDraft='ask'] What render() does with a stored draft: `'ask'`
+   *   (small prompt: Resume / Start over), `'auto'` (restore silently) or `'never'`.
    * @param {string} [options.handwritingFontUrl] Opt-in stylesheet URL (e.g. a Google Fonts
    *   Caveat URL) injected as a <link> the first time a signature field is shown. Without it
    *   the renderer makes no external request; typed signatures use the font stack
    *   'Caveat', 'Segoe Script', 'Bradley Hand', cursive.
    */
-  constructor({ containerEl, onSubmit, onFieldChange, onPageChange, onValidationError, translations, locale, optionsProvider, uploadProvider, onFileRemoved, idPrefix, handwritingFontUrl }) {
+  constructor({ containerEl, onSubmit, onFieldChange, onPageChange, onValidationError, translations, locale, optionsProvider, uploadProvider, onFileRemoved, idPrefix, handwritingFontUrl, onDraftChange, draftDebounceMs, draftStorage, draftKey, resumeDraft }) {
     this.containerEl = containerEl;
     this.onSubmit = onSubmit;
     this.onFieldChange = onFieldChange;
@@ -312,6 +335,18 @@ class OpenFormRenderer {
     this.optionsProvider = typeof optionsProvider === 'function' ? optionsProvider : null;
     this.uploadProvider = typeof uploadProvider === 'function' ? uploadProvider : null;
     this.onFileRemoved = typeof onFileRemoved === 'function' ? onFileRemoved : null;
+    this.onDraftChange = typeof onDraftChange === 'function' ? onDraftChange : null;
+    this.draftDebounceMs = Number.isFinite(draftDebounceMs) && draftDebounceMs >= 0 ? draftDebounceMs : 800;
+    this.draftKey = typeof draftKey === 'string' && draftKey.trim() !== '' ? draftKey.trim() : null;
+    this.resumeDraft = ['auto', 'ask', 'never'].includes(resumeDraft) ? resumeDraft : 'ask';
+    this._draftAdapter = OpenFormRenderer._resolveDraftStorage(draftStorage);
+    this._draftTimer = null;
+    this._draftWrites = Promise.resolve();
+    this._draftWarned = false;
+    this._draftBannerEl = null;
+    this._renderSeq = 0;
+    this._onPageHide = () => this._flushDraft();
+    if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('pagehide', this._onPageHide);
     this.locale = locale || 'default';
     this.customTranslationsOverride = translations || {};
 
@@ -536,6 +571,8 @@ class OpenFormRenderer {
     if (!this.schema || !this.schema.pages || this.schema.pages.length === 0) return;
 
     const flatSchema = JSON.parse(JSON.stringify(this.schema));
+    // Pages hidden by their rules are not part of the printout
+    flatSchema.pages = this._navigablePages().map(i => flatSchema.pages[i]);
     // Wizard page titles survive the flattening as headings before each page's first section
     const pageHeadings = flatSchema.pages.length < 2 ? [] : flatSchema.pages
       .map(page => ({
@@ -544,7 +581,7 @@ class OpenFormRenderer {
       }))
       .filter(heading => heading.sectionIds.length > 0 && heading.title);
     const flattenedSections = flatSchema.pages.reduce((acc, page) => acc.concat(page.sections || []), []);
-    flatSchema.pages = [{ ...flatSchema.pages[0], sections: flattenedSections }];
+    flatSchema.pages = [{ ...flatSchema.pages[0], conditionalRules: [], sections: flattenedSections }];
 
     // A previous print() that never got its afterprint event: tear it down first
     this._cleanupPrint();
@@ -871,6 +908,11 @@ class OpenFormRenderer {
       if (cond.compareMode === 'field') addRef(`${path}.compareToFieldKey`, cond.compareToFieldKey);
     };
 
+    // Page rules: which page each top-level key lives on, and the references to check against it
+    const keyPage = new Map();
+    const pageRefs = [];
+    let currentPageIndex = -1;
+
     // Scopes: top-level fields share one key namespace; each repeater's sub-fields have their own.
     const scopes = new Map();
     const registerKey = (scope, key, path) => {
@@ -913,6 +955,7 @@ class OpenFormRenderer {
           err(`${path}.key`, 'missing-key', 'Data fields need a key (the name their answer is stored under).');
         } else {
           allKeys.add(field.key);
+          if (scope === '') keyPage.set(field.key, currentPageIndex);
           registerKey(scope, field.key, path);
         }
       }
@@ -941,6 +984,22 @@ class OpenFormRenderer {
     (pages || []).forEach((page, pi) => {
       const pagePath = `pages[${pi}]`;
       if (!page || typeof page !== 'object') return;
+      currentPageIndex = pi;
+      // Page rules reuse the field/section condition checks; their references are verified
+      // against the page order below (an answer the page itself or a later page provides).
+      if (page.conditionalRules !== undefined && page.conditionalRules !== null && Array.isArray(page.conditionalRules)) {
+        page.conditionalRules.forEach((rule, ri) => {
+          (rule && Array.isArray(rule.andGroups) ? rule.andGroups : []).forEach((group, gi) => {
+            (group && Array.isArray(group.conditions) ? group.conditions : []).forEach((cond, ci) => {
+              if (!cond || typeof cond !== 'object') return;
+              const condPath = `${pagePath}.conditionalRules[${ri}].andGroups[${gi}].conditions[${ci}]`;
+              if (typeof cond.dependentFieldKey === 'string' && cond.dependentFieldKey !== '') pageRefs.push({ path: `${condPath}.dependentFieldKey`, key: cond.dependentFieldKey, pageIndex: pi });
+              if (cond.compareMode === 'field' && typeof cond.compareToFieldKey === 'string' && cond.compareToFieldKey !== '') pageRefs.push({ path: `${condPath}.compareToFieldKey`, key: cond.compareToFieldKey, pageIndex: pi });
+            });
+          });
+        });
+      }
+      checkRules(`${pagePath}.conditionalRules`, page.conditionalRules);
       let sections = page.sections;
       if (!Array.isArray(sections) && Array.isArray(page.rows)) sections = [{ rows: page.rows }];
       (Array.isArray(sections) ? sections : []).forEach((section, si) => {
@@ -972,6 +1031,16 @@ class OpenFormRenderer {
 
     refChecks.forEach(({ path, key }) => {
       if (!allKeys.has(key)) err(path, 'unknown-field-reference', `References unknown field key "${key}".`);
+    });
+
+    pageRefs.forEach(({ path, key, pageIndex }) => {
+      const keyPageIndex = keyPage.get(key);
+      if (keyPageIndex === undefined) return;
+      if (keyPageIndex === pageIndex) {
+        warn(path, 'page-rule-self-reference', `The rule of page ${pageIndex + 1} depends on "${key}", a field on that same page: the page would hide itself while it is being answered.`);
+      } else if (keyPageIndex > pageIndex) {
+        warn(path, 'page-rule-forward-reference', `The rule of page ${pageIndex + 1} depends on "${key}", which is on a later page: the first time through it has no answer yet, so the rule is evaluated on an empty value.`);
+      }
     });
 
     return { valid: errors.length === 0, errors, warnings };
@@ -1119,6 +1188,7 @@ class OpenFormRenderer {
     schema.pages.forEach((page, index) => {
       if (!page.pageId) page.pageId = `page-${Math.random().toString(36).substr(2, 9)}`;
       if (!page.title) page.title = `${this.translations.normalizePageDefault} ${index + 1}`;
+      if (!Array.isArray(page.conditionalRules)) page.conditionalRules = [];
 
       if (!Array.isArray(page.sections)) {
         page.sections = [
@@ -1219,7 +1289,11 @@ class OpenFormRenderer {
    */
   destroy() {
     if (this._destroyed) return;
+    // A change still waiting out the debounce is saved, not lost
+    this._flushDraft();
     this._destroyed = true;
+    if (typeof window !== 'undefined' && window.removeEventListener) window.removeEventListener('pagehide', this._onPageHide);
+    this._draftBannerEl = null;
 
     this._cleanupPrint();
     this.teardownSignaturePads();
@@ -1277,13 +1351,7 @@ class OpenFormRenderer {
 
     this.schema = this.normalizeSchema(OpenFormRenderer._deepClone(schemaJSON));
     this.normalizeAnswerTypes();
-    // Every page's fields get their default answer up front, so answers/getAnswers() hold
-    // every field even for pages the user hasn't opened yet.
-    this.schema.pages.forEach(page => (page.sections || []).forEach(section => (section.rows || []).forEach(row => {
-      (row.columns || []).forEach(col => {
-        if (col && col.field) this.ensureAnswerDefault(col.field);
-      });
-    })));
+    this._ensureAllAnswerDefaults();
 
     // A record passed in explicitly always opens on its first page. A bare render(schema)
     // (live preview refresh of the same in-progress record) keeps the current page if it
@@ -1294,6 +1362,29 @@ class OpenFormRenderer {
 
     this.recalculateFormulas();
     this.drawActivePage();
+
+    // A new record starts clean: nothing pending from the previous one, no stale prompt
+    this._renderSeq++;
+    if (isNewRecord) this._cancelDraftTimer();
+    // The stored draft is offered once per record: a bare render(schema) refresh (live preview)
+    // of the same in-progress record must not ask again.
+    if (isNewRecord || !this._draftOffered) {
+      this._draftOffered = true;
+      this._removeDraftBanner();
+      this._offerStoredDraft();
+    }
+  }
+
+  /**
+   * Every page's fields get their default answer up front, so answers/getAnswers() hold
+   * every field even for pages the user hasn't opened yet.
+   */
+  _ensureAllAnswerDefaults() {
+    this.schema.pages.forEach(page => (page.sections || []).forEach(section => (section.rows || []).forEach(row => {
+      (row.columns || []).forEach(col => {
+        if (col && col.field) this.ensureAnswerDefault(col.field);
+      });
+    })));
   }
 
   /**
@@ -1397,6 +1488,11 @@ class OpenFormRenderer {
    */
   drawActivePage() {
     if (this._destroyed) return;
+    // Pages hidden by their rules lose their answers, and a hidden active page (render(),
+    // restoreDraft()) falls back to the nearest visible one before anything is drawn.
+    const visibility = this._syncPageVisibility();
+    if (visibility.target !== null) this.activePageIndex = visibility.target;
+    if (visibility.cleared) this.recalculateFormulas();
     // The previous page's DOM is about to be discarded: drop its signature pads (window
     // listeners + ResizeObservers) and invalidate pending option loads that target it.
     this.teardownSignaturePads();
@@ -1427,8 +1523,9 @@ class OpenFormRenderer {
     `;
     this.formEl.appendChild(headerEl);
 
-    // 2. Render multi-page steps bar
-    this.renderStepsBar();
+    // 2. Render multi-page steps bar (visible pages only)
+    const stepsContainer = this.renderStepsBar();
+    if (stepsContainer) this.formEl.appendChild(stepsContainer);
 
     // 3. Render active page rows
     const activePage = this.schema.pages[this.activePageIndex];
@@ -1497,11 +1594,122 @@ class OpenFormRenderer {
     });
 
     // 4. Render footer navigation controls
+    const navigationEl = this._buildNavigationBar();
+    this.formEl.appendChild(navigationEl);
+
+    // Bind widgets triggers and visibility rules
+    this.bindWidgetsEvents();
+    this.evalBusinessRules();
+
+    // A redraw (setLocale, page change) while onSubmit is still pending keeps submit disabled
+    if (this._submitPromise) this.applySubmittingState(true);
+
+  }
+
+  // ---------------------------------------------------------------------------
+  // Page branching (page-level conditionalRules)
+  // ---------------------------------------------------------------------------
+
+  /** Whether page `index` is shown: its `visibility` rules (any satisfied) decide, no rules = visible. */
+  isPageVisible(index) {
+    const page = this.schema && this.schema.pages[index];
+    if (!page) return false;
+    const rules = (page.conditionalRules || []).filter(r => r.targetProperty === 'visibility');
+    return rules.length === 0 || rules.some(r => this.isRuleSatisfied(r));
+  }
+
+  /**
+   * Absolute indices of the pages currently shown (not hidden by a page rule), in order.
+   * Next/Previous, the step tabs and goToPage() only deal with these.
+   *
+   * @returns {number[]}
+   */
+  getVisiblePages() {
+    if (this._destroyed || !this.schema) return [];
+    const visible = [];
+    this.schema.pages.forEach((page, index) => { if (this.isPageVisible(index)) visible.push(index); });
+    return visible;
+  }
+
+  /** The visible pages, or just the active one when every page is hidden (the form is never empty). */
+  _navigablePages() {
+    const visible = this.getVisiblePages();
+    return visible.length > 0 ? visible : [this.activePageIndex];
+  }
+
+  /**
+   * Applies page rules: resets the answers of every hidden page (like a hidden field or
+   * section, onFileRemoved 'hidden' included; repeated until stable because clearing can flip
+   * another page's rule) and, when the active page is hidden, picks where to go: the nearest
+   * previous visible page, else the nearest next one.
+   *
+   * @returns {{ cleared: boolean, target: number|null }} target is null when the active page stays.
+   */
+  _syncPageVisibility() {
+    let cleared = false;
+    if (!this.schema || !this.schema.pages.some(p => (p.conditionalRules || []).length > 0)) {
+      return { cleared, target: null };
+    }
+    let changed = true;
+    for (let iterations = 0; changed && iterations < 10; iterations++) {
+      changed = false;
+      this.schema.pages.forEach((page, index) => {
+        if (this.isPageVisible(index)) return;
+        (page.sections || []).forEach(section => (section.rows || []).forEach(row => (row.columns || []).forEach(col => {
+          const field = col && col.field;
+          if (!field || field.type === 'header' || field.type === 'paragraph' || !OpenFormRenderer.FIELD_TYPES.includes(field.type)) return;
+          if (this.hasNonDefaultValue(field)) {
+            this.clearFieldState(field);
+            changed = true;
+            cleared = true;
+          }
+        })));
+      });
+    }
+    const visible = this.getVisiblePages();
+    if (visible.length === 0 || visible.includes(this.activePageIndex)) return { cleared, target: null };
+    const before = visible.filter(i => i < this.activePageIndex);
+    return { cleared, target: before.length > 0 ? before[before.length - 1] : visible[0] };
+  }
+
+  /** After an answer changed: re-applies page rules, moving off a page that became hidden and refreshing the tabs. */
+  _reactToPageRules() {
+    const visibility = this._syncPageVisibility();
+    if (visibility.cleared) {
+      this.recalculateFormulas();
+      this.evalBusinessRules();
+    }
+    if (visibility.target !== null) {
+      this.showPage(visibility.target);
+    } else if (this._navSignature !== this._navigablePages().join(',')) {
+      this._refreshPagination();
+    }
+  }
+
+  /** Rebuilds the step tabs and the footer buttons in place (the page body and the focus stay untouched). */
+  _refreshPagination() {
+    if (this._destroyed || !this.formEl || !this.formEl.querySelector('.renderer-form-body')) return;
+    const oldSteps = this.formEl.querySelector('.renderer-steps-container');
+    const oldNav = this.formEl.querySelector('.renderer-navigation-bar');
+    const body = this.formEl.querySelector('.renderer-form-body');
+    const steps = this.renderStepsBar();
+    if (oldSteps) oldSteps.remove();
+    if (steps) body.before(steps);
+    const nav = this._buildNavigationBar();
+    if (oldNav) oldNav.replaceWith(nav); else this.formEl.appendChild(nav);
+    if (this._submitPromise) this.applySubmittingState(true);
+  }
+
+  /** Footer: Previous / Next (or Submit on the last visible page), bound to the visible pages. */
+  _buildNavigationBar() {
+    const esc = OpenFormRenderer.escapeHtml;
     const navigationEl = document.createElement('div');
     navigationEl.className = 'renderer-navigation-bar';
+    const navigable = this._navigablePages();
+    this._navSignature = navigable.join(',');
+    const position = Math.max(0, navigable.indexOf(this.activePageIndex));
 
-    const totalPages = this.schema.pages.length;
-    if (totalPages <= 1) {
+    if (navigable.length <= 1) {
       // Single page submit buttons
       navigationEl.innerHTML = `
         <div></div>
@@ -1511,70 +1719,55 @@ class OpenFormRenderer {
         </button>
         `}
       `;
-    } else {
-      // Pagination buttons
-      const isFirst = this.activePageIndex === 0;
-      const isLast = this.activePageIndex === totalPages - 1;
-
-      navigationEl.innerHTML = `
-        <button type="button" id="${esc(this._domId('btn-prev-page'))}" class="pg-btn pg-btn-secondary renderer-btn-prev" style="padding: 10px 20px; font-size: var(--of-font-size-base); visibility: ${isFirst ? 'hidden' : 'visible'}">
-          ${OpenFormRenderer.icon('arrow-left')} ${esc(this.translations.formPrevPageButton)}
-        </button>
-        
-        ${isLast ? (this.readOnly ? '<div></div>' : `
-        <button type="submit" class="pg-btn" style="padding: 10px var(--of-space-l); font-size: var(--of-font-size-base);">
-          ${OpenFormRenderer.icon('check')} ${esc(this.translations.formSubmitButton)}
-        </button>
-        `) : `
-        <button type="button" id="${esc(this._domId('btn-next-page'))}" class="pg-btn renderer-btn-next" style="padding: 10px 20px; font-size: var(--of-font-size-base);">
-          ${esc(this.translations.formNextPageButton)} ${OpenFormRenderer.icon('arrow-right')}
-        </button>
-        `}
-      `;
-    }
-    this.formEl.appendChild(navigationEl);
-
-    // Bind widgets triggers and visibility rules
-    this.bindWidgetsEvents();
-    this.evalBusinessRules();
-
-    // Bind page navigator clicks
-    if (totalPages > 1) {
-      const prevBtn = navigationEl.querySelector('.renderer-btn-prev');
-      const nextBtn = navigationEl.querySelector('.renderer-btn-next');
-
-      if (prevBtn) {
-        prevBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          if (this.activePageIndex > 0) {
-            this.navigateToPage(this.activePageIndex - 1);
-          }
-        });
-      }
-
-      if (nextBtn) {
-        nextBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          if (this.activePageIndex < totalPages - 1) {
-            this.navigateToPage(this.activePageIndex + 1);
-          }
-        });
-      }
+      return navigationEl;
     }
 
-    // A redraw (setLocale, page change) while onSubmit is still pending keeps submit disabled
-    if (this._submitPromise) this.applySubmittingState(true);
+    // Pagination buttons
+    const isFirst = position === 0;
+    const isLast = position === navigable.length - 1;
+    navigationEl.innerHTML = `
+      <button type="button" id="${esc(this._domId('btn-prev-page'))}" class="pg-btn pg-btn-secondary renderer-btn-prev" style="padding: 10px 20px; font-size: var(--of-font-size-base); visibility: ${isFirst ? 'hidden' : 'visible'}">
+        ${OpenFormRenderer.icon('arrow-left')} ${esc(this.translations.formPrevPageButton)}
+      </button>
 
+      ${isLast ? (this.readOnly ? '<div></div>' : `
+      <button type="submit" class="pg-btn" style="padding: 10px var(--of-space-l); font-size: var(--of-font-size-base);">
+        ${OpenFormRenderer.icon('check')} ${esc(this.translations.formSubmitButton)}
+      </button>
+      `) : `
+      <button type="button" id="${esc(this._domId('btn-next-page'))}" class="pg-btn renderer-btn-next" style="padding: 10px 20px; font-size: var(--of-font-size-base);">
+        ${esc(this.translations.formNextPageButton)} ${OpenFormRenderer.icon('arrow-right')}
+      </button>
+      `}
+    `;
+    const prevBtn = navigationEl.querySelector('.renderer-btn-prev');
+    const nextBtn = navigationEl.querySelector('.renderer-btn-next');
+    if (prevBtn) {
+      prevBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!isFirst) this.navigateToPage(navigable[position - 1]);
+      });
+    }
+    if (nextBtn) {
+      nextBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!isLast) this.navigateToPage(navigable[position + 1]);
+      });
+    }
+    return navigationEl;
   }
 
   /**
    * Render horizontal progress bar steps (Pagination)
    */
   renderStepsBar() {
-    const totalPages = this.schema.pages.length;
-    if (totalPages <= 1) return;
+    // Only the pages not hidden by a page rule get a tab, renumbered 1..n
+    const navigable = this._navigablePages();
+    const totalPages = navigable.length;
+    if (totalPages <= 1) return null;
+    const activePosition = Math.max(0, navigable.indexOf(this.activePageIndex));
 
     const stepsContainer = document.createElement('div');
     stepsContainer.className = 'renderer-steps-container';
@@ -1591,16 +1784,18 @@ class OpenFormRenderer {
     // Dynamic active progress indicator line
     const progressLine = document.createElement('div');
     progressLine.className = 'renderer-steps-line-progress';
-    const percent = (this.activePageIndex / (totalPages - 1)) * 100;
+    const percent = (activePosition / (totalPages - 1)) * 100;
     progressLine.style.width = `${percent}%`;
     stepsBar.appendChild(progressLine);
 
-    this.schema.pages.forEach((page, index) => {
+    navigable.forEach((pageIndex, position) => {
+      const page = this.schema.pages[pageIndex];
+      const index = pageIndex;
       const stepEl = document.createElement('div');
       stepEl.className = 'renderer-step';
 
       const isActive = index === this.activePageIndex;
-      const isCompleted = index < this.activePageIndex;
+      const isCompleted = position < activePosition;
 
       if (isActive) stepEl.classList.add('active');
       if (isCompleted) stepEl.classList.add('completed');
@@ -1614,7 +1809,7 @@ class OpenFormRenderer {
 
       const bubble = document.createElement('div');
       bubble.className = 'renderer-step-bubble';
-      bubble.textContent = index + 1;
+      bubble.textContent = position + 1;
       stepEl.appendChild(bubble);
 
       const label = document.createElement('div');
@@ -1635,9 +1830,9 @@ class OpenFormRenderer {
       stepEl.addEventListener('keydown', (e) => {
         let targetIdx = -1;
         if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-          targetIdx = (index + 1) % totalPages;
+          targetIdx = (position + 1) % totalPages;
         } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-          targetIdx = (index - 1 + totalPages) % totalPages;
+          targetIdx = (position - 1 + totalPages) % totalPages;
         } else if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           stepEl.click();
@@ -1663,10 +1858,9 @@ class OpenFormRenderer {
     const mobileHeader = document.createElement('div');
     mobileHeader.className = 'renderer-mobile-step-header';
     const displayPageTitle = this.getTranslatedValue('pages', this.schema.pages[this.activePageIndex].pageId, null, null, this.schema.pages[this.activePageIndex].title);
-    mobileHeader.textContent = `${this.translations.stepIndicatorPrefix} ${this.activePageIndex + 1} ${this.translations.stepIndicatorOf} ${totalPages}${this.translations.stepIndicatorDivider} ${displayPageTitle}`;
+    mobileHeader.textContent = `${this.translations.stepIndicatorPrefix} ${activePosition + 1} ${this.translations.stepIndicatorOf} ${totalPages}${this.translations.stepIndicatorDivider} ${displayPageTitle}`;
     stepsContainer.appendChild(mobileHeader);
-
-    this.formEl.appendChild(stepsContainer);
+    return stepsContainer;
   }
 
   /**
@@ -2435,6 +2629,7 @@ class OpenFormRenderer {
     if (this._destroyed || !this.schema) return;
     this.recalculateFormulas();
     this.evalBusinessRules();
+    this._reactToPageRules();
     this.notifyFieldChange(changedFieldKey);
   }
 
@@ -3948,6 +4143,8 @@ class OpenFormRenderer {
     let hasErrors = false;
     const page = this.schema.pages[pageIndex];
     if (!page) return false;
+    // A page hidden by its rules is not part of the form: nothing on it is validated
+    if (!this.isPageVisible(pageIndex)) return true;
 
     (page.sections || []).forEach(section => {
       (section.rows || []).forEach(row => {
@@ -4257,7 +4454,8 @@ class OpenFormRenderer {
     const submittedAnswers = {};
     if (this._destroyed || !this.schema) return submittedAnswers;
 
-    this.schema.pages.forEach(page => {
+    this.schema.pages.forEach((page, pageIndex) => {
+      if (!this.isPageVisible(pageIndex)) return;
       (page.sections || []).forEach(section => {
         (section.rows || []).forEach(row => {
           (row.columns || []).forEach(col => {
@@ -4347,6 +4545,259 @@ class OpenFormRenderer {
     return true;
   }
 
+  // ---------------------------------------------------------------------------
+  // Drafts and resume
+  // ---------------------------------------------------------------------------
+
+  /**
+   * The in-progress record, ready to store and later pass to restoreDraft():
+   * `{ version: 1, schemaVersion, formId?, answers, pageIndex, savedAt, complete: false }`.
+   * `answers` holds every field (also those a rule currently hides or disables, like
+   * onFieldChange) as a deep copy; uploads still in flight are never part of it. Base64 files
+   * are included (large — prefer an `uploadProvider`, whose references are tiny).
+   *
+   * @returns {Object|null} null before render() or after destroy().
+   */
+  getDraft() {
+    if (this._destroyed || !this.schema) return null;
+    const draft = { version: 1, schemaVersion: this.schema.schemaVersion };
+    if (typeof this.schema.formId === 'string' && this.schema.formId !== '') draft.formId = this.schema.formId;
+    draft.answers = OpenFormRenderer._deepClone(this.answers);
+    draft.pageIndex = this.activePageIndex;
+    draft.savedAt = new Date().toISOString();
+    draft.complete = false;
+    return draft;
+  }
+
+  /**
+   * Puts a draft (from getDraft(), or its JSON string) back into the form: restores the answers
+   * and opens the saved page directly (clamped to the existing pages, without the forward
+   * validation of goToPage()), then re-evaluates formulas and rules. It fires no onSubmit, no
+   * onFieldChange / onPageChange and no onDraftChange. Keys the current schema no longer has
+   * are dropped (one console warning); render() must have been called first.
+   *
+   * @returns {boolean} false when there is no schema or the draft is not usable.
+   */
+  restoreDraft(draft) {
+    if (this._destroyed || !this.schema) return false;
+    if (typeof draft === 'string') {
+      try { draft = JSON.parse(draft); } catch (e) { draft = null; }
+    }
+    if (!draft || typeof draft !== 'object' || !draft.answers || typeof draft.answers !== 'object' || Array.isArray(draft.answers)) {
+      console.warn('OpenFormRenderer.restoreDraft: not a draft object, ignored.');
+      return false;
+    }
+
+    const dropped = [];
+    const incoming = {};
+    Object.keys(draft.answers).forEach(key => {
+      const located = this.findFieldByKey(key);
+      if (!located || ['header', 'paragraph'].includes(located.field.type) || !OpenFormRenderer.FIELD_TYPES.includes(located.field.type)) {
+        dropped.push(key);
+        return;
+      }
+      const value = draft.answers[key];
+      const type = located.field.type;
+      const fits = (type === 'repeater' && Array.isArray(value))
+        || (type === 'matrix' && value && typeof value === 'object' && !Array.isArray(value))
+        || (type === 'boolean' && typeof value === 'boolean')
+        || !['repeater', 'matrix', 'boolean'].includes(type);
+      if (fits && value !== undefined) incoming[key] = OpenFormRenderer._deepClone(value);
+      else dropped.push(key);
+    });
+    if (dropped.length > 0 && !this._draftWarned) {
+      this._draftWarned = true;
+      console.warn(`OpenFormRenderer.restoreDraft: ignored ${dropped.length} answer(s) that do not match the current schema: ${dropped.join(', ')}`);
+    }
+
+    this.resetRecordState();
+    this.answers = incoming;
+    this.normalizeAnswerTypes();
+    this._ensureAllAnswerDefaults();
+    const last = this.schema.pages.length - 1;
+    const wanted = Number.isInteger(draft.pageIndex) ? draft.pageIndex : 0;
+    this.activePageIndex = Math.max(0, Math.min(wanted, last));
+    this._cancelDraftTimer();
+    this.recalculateFormulas();
+    this.drawActivePage();
+    return true;
+  }
+
+  /** Stops watching for changes and deletes the stored draft (no-op without `draftStorage`). Resolves when done. */
+  clearDraft() {
+    this._cancelDraftTimer();
+    this._removeDraftBanner();
+    return this._storageOp('remove');
+  }
+
+  static _resolveDraftStorage(option) {
+    if (!option) return null;
+    if (option === 'local' || option === 'session') {
+      const name = option === 'local' ? 'localStorage' : 'sessionStorage';
+      let store = null;
+      try { store = window[name]; } catch (e) { store = null; }
+      if (!store) {
+        console.warn(`OpenFormRenderer: ${name} is not available, drafts will not be stored.`);
+        return null;
+      }
+      return {
+        get: (key) => store.getItem(key),
+        set: (key, value) => store.setItem(key, value),
+        remove: (key) => store.removeItem(key)
+      };
+    }
+    if (typeof option === 'object' && ['get', 'set', 'remove'].every(m => typeof option[m] === 'function')) return option;
+    console.warn("OpenFormRenderer: draftStorage must be 'local', 'session' or { get, set, remove }; drafts will not be stored.");
+    return null;
+  }
+
+  /** Storage key of this form's draft. */
+  _draftStorageKey() {
+    if (this.draftKey) return this.draftKey;
+    const id = (this.schema && (this.schema.formId || this.schema.formTitle)) || 'form';
+    return `openforms-draft:${id}:v${this.schema ? this.schema.schemaVersion : 1}`;
+  }
+
+  /** Runs one adapter call; sync results and promises both end as a swallowed-and-logged outcome. */
+  _storageCall(method, ...args) {
+    const adapter = this._draftAdapter;
+    if (!adapter) return null;
+    try {
+      return adapter[method](this._draftStorageKey(), ...args);
+    } catch (err) {
+      console.warn(`OpenFormRenderer: draftStorage.${method} failed:`, err);
+      return null;
+    }
+  }
+
+  /** Serialised write/remove so a slow async adapter never reorders them. */
+  _storageOp(method, value) {
+    if (!this._draftAdapter) return Promise.resolve();
+    const run = () => Promise.resolve(method === 'set' ? this._storageCall('set', value) : this._storageCall('remove'))
+      .catch(err => console.warn(`OpenFormRenderer: draftStorage.${method} failed:`, err));
+    this._draftWrites = this._draftWrites.then(run);
+    return this._draftWrites;
+  }
+
+  _cancelDraftTimer() {
+    if (this._draftTimer === null) return;
+    clearTimeout(this._draftTimer);
+    this._timers.delete(this._draftTimer);
+    this._draftTimer = null;
+  }
+
+  /** (Re)starts the debounce after a real change; nothing to do without a consumer. */
+  _scheduleDraft() {
+    if (this._destroyed || !this.schema || (!this.onDraftChange && !this._draftAdapter)) return;
+    this._cancelDraftTimer();
+    this._draftTimer = this._setTimeout(() => {
+      this._draftTimer = null;
+      this._emitDraft();
+    }, this.draftDebounceMs);
+  }
+
+  /** Emits the pending draft now: onDraftChange(draft) and the storage write. */
+  _flushDraft() {
+    if (this._draftTimer === null) return;
+    this._cancelDraftTimer();
+    this._emitDraft();
+  }
+
+  _emitDraft() {
+    const draft = this.getDraft();
+    if (!draft) return;
+    if (this._draftAdapter) {
+      let json = null;
+      try { json = JSON.stringify(draft); } catch (e) { /* unserialisable answers: skip storing */ }
+      if (json !== null) this._storageOp('set', json);
+    }
+    if (this.onDraftChange) {
+      try {
+        this.onDraftChange(draft);
+      } catch (err) {
+        console.error('OpenFormRenderer: onDraftChange threw:', err);
+      }
+    }
+  }
+
+  /** A submit succeeded: nothing left to resume. */
+  _draftSubmitted() {
+    this._cancelDraftTimer();
+    this._removeDraftBanner();
+    this._storageOp('remove');
+  }
+
+  /** After render(): looks for a stored draft and restores it or asks, per `resumeDraft`. */
+  _offerStoredDraft() {
+    if (!this._draftAdapter || this.resumeDraft === 'never' || this.readOnly || !this.schema || this.schema.pages.length === 0) return;
+    const seq = this._renderSeq;
+    const key = this._draftStorageKey();
+    const handle = (raw) => {
+      if (this._destroyed || seq !== this._renderSeq || this._draftTimer !== null || key !== this._draftStorageKey()) return;
+      let draft = raw;
+      if (typeof raw === 'string') {
+        try { draft = JSON.parse(raw); } catch (e) { draft = null; }
+      }
+      if (!draft || typeof draft !== 'object' || !draft.answers || typeof draft.answers !== 'object') return;
+      if (this.resumeDraft === 'auto') this.restoreDraft(draft);
+      else this._showDraftBanner(draft);
+    };
+    const result = this._storageCall('get');
+    if (result && typeof result.then === 'function') {
+      result.then(handle, err => console.warn('OpenFormRenderer: draftStorage.get failed:', err));
+    } else {
+      handle(result);
+    }
+  }
+
+  /** Small accessible prompt above the form: "Resume your draft?" [Resume] [Start over]. */
+  _showDraftBanner(draft) {
+    this._removeDraftBanner();
+    const sandbox = this.containerEl && this.containerEl.querySelector('.renderer-sandbox');
+    if (!sandbox) return;
+    const esc = OpenFormRenderer.escapeHtml;
+    const promptId = this._domId('draft-prompt');
+    let when = '';
+    const date = new Date(draft.savedAt);
+    if (draft.savedAt && !isNaN(date.getTime())) {
+      try {
+        when = this.translations.draftSavedAt.replace('{date}', date.toLocaleString(this.locale === 'default' ? undefined : this.locale, { dateStyle: 'short', timeStyle: 'short' }));
+      } catch (e) { when = ''; }
+    }
+    const banner = document.createElement('div');
+    banner.className = 'renderer-draft-banner';
+    banner.setAttribute('role', 'group');
+    banner.setAttribute('aria-labelledby', promptId);
+    banner.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:var(--of-space-s);margin-bottom:var(--of-space-m);padding:var(--of-space-s) var(--of-space-m);border:1px solid var(--of-color-neutral-5);border-radius:var(--of-border-radius-m);';
+    banner.innerHTML = `
+      <span id="${esc(promptId)}" role="status" aria-live="polite" style="flex:1 1 auto"></span>
+      <button type="button" class="pg-btn renderer-draft-resume">${esc(this.translations.draftResumeButton)}</button>
+      <button type="button" class="pg-btn pg-btn-secondary renderer-draft-discard">${esc(this.translations.draftDiscardButton)}</button>
+    `;
+    banner.querySelector('.renderer-draft-resume').addEventListener('click', () => {
+      this._removeDraftBanner();
+      this.restoreDraft(draft);
+    });
+    banner.querySelector('.renderer-draft-discard').addEventListener('click', () => {
+      this.clearDraft();
+    });
+    // Focus never moves (the form is often embedded in a bigger page): the live region is in
+    // the DOM first and filled a moment later, which is what makes screen readers announce it;
+    // the buttons stay at the top of the form in normal tab order.
+    sandbox.insertBefore(banner, sandbox.firstChild);
+    this._draftBannerEl = banner;
+    const promptHtml = `<strong>${esc(this.translations.draftResumePrompt)}</strong>${when ? ` <small>${esc(when)}</small>` : ''}`;
+    this._setTimeout(() => {
+      const live = banner.querySelector('[role="status"]');
+      if (live && banner.isConnected) live.innerHTML = promptHtml;
+    }, 50);
+  }
+
+  _removeDraftBanner() {
+    if (this._draftBannerEl) this._draftBannerEl.remove();
+    this._draftBannerEl = null;
+  }
+
   /** Re-creates one rendered top-level field's widget from this.answers (see setValue). */
   redrawField(field) {
     const oldWrapper = this._byId('wrapper', field.id);
@@ -4368,6 +4819,8 @@ class OpenFormRenderer {
   goToPage(index) {
     if (this._destroyed || !this.schema) return false;
     if (!Number.isInteger(index) || index < 0 || index >= this.schema.pages.length) return false;
+    // A page hidden by its rules is not part of the form right now
+    if (!this.isPageVisible(index)) return false;
     return this.navigateToPage(index);
   }
 
@@ -4390,6 +4843,7 @@ class OpenFormRenderer {
   showPage(index) {
     this.activePageIndex = index;
     this.drawActivePage();
+    this._scheduleDraft();
     if (this.onPageChange && !this._destroyed) {
       this.onPageChange(index, OpenFormRenderer._deepClone(this.schema.pages[index]));
     }
@@ -4438,6 +4892,7 @@ class OpenFormRenderer {
     }
 
     if (!threw && !(result && typeof result.then === 'function')) {
+      this._draftSubmitted();
       this.showToast(this.translations.validationToastSuccess, false);
       return Promise.resolve({ submitted: true, answers, errors: [] });
     }
@@ -4446,6 +4901,7 @@ class OpenFormRenderer {
     const pending = (threw ? Promise.reject(result) : Promise.resolve(result)).then(
       () => {
         this.setSubmitting(false);
+        this._draftSubmitted();
         this.showToast(this.translations.validationToastSuccess, false);
         return { submitted: true, answers, errors: [] };
       },
@@ -4748,6 +5204,7 @@ class OpenFormRenderer {
 
   /** Calls onFieldChange(answers, changedKey) with a deep copy of the answers. */
   notifyFieldChange(changedKey) {
+    this._scheduleDraft();
     if (this._destroyed || typeof this.onFieldChange !== 'function') return;
     const publicKey = this._scopedKeyOwners.get(changedKey) || changedKey;
     this.onFieldChange(OpenFormRenderer._deepClone(this.answers), publicKey);
