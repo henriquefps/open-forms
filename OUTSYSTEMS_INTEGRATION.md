@@ -1,7 +1,7 @@
 # OpenForms — OutSystems Integration Guide
 
 > **Compatible with:** OutSystems 11 (Reactive Web) and OutSystems Developer Cloud (ODC)  
-> **Component version:** the examples pin `open-forms@1.1.1` on jsDelivr; use the version you are deploying.  
+> **Component version:** the examples pin `open-forms@1.2.0` on jsDelivr; use the version you are deploying.  
 > **Author:** Henrique Silva (contact@hfps.dev) — [hfps.dev](https://hfps.dev)
 
 This guide shows how to run the OpenForms **renderer** (and, optionally, the **builder**) inside an OutSystems Reactive app, in both O11 and ODC. For the generic API see [INTEGRATION_GUIDE.md](./INTEGRATION_GUIDE.md); for the schema see [SCHEMA_REFERENCE.md](./SCHEMA_REFERENCE.md); for theming see [customization.md](./customization.md).
@@ -55,7 +55,7 @@ Typical flow in an OutSystems app:
 
 The schema and the answers are JSON text: store them in `Text` attributes with **Length = 0** (unlimited) in your own entities. The component never calls your server by itself; every server call goes through Client Actions that you write.
 
-**Dependencies.** The renderer and builder load no third-party library. [Lucide](https://lucide.dev) is optional: if `window.lucide` exists the icons are drawn with it, otherwise the form works without icons. Signatures are drawn on a canvas by the component itself.
+**Dependencies.** The renderer and builder load no third-party library. Icons are inline SVG inside the two scripts (no icon library to load, and nothing on the host page is touched), and signatures are drawn on a canvas by the component itself. The components make no external request. Typed signatures use the font stack `'Caveat', 'Segoe Script', 'Bradley Hand', cursive`; to load the Caveat webfont, pass `handwritingFontUrl` (see the Integration Guide).
 
 ---
 
@@ -76,22 +76,25 @@ Every action used in this guide lists its input parameters in call order.
 **Option A — Scripts resource (recommended, works offline).**
 
 1. Download the files pinned to the version you use:
-   - `https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.1.1/src/renderer.js`
-   - `https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.1.1/src/builder.js` (only for designer screens)
-   - `https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.1.1/src/openforms.css`
+   - `https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.2.0/src/renderer.js`
+   - `https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.2.0/src/builder.js` (only for designer screens)
+   - `https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.2.0/src/openforms.css`
 2. O11 Reactive: **Interface → Scripts → Import Script…**. ODC: **Interface → Scripts → Import script**. Import `renderer.js` (and `builder.js`).
 3. Select your Block (or Screen) and add the script to its **Required Scripts**.
+   Adding the same script to both a Block and a Screen is safe: loading it twice keeps the first definition and only logs a warning if the versions differ.
 4. Paste `openforms.css` into the app Theme (or the Block's Style Sheet).
+
+   The stylesheet only styles OpenForms' own elements and follows your app's OutSystems UI colour and border-radius tokens (`--color-primary`, `--color-neutral-*`, `--border-radius-soft`, …), so forms pick up the app theme. Spacing and type keep OpenForms' own scale. It doesn't redefine those tokens for the rest of the app. To give OpenForms different values, see [customization.md](./customization.md#2-theming-only-openforms).
 
 **Option B — CDN.**
 
 - CSS: first line of the Theme style sheet:
 
   ```css
-  @import url("https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.1.1/src/openforms.css");
+  @import url("https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.2.0/src/openforms.css");
   ```
 
-- JS: in the Block's `OnInitialize`, use the OutSystems UI **RequireScript** action with `URL = "https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.1.1/src/renderer.js"`. Make sure the script has finished loading before the `OnReady` JavaScript node runs.
+- JS: in the Block's `OnInitialize`, use the OutSystems UI **RequireScript** action with `URL = "https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.2.0/src/renderer.js"`. Make sure the script has finished loading before the `OnReady` JavaScript node runs.
 
 > Use the CDN only if your environment allows external scripts (CSP, offline use). Pin the version (`@1.1.0`), never `@latest`.
 
@@ -130,7 +133,9 @@ window._openForms = window._openForms || {};
 window._openForms[$parameters.ContainerId] = renderer;
 ```
 
-Constructor options: `containerEl`, `onSubmit(answers)` (required), `onFieldChange(answers)` (optional, fired on every edit), `locale`, `translations`, `optionsProvider`. `OpenFormRenderer.VERSION` returns the library version at runtime.
+Constructor options: `containerEl`, `onSubmit(answers)` (required), `onFieldChange(answers, changedKey)` (optional, fired on every answer change, including signatures and uploads), `onPageChange(index, page)`, `onValidationError(errors)`, `locale`, `translations`, `optionsProvider`, `idPrefix`. `OpenFormRenderer.VERSION` returns the library version at runtime.
+
+The renderer also has methods you can call from other JavaScript nodes through `window._openForms[ContainerId]`: `validate()`, `submit()`, `getAnswers()`, `setValue(key, value)` and `goToPage(index)`. See the [Integration Guide](INTEGRATION_GUIDE.md#methods).
 
 On the parent screen, handle the Block's `OnSubmitted` event with a Client Action `OnFormSubmitted` (input `AnswersJSON`, Text) — see [Handle the submitted answers](#handle-the-submitted-answers).
 
@@ -178,7 +183,16 @@ The provider is called once per field each time `render()` runs (and again if th
 
 ## Handle the submitted answers
 
-`onSubmit` receives a plain object `{ fieldKey: value, ... }`. Fields hidden by conditional rules, and disabled fields, are not included.
+`onSubmit` receives a plain object `{ fieldKey: value, ... }`. Fields hidden by conditional rules, and disabled fields, are not included. `number` answers are numbers, or `null` when left empty.
+
+`onSubmit` may return a promise, and `$actions` calls return one. When it does, the renderer disables the submit button until the promise settles, shows its success message only if it resolves, and shows an error message (the `submitErrorToast` translation) if it rejects, so the user can try again. The renderer waits for exactly the promise you return, so return the call to the Client Action that does the saving:
+
+```javascript
+onSubmit: function (answers) {
+  // OnFormSubmitted inputs, in order: AnswersJSON
+  return $actions.OnFormSubmitted(JSON.stringify(answers));
+}
+```
 
 Client Action `OnFormSubmitted` (on the parent screen, handler of the Block's `OnSubmitted`):
 

@@ -1,3 +1,4 @@
+(function () {
 /**
  * OpenFormRenderer - The Live Form Player / Renderer
  * Consumes FormSchemaJSON and mounts a reactive, responsive, and validated form
@@ -9,13 +10,82 @@
  * License: Apache-2.0
  */
 class OpenFormRenderer {
-  static VERSION = '1.1.1';
+  static VERSION = '1.2.0';
+
+  /** Current schema format version written by the builder (schemas without it are version 1). */
+  static SCHEMA_VERSION = 2;
+  /** Field types this build knows how to render. */
+  static FIELD_TYPES = ['header', 'paragraph', 'text', 'textarea', 'number', 'date', 'boolean', 'dropdown', 'radio', 'checkbox', 'signature', 'file', 'repeater', 'matrix'];
+  /** Condition operators the rule evaluator understands (`gte`/`lte` are aliases). */
+  static CONDITION_OPERATORS = ['equals', 'notEquals', 'contains', 'notContains', 'greaterThan', 'greaterThanOrEquals', 'gte', 'lessThan', 'lessThanOrEquals', 'lte'];
+
+  /**
+   * Inline SVG icons (X1). Only the icons this file uses, so the component needs no icon library
+   * and never touches the host page. Path data comes from Lucide (https://lucide.dev), ISC
+   * License, Copyright (c) Lucide Icons and Contributors / Cole Bemis 2013-2022 (Feather, MIT).
+   * Permission to use, copy, modify, and/or distribute this software for any purpose with or
+   * without fee is hereby granted, provided that the above copyright notice and this permission
+   * notice appear in all copies. The software is provided "as is" without warranty of any kind.
+   */
+  static ICONS = {
+    'alert-circle': '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
+    'arrow-left': '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+    'arrow-right': '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+    'binary': '<rect x="14" y="14" width="4" height="6" rx="2"/><rect x="6" y="4" width="4" height="6" rx="2"/><path d="M6 20h4"/><path d="M14 10h4"/><path d="M6 14h2v6"/><path d="M14 4h2v6"/>',
+    'calculator': '<rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/>',
+    'calendar': '<path d="M8 2v3"/><path d="M16 2v3"/><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/>',
+    'camera': '<path d="M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z"/><circle cx="12" cy="13" r="3"/>',
+    'check': '<path d="M20 6 9 17l-5-5"/>',
+    'check-circle': '<path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/>',
+    'download': '<path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/>',
+    'edit-3': '<path d="M13 21h8"/><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/>',
+    'file': '<path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/>',
+    'file-text': '<path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
+    'help-circle': '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>',
+    'info': '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+    'keyboard': '<path d="M10 8h.01"/><path d="M12 12h.01"/><path d="M14 8h.01"/><path d="M16 12h.01"/><path d="M18 8h.01"/><path d="M6 8h.01"/><path d="M7 16h10"/><path d="M8 12h.01"/><rect width="20" height="16" x="2" y="4" rx="2"/>',
+    'list-collapse': '<path d="M10 5h11"/><path d="M10 12h11"/><path d="M10 19h11"/><path d="m3 10 3-3-3-3"/><path d="m3 20 3-3-3-3"/>',
+    'pen-tool': '<path d="m18 13-.654-4.736a4 4 0 00-2.756-3.266l-9.163-2.9a2 2 0 00-2.017.493l-.82.819a2 2 0 00-.492 2.017l2.9 9.163a4 4 0 003.266 2.756L13 18"/><path d="M18.648 12.352a1.205 1.205 0 011.704 0l1.296 1.296a1.205 1.205 0 010 1.704l-6.296 6.296a1.205 1.205 0 01-1.704 0l-1.296-1.296a1.205 1.205 0 010-1.704z"/><path d="m3 3 6.586 6.586"/><circle cx="11" cy="11" r="2"/>',
+    'plus-circle': '<circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/>',
+    'rotate-ccw': '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+    'text-cursor-input': '<path d="M12 20h-1a2 2 0 0 1-2-2 2 2 0 0 1-2 2H6"/><path d="M13 8h7a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-7"/><path d="M5 16H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h1"/><path d="M6 4h1a2 2 0 0 1 2 2 2 2 0 0 1 2-2h1"/><path d="M9 6v12"/>',
+    'trash-2': '<path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+    'upload-cloud': '<path d="M12 13v8"/><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="m8 17 4-4 4 4"/>',
+    'x-circle': '<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>'
+  };
+
+  /** Font stack for typed signatures; 'Caveat' is used when the host page already loaded it. */
+  static HANDWRITING_FONT_STACK = "'Caveat', 'Segoe Script', 'Bradley Hand', cursive";
+
+  /**
+   * Returns the markup of an inline SVG icon (decorative: aria-hidden, not focusable).
+   * @param {string} name Key of OpenFormRenderer.ICONS (unknown names fall back to a help icon)
+   * @param {string} [cls] Extra class names
+   * @param {string} [style] Inline style (trusted literal)
+   */
+  static icon(name, cls = '', style = '') {
+    const body = OpenFormRenderer.ICONS[name] || OpenFormRenderer.ICONS['help-circle'] || '';
+    return `<svg class="of-icon${cls ? ' ' + cls : ''}" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"${style ? ` style="${style}"` : ''}>${body}</svg>`;
+  }
 
   /**
    * @param {Object} options
    * @param {HTMLElement} options.containerEl Container element of the widget
-   * @param {Function} options.onSubmit Callback fired upon successful form submission
-   * @param {Function} [options.onFieldChange] Optional callback triggered on real-time field edits
+   * @param {Function} options.onSubmit Callback fired upon successful form submission with a
+   *   clean copy of the answers (same as getAnswers()). May return a promise: the success toast
+   *   waits for it, a rejection shows an error toast and keeps the form editable, and the submit
+   *   button is disabled while it is pending.
+   * @param {Function} [options.onFieldChange] `(answers, changedKey)` fired on every answer
+   *   change (typing, choices, signatures, uploads, repeater items, setValue). `answers` is a
+   *   deep copy of every answer; `changedKey` is the top-level field key that changed (the
+   *   repeater's key for edits inside a repeater item).
+   * @param {Function} [options.onPageChange] `(index, page)` fired after the active page changes
+   *   (Next/Previous, step tabs, goToPage, or a failed submit jumping to the invalid page).
+   *   `page` is a copy of the page's schema object. Not fired by render().
+   * @param {Function} [options.onValidationError] `(errors)` fired when a user action or
+   *   submit()/goToPage() is blocked by validation. Same error objects as validate().
+   * @param {string} [options.idPrefix] Prefix for every DOM id this instance generates. Defaults
+   *   to a unique `ofr<N>-` per instance, so several renderers can share a page.
    * @param {Object} [options.translations] Custom translation overrides
    * @param {string} [options.locale] Active locale ('default', 'pt-BR', 'es-ES', ...)
    * @param {Function} [options.optionsProvider] Host-supplied source for fields with
@@ -23,11 +93,24 @@ class OpenFormRenderer {
    *   context is `{ locale, readOnly }`. The renderer never fetches `optionsUrl` itself —
    *   the host owns transport, auth and caching. Without a provider, such fields show a
    *   "not configured" message and offer no options.
+   * @param {string} [options.handwritingFontUrl] Opt-in stylesheet URL (e.g. a Google Fonts
+   *   Caveat URL) injected as a <link> the first time a signature field is shown. Without it
+   *   the renderer makes no external request; typed signatures use the font stack
+   *   'Caveat', 'Segoe Script', 'Bradley Hand', cursive.
    */
-  constructor({ containerEl, onSubmit, onFieldChange, translations, locale, optionsProvider }) {
+  constructor({ containerEl, onSubmit, onFieldChange, onPageChange, onValidationError, translations, locale, optionsProvider, idPrefix, handwritingFontUrl }) {
     this.containerEl = containerEl;
     this.onSubmit = onSubmit;
     this.onFieldChange = onFieldChange;
+    this.onPageChange = typeof onPageChange === 'function' ? onPageChange : null;
+    this.onValidationError = typeof onValidationError === 'function' ? onValidationError : null;
+    // Every generated DOM id starts with this prefix (see _domId), so two renderers on the
+    // same page — or a live form and its print() snapshot — never share an id.
+    OpenFormRenderer._instanceSeq = (OpenFormRenderer._instanceSeq || 0) + 1;
+    this._idPrefix = typeof idPrefix === 'string' && idPrefix.trim() !== ''
+      ? idPrefix.trim()
+      : `ofr${OpenFormRenderer._instanceSeq}-`;
+    this.handwritingFontUrl = typeof handwritingFontUrl === 'string' && handwritingFontUrl.trim() !== '' ? handwritingFontUrl.trim() : null;
     this.optionsProvider = typeof optionsProvider === 'function' ? optionsProvider : null;
     this.locale = locale || 'default';
     this.customTranslationsOverride = translations || {};
@@ -42,9 +125,11 @@ class OpenFormRenderer {
         stepIndicatorOf: "de",
         stepIndicatorDivider: ":",
         requiredFieldBubble: "Este campo é obrigatório.",
+        unsupportedFieldType: "Tipo de campo não suportado",
         patternValidationBubble: "Valor incorreto para o padrão exigido.",
         validationToastError: "Por favor, preencha corretamente todos os campos obrigatórios neste passo.",
         validationToastSuccess: "Formulário validado e enviado com sucesso!",
+        submitErrorToast: "Não foi possível enviar o formulário. Tente novamente.",
         selectOptionPlaceholder: "Selecione uma opção...",
         dropdownLoading: "Carregando opções da API...",
         radioNoOptions: "Nenhuma opção disponível",
@@ -80,9 +165,11 @@ class OpenFormRenderer {
         stepIndicatorOf: "de",
         stepIndicatorDivider: ":",
         requiredFieldBubble: "Este campo es obligatorio.",
+        unsupportedFieldType: "Tipo de campo no compatible",
         patternValidationBubble: "Valor incorrecto para el patrón requerido.",
         validationToastError: "Por favor, complete correctamente todos los campos obligatorios en este paso.",
         validationToastSuccess: "¡Formulario validado y enviado con éxito!",
+        submitErrorToast: "No se pudo enviar el formulario. Inténtelo de nuevo.",
         selectOptionPlaceholder: "Seleccione una opción...",
         dropdownLoading: "Cargando opciones de la API...",
         radioNoOptions: "No hay opciones disponibles",
@@ -124,9 +211,11 @@ class OpenFormRenderer {
       stepIndicatorOf: "of",
       stepIndicatorDivider: ":",
       requiredFieldBubble: "This field is required.",
+      unsupportedFieldType: "Unsupported field type",
       patternValidationBubble: "Incorrect value for the required pattern.",
       validationToastError: "Please correctly fill in all required fields in this step.",
       validationToastSuccess: "Form successfully validated and submitted!",
+      submitErrorToast: "Could not submit the form. Please try again.",
 
       // Field widget values
       selectOptionPlaceholder: "Select an option...",
@@ -183,8 +272,54 @@ class OpenFormRenderer {
     this._optionsCache = new Map();
     this._pendingOptionLoads = new Set();
     this._drawGeneration = 0;
+    // Repeater sub-field answers are exposed on this.answers under internal, non-enumerable
+    // `sub-<repeaterId>-<index>-<key>` accessors; this maps each one to its repeater's key.
+    this._scopedKeyOwners = new Map();
+    this._submitPromise = null;
 
     this.buildHTMLShell();
+  }
+
+  /** DOM id for one of this instance's elements: `<prefix><kind>-<id>` (or `<prefix><kind>`). */
+  _domId(kind, id) {
+    return id === undefined || id === null ? `${this._idPrefix}${kind}` : `${this._idPrefix}${kind}-${id}`;
+  }
+
+  /** Finds one of this instance's elements by kind + field id (ids may hold any character). */
+  _byId(kind, id, root = this.formEl) {
+    if (!root) return null;
+    const value = this._domId(kind, id).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    return root.querySelector(`[id="${value}"]`);
+  }
+
+  /**
+   * Deep copy for schema/answer data: arrays and plain objects are copied (own enumerable
+   * keys only, so the internal repeater accessors never travel), primitives are shared.
+   */
+  static _deepClone(value) {
+    if (Array.isArray(value)) return value.map(item => OpenFormRenderer._deepClone(item));
+    if (value instanceof Date) return new Date(value.getTime());
+    if (value && typeof value === 'object') {
+      const copy = {};
+      Object.keys(value).forEach(key => {
+        copy[key] = OpenFormRenderer._deepClone(value[key]);
+      });
+      return copy;
+    }
+    return value;
+  }
+
+  /**
+   * Answers of `number` fields are stored as JS numbers; an empty input is `null`. A value
+   * that isn't numeric (e.g. a mask that keeps literal characters) is kept as typed.
+   */
+  static _toNumberAnswer(value) {
+    if (value === undefined || value === null) return null;
+    if (typeof value === 'number') return isFinite(value) ? value : null;
+    const str = String(value).trim();
+    if (str === '') return null;
+    const num = Number(str);
+    return isFinite(num) ? num : value;
   }
 
   /**
@@ -289,9 +424,11 @@ class OpenFormRenderer {
         stepIndicatorOf: "de",
         stepIndicatorDivider: ":",
         requiredFieldBubble: "Este campo é obrigatório.",
+        unsupportedFieldType: "Tipo de campo não suportado",
         patternValidationBubble: "Valor incorreto para o padrão exigido.",
         validationToastError: "Por favor, preencha corretamente todos os campos obrigatórios neste passo.",
         validationToastSuccess: "Formulário validado e enviado com sucesso!",
+        submitErrorToast: "Não foi possível enviar o formulário. Tente novamente.",
         selectOptionPlaceholder: "Selecione uma opção...",
         dropdownLoading: "Carregando opções da API...",
         radioNoOptions: "Nenhuma opção disponível",
@@ -327,9 +464,11 @@ class OpenFormRenderer {
         stepIndicatorOf: "de",
         stepIndicatorDivider: ":",
         requiredFieldBubble: "Este campo es obligatorio.",
+        unsupportedFieldType: "Tipo de campo no compatible",
         patternValidationBubble: "Valor incorrecto para el patrón requerido.",
         validationToastError: "Por favor, complete correctamente todos los campos obligatorios en este paso.",
         validationToastSuccess: "¡Formulario validado y enviado con éxito!",
+        submitErrorToast: "No se pudo enviar el formulario. Inténtelo de nuevo.",
         selectOptionPlaceholder: "Seleccione una opción...",
         dropdownLoading: "Cargando opciones de la API...",
         radioNoOptions: "No hay opciones disponibles",
@@ -368,9 +507,11 @@ class OpenFormRenderer {
       stepIndicatorOf: "of",
       stepIndicatorDivider: ":",
       requiredFieldBubble: "This field is required.",
+      unsupportedFieldType: "Unsupported field type",
       patternValidationBubble: "Incorrect value for the required pattern.",
       validationToastError: "Please correctly fill in all required fields in this step.",
       validationToastSuccess: "Form successfully validated and submitted!",
+      submitErrorToast: "Could not submit the form. Please try again.",
       selectOptionPlaceholder: "Select an option...",
       dropdownLoading: "Loading options from API...",
       radioNoOptions: "No options available",
@@ -591,7 +732,8 @@ class OpenFormRenderer {
     // show the stored image instead, scaled without distortion.
     const signatures = this._collectPrintSignatures();
     root.querySelectorAll('canvas.form-signature-canvas').forEach(canvas => {
-      const value = signatures.get(canvas.id.replace(/^canvas-/, ''));
+      const canvasIdPrefix = this._domId('canvas', '');
+      const value = signatures.get(canvas.id.startsWith(canvasIdPrefix) ? canvas.id.slice(canvasIdPrefix.length) : canvas.id);
       let replacement;
       if (typeof value === 'string' && /^data:image\//i.test(value.trim())) {
         replacement = document.createElement('img');
@@ -687,7 +829,182 @@ class OpenFormRenderer {
   }
 
   /**
-   * Normalizes schema parameters for pagination safety
+   * Static, side-effect free schema check. Returns `{ valid, errors, warnings }` where every
+   * entry is `{ path, code, message }` (path like `pages[0].sections[1].rows[0].columns[0].field`).
+   * `valid` is true when there are no errors; warnings never invalidate. Accepts raw stored
+   * schemas, including legacy shapes (flat `rows`, page `rows`, repeater `fields`).
+   * NOTE: this implementation is duplicated verbatim in OpenFormBuilder and OpenFormRenderer
+   * (kept identical by tests/shared/validate-schema-parity.test.js).
+   */
+  static validateSchema(schema) {
+    const errors = [];
+    const warnings = [];
+    const addTo = (list) => (path, code, message) => list.push({ path, code, message });
+    const err = addTo(errors);
+    const warn = addTo(warnings);
+
+    if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
+      err('', 'invalid-schema', 'The schema must be a JSON object.');
+      return { valid: false, errors, warnings };
+    }
+
+    const fieldTypes = this.FIELD_TYPES;
+    const operators = this.CONDITION_OPERATORS;
+    const noKeyTypes = ['header', 'paragraph'];
+    const optionTypes = ['dropdown', 'radio', 'checkbox', 'matrix'];
+
+    if (schema.schemaVersion !== undefined) {
+      if (!Number.isInteger(schema.schemaVersion) || schema.schemaVersion < 1) {
+        warn('schemaVersion', 'invalid-schema-version', `schemaVersion should be a positive integer, got ${JSON.stringify(schema.schemaVersion)}.`);
+      } else if (schema.schemaVersion > this.SCHEMA_VERSION) {
+        warn('schemaVersion', 'newer-schema-version', `Schema version ${schema.schemaVersion} is newer than the supported version ${this.SCHEMA_VERSION}; it will be handled on a best-effort basis.`);
+      }
+    }
+
+    const allKeys = new Set();
+    const refChecks = []; // deferred: { path, key }
+    const addRef = (path, key) => {
+      if (typeof key === 'string' && key !== '') refChecks.push({ path, key });
+    };
+    const tokenRefs = (path, expression) => {
+      if (typeof expression !== 'string') return;
+      const re = /\{([^}]+)\}/g;
+      let m;
+      while ((m = re.exec(expression)) !== null) addRef(path, m[1]);
+    };
+
+    const checkRules = (path, rules) => {
+      if (rules === undefined || rules === null) return;
+      if (!Array.isArray(rules)) { err(path, 'invalid-rules', 'conditionalRules must be an array.'); return; }
+      rules.forEach((rule, ri) => {
+        (rule && Array.isArray(rule.andGroups) ? rule.andGroups : []).forEach((group, gi) => {
+          (group && Array.isArray(group.conditions) ? group.conditions : []).forEach((cond, ci) => {
+            checkCondition(`${path}[${ri}].andGroups[${gi}].conditions[${ci}]`, cond);
+          });
+        });
+      });
+    };
+    const checkCondition = (path, cond) => {
+      if (!cond || typeof cond !== 'object') return;
+      if (!operators.includes(cond.operator)) {
+        err(`${path}.operator`, 'unknown-operator', `Unknown operator ${JSON.stringify(cond.operator)}; the condition is never satisfied. Supported: ${operators.join(', ')}.`);
+      }
+      addRef(`${path}.dependentFieldKey`, cond.dependentFieldKey);
+      if (cond.compareMode === 'field') addRef(`${path}.compareToFieldKey`, cond.compareToFieldKey);
+    };
+
+    // Scopes: top-level fields share one key namespace; each repeater's sub-fields have their own.
+    const scopes = new Map();
+    const registerKey = (scope, key, path) => {
+      if (!scopes.has(scope)) scopes.set(scope, new Map());
+      const seen = scopes.get(scope);
+      if (seen.has(key)) {
+        err(`${path}.key`, 'duplicate-key', `Key "${key}" is already used at ${seen.get(key)}.`);
+      } else {
+        seen.set(key, path);
+      }
+    };
+
+    const walkRows = (rows, basePath, scope) => {
+      if (rows === undefined || rows === null) return;
+      if (!Array.isArray(rows)) { err(basePath, 'invalid-rows', 'rows must be an array.'); return; }
+      rows.forEach((row, ri) => {
+        const rowPath = `${basePath}[${ri}]`;
+        const columns = row && Array.isArray(row.columns) ? row.columns : [];
+        columns.forEach((col, ci) => {
+          const colPath = `${rowPath}.columns[${ci}]`;
+          if (!col || typeof col !== 'object') return;
+          if (!Number.isInteger(col.width) || col.width < 1 || col.width > 12) {
+            err(`${colPath}.width`, 'invalid-width', `Column width must be an integer from 1 to 12, got ${JSON.stringify(col.width)}.`);
+          }
+          if (col.field) walkField(col.field, `${colPath}.field`, scope);
+        });
+      });
+    };
+
+    const walkField = (field, path, scope) => {
+      if (!field || typeof field !== 'object') return;
+      const type = field.type;
+      if (typeof type !== 'string' || !fieldTypes.includes(type)) {
+        err(`${path}.type`, 'unknown-field-type', type === undefined
+          ? 'The field has no type.'
+          : `Unknown field type ${JSON.stringify(type)}; it renders as an unsupported placeholder and is not part of the answers.`);
+      }
+      if (!noKeyTypes.includes(type)) {
+        if (typeof field.key !== 'string' || field.key === '') {
+          err(`${path}.key`, 'missing-key', 'Data fields need a key (the name their answer is stored under).');
+        } else {
+          allKeys.add(field.key);
+          registerKey(scope, field.key, path);
+        }
+      }
+      if (optionTypes.includes(type) && field.optionsType === 'api' && !field.optionsUrl) {
+        warn(`${path}.optionsUrl`, 'missing-options-url', 'optionsType is "api" but optionsUrl is empty.');
+      }
+      checkRules(`${path}.conditionalRules`, field.conditionalRules);
+      if (field.visibilityCondition) checkCondition(`${path}.visibilityCondition`, field.visibilityCondition);
+      tokenRefs(`${path}.formulaExpression`, field.formulaExpression);
+      if (type === 'repeater') {
+        const subScope = path;
+        if (Array.isArray(field.rows)) walkRows(field.rows, `${path}.rows`, subScope);
+        else if (Array.isArray(field.fields)) {
+          field.fields.forEach((sub, i) => walkField(sub, `${path}.fields[${i}]`, subScope));
+        }
+      }
+    };
+
+    // Legacy shapes: top-level `rows` is a single implicit page; page `rows` an implicit section.
+    let pages = schema.pages;
+    if (!Array.isArray(pages) && Array.isArray(schema.rows)) pages = [{ rows: schema.rows }];
+    if (pages !== undefined && !Array.isArray(pages)) {
+      err('pages', 'invalid-pages', 'pages must be an array.');
+      pages = [];
+    }
+    (pages || []).forEach((page, pi) => {
+      const pagePath = `pages[${pi}]`;
+      if (!page || typeof page !== 'object') return;
+      let sections = page.sections;
+      if (!Array.isArray(sections) && Array.isArray(page.rows)) sections = [{ rows: page.rows }];
+      (Array.isArray(sections) ? sections : []).forEach((section, si) => {
+        const secPath = `${pagePath}.sections[${si}]`;
+        if (!section || typeof section !== 'object') return;
+        checkRules(`${secPath}.conditionalRules`, section.conditionalRules);
+        if (section.visibilityCondition) checkCondition(`${secPath}.visibilityCondition`, section.visibilityCondition);
+        walkRows(section.rows, `${secPath}.rows`, '');
+      });
+    });
+
+    if (schema.crossFieldRules !== undefined) {
+      if (!Array.isArray(schema.crossFieldRules)) {
+        err('crossFieldRules', 'invalid-rules', 'crossFieldRules must be an array.');
+      } else {
+        schema.crossFieldRules.forEach((rule, i) => {
+          const rulePath = `crossFieldRules[${i}]`;
+          if (!rule || typeof rule !== 'object') return;
+          (Array.isArray(rule.targetFields) ? rule.targetFields : []).forEach((key, ti) => addRef(`${rulePath}.targetFields[${ti}]`, key));
+          (Array.isArray(rule.andGroups) ? rule.andGroups : []).forEach((group, gi) => {
+            (group && Array.isArray(group.conditions) ? group.conditions : []).forEach((cond, ci) => {
+              checkCondition(`${rulePath}.andGroups[${gi}].conditions[${ci}]`, cond);
+            });
+          });
+          tokenRefs(`${rulePath}.expression`, rule.expression);
+        });
+      }
+    }
+
+    refChecks.forEach(({ path, key }) => {
+      if (!allKeys.has(key)) err(path, 'unknown-field-reference', `References unknown field key "${key}".`);
+    });
+
+    return { valid: errors.length === 0, errors, warnings };
+  }
+
+  /**
+   * Brings any supported schema up to the current shape. Ordered steps: detect the schema's
+   * version (no `schemaVersion` = 1, the legacy shape-detected forms), run each migration
+   * from that version onwards, then fill defaults and stamp the current `schemaVersion`.
+   * A schema from a newer version skips migrations and keeps its own version (best effort).
+   * NOTE: duplicated in OpenFormBuilder and OpenFormRenderer (tests/shared/normalize-schema-parity.test.js).
    */
   normalizeSchema(schema) {
     if (!schema) {
@@ -698,17 +1015,107 @@ class OpenFormRenderer {
       };
     }
 
-    if (!schema.pages && schema.rows) {
-      schema.pages = [
-        {
-          pageId: "page-default",
-          title: `${this.translations.normalizePageDefault} 1`,
-          rows: schema.rows
-        }
-      ];
-      delete schema.rows;
+    const current = this.constructor.SCHEMA_VERSION;
+    const declared = schema.schemaVersion;
+    const version = Number.isInteger(declared) && declared >= 1 ? declared : 1;
+
+    if (version > current) {
+      if (!this._warnedSchemaVersion) {
+        this._warnedSchemaVersion = true;
+        console.warn(`OpenFormRenderer: schemaVersion ${version} is newer than the supported version ${current}; rendering on a best-effort basis. Update the renderer.`);
+      }
+      this._applySchemaDefaults(schema);
+      return schema;
     }
 
+    this._schemaMigrations().forEach(step => {
+      if (step.from >= version) {
+        schema = step.run(schema) || schema;
+        schema.schemaVersion = step.to;
+      }
+    });
+    this._applySchemaDefaults(schema);
+    schema.schemaVersion = current;
+    return schema;
+  }
+
+  /** Ordered, named migration steps. Add a new `{ from, to, name, run }` entry per schema version bump. */
+  _schemaMigrations() {
+    return [
+      { from: 1, to: 2, name: 'legacy-shapes', run: (schema) => this._migrateLegacyShapes(schema) }
+    ];
+  }
+
+  /**
+   * Migration 1 -> 2: converts the shape-detected legacy forms (flat `rows`, page `rows`,
+   * `visibilityCondition`, repeater `fields`) into the current structure.
+   */
+  _migrateLegacyShapes(schema) {
+    const visibilityToRule = (cond) => ({
+      targetProperty: "visibility",
+      andGroups: [
+        {
+          conditions: [
+            {
+              dependentFieldKey: cond.dependentFieldKey,
+              operator: cond.operator,
+              equalsValue: cond.equalsValue
+            }
+          ]
+        }
+      ]
+    });
+
+    // Legacy flat rows structure -> single page
+    if (!schema.pages && schema.rows) {
+      schema.pages = [{ pageId: "page-default", rows: schema.rows }];
+      delete schema.rows;
+    }
+    if (!Array.isArray(schema.pages)) return schema;
+
+    const migrateField = (field) => {
+      if (!field) return;
+      if (field.visibilityCondition) {
+        if (!Array.isArray(field.conditionalRules)) field.conditionalRules = [];
+        field.conditionalRules.push(visibilityToRule(field.visibilityCondition));
+        delete field.visibilityCondition;
+      }
+      if (field.type === 'repeater') {
+        if (field.fields && !field.rows) {
+          field.rows = field.fields.map(subField => ({
+            rowId: `r-sub-${Math.random().toString(36).substr(2, 9)}`,
+            columns: [{ width: 12, field: subField }]
+          }));
+          delete field.fields;
+        }
+        (field.rows || []).forEach(r => (r.columns || []).forEach(c => migrateField(c.field)));
+      }
+    };
+
+    schema.pages.forEach(page => {
+      if (!page) return;
+      // Page with `rows` but no `sections` -> one default section
+      if (page.rows && (!page.sections || page.sections.length === 0)) {
+        page.sections = [{ title: "", conditionalRules: [], rows: page.rows }];
+        delete page.rows;
+      }
+      (Array.isArray(page.sections) ? page.sections : []).forEach(section => {
+        if (!section) return;
+        if (section.visibilityCondition) {
+          if (!Array.isArray(section.conditionalRules)) section.conditionalRules = [];
+          section.conditionalRules.push(visibilityToRule(section.visibilityCondition));
+          delete section.visibilityCondition;
+        }
+        (Array.isArray(section.rows) ? section.rows : []).forEach(row => {
+          (row && Array.isArray(row.columns) ? row.columns : []).forEach(col => migrateField(col && col.field));
+        });
+      });
+    });
+    return schema;
+  }
+
+  /** Fills in everything a schema of the current version may omit (pages, ids, titles, rule/row arrays). */
+  _applySchemaDefaults(schema) {
     if (!schema.pages || !Array.isArray(schema.pages) || schema.pages.length === 0) {
       schema.pages = [
         {
@@ -719,22 +1126,21 @@ class OpenFormRenderer {
       ];
     }
 
+    const defaultField = (field) => {
+      if (!field) return;
+      if (!Array.isArray(field.conditionalRules)) field.conditionalRules = [];
+      if (field.type === 'repeater') {
+        if (!field.rows) field.rows = [];
+        field.rows.forEach(r => {
+          if (!r.columns) r.columns = [];
+          r.columns.forEach(c => defaultField(c.field));
+        });
+      }
+    };
+
     schema.pages.forEach((page, index) => {
       if (!page.pageId) page.pageId = `page-${Math.random().toString(36).substr(2, 9)}`;
       if (!page.title) page.title = `${this.translations.normalizePageDefault} ${index + 1}`;
-
-      // If page has rows but no sections, wrap them in a default section
-      if (page.rows && (!page.sections || page.sections.length === 0)) {
-        page.sections = [
-          {
-            sectionId: `sec-${Math.random().toString(36).substr(2, 9)}`,
-            title: "",
-            conditionalRules: [],
-            rows: page.rows
-          }
-        ];
-        delete page.rows;
-      }
 
       if (!Array.isArray(page.sections)) {
         page.sections = [
@@ -751,90 +1157,14 @@ class OpenFormRenderer {
         if (!section.sectionId) section.sectionId = `sec-${Math.random().toString(36).substr(2, 9)}`;
         if (section.title === undefined) section.title = "";
         if (!Array.isArray(section.conditionalRules)) section.conditionalRules = [];
-
-        // Upgrade legacy visibilityCondition on sections
-        if (section.visibilityCondition) {
-          section.conditionalRules.push({
-            targetProperty: "visibility",
-            andGroups: [
-              {
-                conditions: [
-                  {
-                    dependentFieldKey: section.visibilityCondition.dependentFieldKey,
-                    operator: section.visibilityCondition.operator,
-                    equalsValue: section.visibilityCondition.equalsValue
-                  }
-                ]
-              }
-            ]
-          });
-          delete section.visibilityCondition;
-        }
-
         if (!Array.isArray(section.rows)) section.rows = [];
 
         section.rows.forEach(row => {
           if (!row.columns) row.columns = [];
-          row.columns.forEach(col => {
-            if (col.field) {
-              const normalizeField = (field) => {
-                if (!field) return;
-                if (!Array.isArray(field.conditionalRules)) field.conditionalRules = [];
-
-                if (field.visibilityCondition) {
-                  field.conditionalRules.push({
-                    targetProperty: "visibility",
-                    andGroups: [
-                      {
-                        conditions: [
-                          {
-                            dependentFieldKey: field.visibilityCondition.dependentFieldKey,
-                            operator: field.visibilityCondition.operator,
-                            equalsValue: field.visibilityCondition.equalsValue
-                          }
-                        ]
-                      }
-                    ]
-                  });
-                  delete field.visibilityCondition;
-                }
-
-                if (field.type === 'repeater') {
-                  if (field.fields && !field.rows) {
-                    field.rows = field.fields.map(subField => {
-                      return {
-                        rowId: `r-sub-${Math.random().toString(36).substr(2, 9)}`,
-                        columns: [
-                          {
-                            width: 12,
-                            field: subField
-                          }
-                        ]
-                      };
-                    });
-                    delete field.fields;
-                  }
-                  if (!field.rows) {
-                    field.rows = [];
-                  }
-                  field.rows.forEach(r => {
-                    if (!r.columns) r.columns = [];
-                    r.columns.forEach(c => {
-                      if (c.field) {
-                        normalizeField(c.field);
-                      }
-                    });
-                  });
-                }
-              };
-              normalizeField(col.field);
-            }
-          });
+          row.columns.forEach(col => defaultField(col.field));
         });
       });
     });
-
-    return schema;
   }
 
   /**
@@ -843,7 +1173,7 @@ class OpenFormRenderer {
   buildHTMLShell() {
     this.containerEl.innerHTML = `
       <div class="renderer-sandbox">
-        <form class="renderer-form-card" novalidate aria-labelledby="renderer-form-title"></form>
+        <form class="renderer-form-card" novalidate aria-labelledby="${OpenFormRenderer.escapeHtml(this._domId('renderer-form-title'))}"></form>
       </div>
     `;
     this.formEl = this.containerEl.querySelector('.renderer-form-card');
@@ -903,7 +1233,7 @@ class OpenFormRenderer {
    * optionsProvider results are ignored once they resolve. The container is emptied.
    *
    * Nodes shared by every renderer on the page (the #lightbox-modal overlay, a
-   * #toast-container this script created, and the Caveat <link id="form-handwriting-font">)
+   * #toast-container this script created, and the opt-in handwriting <link id="form-handwriting-font">)
    * are removed only when no other renderer is still mounted in the document; a
    * #toast-container supplied by the host page is never removed.
    *
@@ -960,10 +1290,20 @@ class OpenFormRenderer {
     // and API options are re-requested for the new schema.
     this.resetRecordState();
 
+    // The caller's schema and answers are never mutated: the renderer works on deep copies
+    // (normalizeSchema fills in defaults, and every edit writes into this.answers).
     const isNewRecord = answers !== null && answers !== undefined;
-    this.answers = isNewRecord ? answers : (this.answers || {});
+    this.answers = isNewRecord ? OpenFormRenderer._deepClone(answers) : (this.answers || {});
 
-    this.schema = this.normalizeSchema(schemaJSON);
+    this.schema = this.normalizeSchema(OpenFormRenderer._deepClone(schemaJSON));
+    this.normalizeAnswerTypes();
+    // Every page's fields get their default answer up front, so answers/getAnswers() hold
+    // every field even for pages the user hasn't opened yet.
+    this.schema.pages.forEach(page => (page.sections || []).forEach(section => (section.rows || []).forEach(row => {
+      (row.columns || []).forEach(col => {
+        if (col && col.field) this.ensureAnswerDefault(col.field);
+      });
+    })));
 
     // A record passed in explicitly always opens on its first page. A bare render(schema)
     // (live preview refresh of the same in-progress record) keeps the current page if it
@@ -974,6 +1314,57 @@ class OpenFormRenderer {
 
     this.recalculateFormulas();
     this.drawActivePage();
+  }
+
+  /**
+   * Gives a field its default answer when it has none yet (boolean: defaultValue/false,
+   * repeater: minItems empty items, matrix: one '' per row, number: null, others: '').
+   */
+  ensureAnswerDefault(field) {
+    if (!field || field.type === 'header' || field.type === 'paragraph' || !field.key) return;
+    if (!OpenFormRenderer.FIELD_TYPES.includes(field.type)) return;
+    if (field.key in this.answers && !(field.type === 'repeater' && !Array.isArray(this.answers[field.key]))) return;
+    if (field.type === 'boolean') {
+      this.answers[field.key] = field.defaultValue !== undefined ? field.defaultValue : false;
+    } else if (field.type === 'repeater') {
+      this.answers[field.key] = [];
+      const min = field.minItems !== undefined ? field.minItems : 1;
+      for (let i = 0; i < min; i++) {
+        this.answers[field.key].push({});
+      }
+    } else if (field.type === 'matrix') {
+      this.answers[field.key] = {};
+      (field.matrixRows || []).forEach(row => {
+        this.answers[field.key][row.key] = '';
+      });
+    } else if (field.type === 'number') {
+      this.answers[field.key] = null;
+    } else {
+      this.answers[field.key] = '';
+    }
+  }
+
+  /**
+   * Coerces stored answers of `number` fields (top level and inside repeater items) to the
+   * renderer's representation: a JS number, or null when empty. Pre-filled answers often
+   * come back from storage as strings.
+   */
+  normalizeAnswerTypes() {
+    if (!this.schema || !this.answers) return;
+    const eachField = (rows, fn) => (rows || []).forEach(row => (row.columns || []).forEach(col => {
+      if (col && col.field) fn(col.field);
+    }));
+    this.schema.pages.forEach(page => (page.sections || []).forEach(section => eachField(section.rows, field => {
+      if (field.type === 'number' && field.key in this.answers) {
+        this.answers[field.key] = OpenFormRenderer._toNumberAnswer(this.answers[field.key]);
+      } else if (field.type === 'repeater' && Array.isArray(this.answers[field.key])) {
+        this.answers[field.key].forEach(item => eachField(field.rows, subField => {
+          if (subField.type === 'number' && item && typeof item === 'object' && subField.key in item) {
+            item[subField.key] = OpenFormRenderer._toNumberAnswer(item[subField.key]);
+          }
+        }));
+      }
+    })));
   }
 
   /**
@@ -990,6 +1381,7 @@ class OpenFormRenderer {
     this.fieldRequiredStates = {};
     this.fieldDisabledStates = {};
     this.sectionVisibilityStates = {};
+    this._scopedKeyOwners = new Map();
     this._drawGeneration++;
   }
 
@@ -1030,12 +1422,11 @@ class OpenFormRenderer {
 
     if (!this.schema || this.schema.pages.length === 0) {
       this.formEl.innerHTML = `
-        <div style="text-align: center; color: var(--color-neutral-7); padding: var(--space-xl) 0;">
-          <i data-lucide="info" style="width: 32px; height: 32px; color: var(--color-neutral-5); margin-bottom: var(--space-s);"></i>
-          <p style="font-size: var(--font-size-base);">${esc(this.translations.formEmptyStructure)}</p>
+        <div style="text-align: center; color: var(--of-color-neutral-7); padding: var(--of-space-xl) 0;">
+          ${OpenFormRenderer.icon('info', '', 'width: 32px; height: 32px; color: var(--of-color-neutral-5); margin-bottom: var(--of-space-s);')}
+          <p style="font-size: var(--of-font-size-base);">${esc(this.translations.formEmptyStructure)}</p>
         </div>
       `;
-      if (window.lucide) window.lucide.createIcons();
       return;
     }
 
@@ -1047,7 +1438,7 @@ class OpenFormRenderer {
     const displayFormDesc = this.getTranslatedValue('form', 'formDescription', null, null, this.schema.formDescription || '');
 
     headerEl.innerHTML = `
-      <h2 class="renderer-form-title" id="renderer-form-title">${esc(displayFormTitle)}</h2>
+      <h2 class="renderer-form-title" id="${esc(this._domId('renderer-form-title'))}">${esc(displayFormTitle)}</h2>
       ${displayFormDesc ? `<p class="renderer-form-desc">${esc(displayFormDesc)}</p>` : ''}
     `;
     this.formEl.appendChild(headerEl);
@@ -1060,8 +1451,8 @@ class OpenFormRenderer {
     const bodyEl = document.createElement('div');
     bodyEl.className = 'renderer-form-body';
     bodyEl.setAttribute('role', 'tabpanel');
-    bodyEl.setAttribute('id', `page-panel-${activePage.pageId}`);
-    bodyEl.setAttribute('aria-labelledby', `step-tab-${activePage.pageId}`);
+    bodyEl.setAttribute('id', this._domId('page-panel', activePage.pageId));
+    bodyEl.setAttribute('aria-labelledby', this._domId('step-tab', activePage.pageId));
     this.formEl.appendChild(bodyEl);
 
     (activePage.sections || []).forEach(section => {
@@ -1096,26 +1487,7 @@ class OpenFormRenderer {
           const field = col.field;
 
           // Bind default values if uninitialized BEFORE creating the widget wrapper
-          if (field.type !== 'header') {
-            if (!(field.key in this.answers) || (field.type === 'repeater' && !Array.isArray(this.answers[field.key]))) {
-              if (field.type === 'boolean') {
-                this.answers[field.key] = field.defaultValue !== undefined ? field.defaultValue : false;
-              } else if (field.type === 'repeater') {
-                this.answers[field.key] = [];
-                const min = field.minItems !== undefined ? field.minItems : 1;
-                for (let i = 0; i < min; i++) {
-                  this.answers[field.key].push({});
-                }
-              } else if (field.type === 'matrix') {
-                this.answers[field.key] = {};
-                (field.matrixRows || []).forEach(row => {
-                  this.answers[field.key][row.key] = '';
-                });
-              } else {
-                this.answers[field.key] = '';
-              }
-            }
-          }
+          this.ensureAnswerDefault(field);
 
           // Calculated fields can opt out of being shown on the form (e.g. when they only
           // exist to feed a Cross-Field Validation) while still being computed and answered.
@@ -1150,8 +1522,8 @@ class OpenFormRenderer {
       navigationEl.innerHTML = `
         <div></div>
         ${this.readOnly ? '' : `
-        <button type="submit" class="pg-btn" style="padding: 10px var(--space-l); font-size: var(--font-size-base);">
-          <i data-lucide="check"></i> ${esc(this.translations.formSubmitButton)}
+        <button type="submit" class="pg-btn" style="padding: 10px var(--of-space-l); font-size: var(--of-font-size-base);">
+          ${OpenFormRenderer.icon('check')} ${esc(this.translations.formSubmitButton)}
         </button>
         `}
       `;
@@ -1161,17 +1533,17 @@ class OpenFormRenderer {
       const isLast = this.activePageIndex === totalPages - 1;
 
       navigationEl.innerHTML = `
-        <button type="button" id="btn-prev-page" class="pg-btn pg-btn-secondary" style="padding: 10px 20px; font-size: var(--font-size-base); visibility: ${isFirst ? 'hidden' : 'visible'}">
-          <i data-lucide="arrow-left"></i> ${esc(this.translations.formPrevPageButton)}
+        <button type="button" id="${esc(this._domId('btn-prev-page'))}" class="pg-btn pg-btn-secondary renderer-btn-prev" style="padding: 10px 20px; font-size: var(--of-font-size-base); visibility: ${isFirst ? 'hidden' : 'visible'}">
+          ${OpenFormRenderer.icon('arrow-left')} ${esc(this.translations.formPrevPageButton)}
         </button>
         
         ${isLast ? (this.readOnly ? '<div></div>' : `
-        <button type="submit" class="pg-btn" style="padding: 10px var(--space-l); font-size: var(--font-size-base);">
-          <i data-lucide="check"></i> ${esc(this.translations.formSubmitButton)}
+        <button type="submit" class="pg-btn" style="padding: 10px var(--of-space-l); font-size: var(--of-font-size-base);">
+          ${OpenFormRenderer.icon('check')} ${esc(this.translations.formSubmitButton)}
         </button>
         `) : `
-        <button type="button" id="btn-next-page" class="pg-btn" style="padding: 10px 20px; font-size: var(--font-size-base);">
-          ${esc(this.translations.formNextPageButton)} <i data-lucide="arrow-right"></i>
+        <button type="button" id="${esc(this._domId('btn-next-page'))}" class="pg-btn renderer-btn-next" style="padding: 10px 20px; font-size: var(--of-font-size-base);">
+          ${esc(this.translations.formNextPageButton)} ${OpenFormRenderer.icon('arrow-right')}
         </button>
         `}
       `;
@@ -1184,16 +1556,15 @@ class OpenFormRenderer {
 
     // Bind page navigator clicks
     if (totalPages > 1) {
-      const prevBtn = navigationEl.querySelector('#btn-prev-page');
-      const nextBtn = navigationEl.querySelector('#btn-next-page');
+      const prevBtn = navigationEl.querySelector('.renderer-btn-prev');
+      const nextBtn = navigationEl.querySelector('.renderer-btn-next');
 
       if (prevBtn) {
         prevBtn.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
           if (this.activePageIndex > 0) {
-            this.activePageIndex--;
-            this.drawActivePage();
+            this.navigateToPage(this.activePageIndex - 1);
           }
         });
       }
@@ -1202,19 +1573,16 @@ class OpenFormRenderer {
         nextBtn.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
-          if (this.validatePage(this.activePageIndex)) {
-            if (this.activePageIndex < totalPages - 1) {
-              this.activePageIndex++;
-              this.drawActivePage();
-            }
+          if (this.activePageIndex < totalPages - 1) {
+            this.navigateToPage(this.activePageIndex + 1);
           }
         });
       }
     }
 
-    if (window.lucide) {
-      window.lucide.createIcons();
-    }
+    // A redraw (setLocale, page change) while onSubmit is still pending keeps submit disabled
+    if (this._submitPromise) this.applySubmittingState(true);
+
   }
 
   /**
@@ -1255,9 +1623,9 @@ class OpenFormRenderer {
 
       stepEl.setAttribute('role', 'tab');
       stepEl.setAttribute('aria-selected', isActive ? 'true' : 'false');
-      stepEl.setAttribute('aria-controls', `page-panel-${page.pageId}`);
+      stepEl.setAttribute('aria-controls', this._domId('page-panel', page.pageId));
       stepEl.setAttribute('tabindex', isActive ? '0' : '-1');
-      stepEl.id = `step-tab-${page.pageId}`;
+      stepEl.id = this._domId('step-tab', page.pageId);
 
       const bubble = document.createElement('div');
       bubble.className = 'renderer-step-bubble';
@@ -1274,25 +1642,8 @@ class OpenFormRenderer {
         e.preventDefault();
         e.stopPropagation();
         if (index === this.activePageIndex) return;
-
-        if (index < this.activePageIndex) {
-          // Retrograde jumping is always allowed
-          this.activePageIndex = index;
-          this.drawActivePage();
-        } else {
-          // Forward jumping demands intermediate steps are valid
-          let valid = true;
-          for (let i = this.activePageIndex; i < index; i++) {
-            if (!this.validatePage(i)) {
-              valid = false;
-              break;
-            }
-          }
-          if (valid) {
-            this.activePageIndex = index;
-            this.drawActivePage();
-          }
-        }
+        // Retrograde jumping is always allowed; forward jumping demands intermediate steps are valid
+        this.navigateToPage(index);
       });
 
       // Keyboard arrow keys navigation for accessibility compliant WAI-ARIA tabs
@@ -1339,14 +1690,15 @@ class OpenFormRenderer {
   createWidgetWrapper(field) {
     const wrapper = document.createElement('div');
     wrapper.className = 'form-input-wrapper';
-    wrapper.id = `wrapper-${field.id}`;
+    wrapper.id = this._domId('wrapper', field.id);
 
-    // Field labels (skip for structural dividers)
-    if (!['header', 'paragraph'].includes(field.type)) {
+    // Field labels (skip for structural dividers and unsupported types)
+    const supportedType = OpenFormRenderer.FIELD_TYPES.includes(field.type);
+    if (supportedType && !['header', 'paragraph'].includes(field.type)) {
       const label = document.createElement('label');
       label.className = `form-label ${field.required ? 'required' : ''}`;
-      label.id = `label-${field.id}`;
-      label.setAttribute('for', `input-${field.id}`);
+      label.id = this._domId('label', field.id);
+      label.setAttribute('for', this._domId('input', field.id));
       label.textContent = this.getTranslatedValue('fields', field.key, 'label', null, field.label);
       wrapper.appendChild(label);
     }
@@ -1358,7 +1710,7 @@ class OpenFormRenderer {
     // Everything interpolated into the templates below is escaped: labels, placeholders,
     // translations and even field ids come from the schema / host and are untrusted.
     const esc = OpenFormRenderer.escapeHtml;
-    const fid = esc(field.id);
+    const did = (kind) => esc(this._domId(kind, field.id));
 
     // Widget layouts based on type
     switch (field.type) {
@@ -1387,39 +1739,39 @@ class OpenFormRenderer {
       case 'text':
         const txtPlaceholder = this.getTranslatedValue('fields', field.key, 'placeholder', null, field.placeholder || '');
         container.innerHTML = `
-          <i data-lucide="text-cursor-input" class="form-input-icon"></i>
-          <input type="text" id="input-${fid}" class="form-input" 
+          ${OpenFormRenderer.icon('text-cursor-input', 'form-input-icon')}
+          <input type="text" id="${did('input')}" class="form-input" 
                  placeholder="${esc(txtPlaceholder)}" ${field.required ? 'required aria-required="true"' : ''}
-                 aria-describedby="error-${fid}" />
+                 aria-describedby="${did('error')}" />
         `;
         break;
 
       case 'textarea':
         const taPlaceholder = this.getTranslatedValue('fields', field.key, 'placeholder', null, field.placeholder || '');
         container.innerHTML = `
-          <textarea id="input-${fid}" class="form-input" rows="4"
+          <textarea id="${did('input')}" class="form-input" rows="4"
                     placeholder="${esc(taPlaceholder)}" ${field.required ? 'required aria-required="true"' : ''}
-                    aria-describedby="error-${fid}"></textarea>
+                    aria-describedby="${did('error')}"></textarea>
         `;
         break;
 
       case 'number':
         const numPlaceholder = this.getTranslatedValue('fields', field.key, 'placeholder', null, field.placeholder || '0');
         const iconName = field.isCalculated ? 'calculator' : 'binary';
-        const readonlyAttr = (field.isCalculated || this.readOnly) ? 'readonly style="background: var(--color-neutral-2); cursor: not-allowed;"' : '';
+        const readonlyAttr = (field.isCalculated || this.readOnly) ? 'readonly style="background: var(--of-color-neutral-2); cursor: not-allowed;"' : '';
         container.innerHTML = `
-          <i data-lucide="${iconName}" class="form-input-icon"></i>
-          <input type="number" id="input-${fid}" class="form-input" 
+          ${OpenFormRenderer.icon(iconName, 'form-input-icon')}
+          <input type="number" id="${did('input')}" class="form-input" 
                  placeholder="${esc(numPlaceholder)}" ${field.required ? 'required aria-required="true"' : ''} ${readonlyAttr}
-                 aria-describedby="error-${fid}" />
+                 aria-describedby="${did('error')}" />
         `;
         break;
 
       case 'date':
         container.innerHTML = `
-          <i data-lucide="calendar" class="form-input-icon"></i>
-          <input type="date" id="input-${fid}" class="form-input" ${field.required ? 'required aria-required="true"' : ''}
-                 aria-describedby="error-${fid}" />
+          ${OpenFormRenderer.icon('calendar', 'form-input-icon')}
+          <input type="date" id="${did('input')}" class="form-input" ${field.required ? 'required aria-required="true"' : ''}
+                 aria-describedby="${did('error')}" />
         `;
         break;
 
@@ -1427,20 +1779,20 @@ class OpenFormRenderer {
         container.innerHTML = `
           <label class="form-switch-container">
             <span class="form-switch">
-              <input type="checkbox" id="input-${fid}" ${this.answers[field.key] ? 'checked' : ''}
-                     aria-describedby="error-${fid}" />
+              <input type="checkbox" id="${did('input')}" ${this.answers[field.key] ? 'checked' : ''}
+                     aria-describedby="${did('error')}" />
               <span class="form-slider"></span>
             </span>
-            <span class="form-switch-label" aria-hidden="true" style="font-size: var(--font-size-s); color: var(--color-neutral-8);">Yes / No</span>
+            <span class="form-switch-label" aria-hidden="true" style="font-size: var(--of-font-size-s); color: var(--of-color-neutral-8);">Yes / No</span>
           </label>
         `;
         break;
 
       case 'dropdown':
         container.innerHTML = `
-          <i data-lucide="list-collapse" class="form-input-icon"></i>
-          <select id="input-${fid}" class="form-input" ${field.required ? 'required aria-required="true"' : ''}
-                  aria-describedby="error-${fid}">
+          ${OpenFormRenderer.icon('list-collapse', 'form-input-icon')}
+          <select id="${did('input')}" class="form-input" ${field.required ? 'required aria-required="true"' : ''}
+                  aria-describedby="${did('error')}">
             <option value="">${esc(this.translations.selectOptionPlaceholder)}</option>
           </select>
         `;
@@ -1449,14 +1801,14 @@ class OpenFormRenderer {
 
       case 'radio':
         container.innerHTML = `
-          <div id="group-${fid}" class="form-radio-group" role="radiogroup" aria-labelledby="label-${fid}"></div>
+          <div id="${did('group')}" class="form-radio-group" role="radiogroup" aria-labelledby="${did('label')}"></div>
         `;
         this.loadRadioOptions(field, container.querySelector('.form-radio-group'));
         break;
 
       case 'checkbox':
         container.innerHTML = `
-          <div id="group-${fid}" class="form-checkbox-group" role="group" aria-labelledby="label-${fid}"></div>
+          <div id="${did('group')}" class="form-checkbox-group" role="group" aria-labelledby="${did('label')}"></div>
         `;
         this.loadCheckboxOptions(field, container.querySelector('.form-checkbox-group'));
         break;
@@ -1464,50 +1816,50 @@ class OpenFormRenderer {
       case 'signature':
         container.classList.add('is-signature-container');
         container.setAttribute('role', 'group');
-        container.setAttribute('aria-labelledby', `label-${field.id}`);
+        container.setAttribute('aria-labelledby', this._domId('label', field.id));
         const signatureFieldLabel = this.getTranslatedValue('fields', field.key, 'label', null, field.label);
         container.innerHTML = `
           <div class="form-signature-box ${this.readOnly ? 'is-readonly' : ''}">
-            <canvas id="canvas-${fid}" class="form-signature-canvas" width="500" height="150" role="img" aria-label="${esc(signatureFieldLabel)}: ${esc(this.translations.signatureAriaLabel)}" style="display: block;"></canvas>
+            <canvas id="${did('canvas')}" class="form-signature-canvas" width="500" height="150" role="img" aria-label="${esc(signatureFieldLabel)}: ${esc(this.translations.signatureAriaLabel)}" style="display: block;"></canvas>
 
             ${this.readOnly ? '' : `
-            <div id="type-container-${fid}" style="display: none; padding: var(--space-m); border-top: 1px solid var(--pg-border); background: var(--color-neutral-2);">
-              <label for="type-input-${fid}" style="font-size: var(--font-size-xs); font-weight: var(--font-weight-semibold); color: var(--color-neutral-7); display: block; margin-bottom: 6px;">${esc(this.translations.signatureTypeLabel)}</label>
-              <input type="text" id="type-input-${fid}" class="form-input" placeholder="${esc(this.translations.signatureTypePlaceholder)}" aria-describedby="error-${fid}" style="font-family: 'Caveat', cursive; font-size: 20px; font-weight: var(--font-weight-medium);" />
+            <div id="${did('type-container')}" style="display: none; padding: var(--of-space-m); border-top: 1px solid var(--of-border); background: var(--of-color-neutral-2);">
+              <label for="${did('type-input')}" style="font-size: var(--of-font-size-xs); font-weight: var(--of-font-weight-semibold); color: var(--of-color-neutral-7); display: block; margin-bottom: 6px;">${esc(this.translations.signatureTypeLabel)}</label>
+              <input type="text" id="${did('type-input')}" class="form-input" placeholder="${esc(this.translations.signatureTypePlaceholder)}" aria-describedby="${did('error')}" style="font-family: 'Caveat', cursive; font-size: 20px; font-weight: var(--of-font-weight-medium);" />
             </div>
 
             <div class="form-signature-bar">
-              <span class="form-signature-indicator" id="indicator-${fid}">
-                <i data-lucide="pen-tool"></i> ${esc(this.translations.signatureInstruction)}
+              <span class="form-signature-indicator" id="${did('indicator')}">
+                ${OpenFormRenderer.icon('pen-tool')} ${esc(this.translations.signatureInstruction)}
               </span>
-              <button type="button" id="clear-${fid}" class="form-signature-clear">
-                <i data-lucide="rotate-ccw" style="width: 12px; height: 12px;"></i> ${esc(this.translations.signatureClearButton)}
+              <button type="button" id="${did('clear')}" class="form-signature-clear">
+                ${OpenFormRenderer.icon('rotate-ccw', '', 'width: 12px; height: 12px;')} ${esc(this.translations.signatureClearButton)}
               </button>
             </div>
             `}
           </div>
           ${this.readOnly ? '' : `
-          <div class="signature-mode-bar" style="display: flex; gap: var(--space-s); margin-top: var(--space-s);">
-            <button type="button" id="mode-draw-${fid}" class="signature-mode-tab active" aria-pressed="true" style="font-size: var(--font-size-xs); padding: var(--space-xs) var(--space-m); border-radius: var(--border-radius-xs); border: 1px solid var(--pg-border); background: var(--color-neutral-2); color: var(--color-neutral-8); cursor: pointer;">
-              <i data-lucide="edit-3" style="width: 12px; height: 12px; vertical-align: middle;"></i> ${esc(this.translations.signatureModeDrawLabel)}
+          <div class="signature-mode-bar" style="display: flex; gap: var(--of-space-s); margin-top: var(--of-space-s);">
+            <button type="button" id="${did('mode-draw')}" class="signature-mode-tab active" aria-pressed="true" style="font-size: var(--of-font-size-xs); padding: var(--of-space-xs) var(--of-space-m); border-radius: var(--of-border-radius-xs); border: 1px solid var(--of-border); background: var(--of-color-neutral-2); color: var(--of-color-neutral-8); cursor: pointer;">
+              ${OpenFormRenderer.icon('edit-3', '', 'width: 12px; height: 12px; vertical-align: middle;')} ${esc(this.translations.signatureModeDrawLabel)}
             </button>
-            <button type="button" id="mode-type-${fid}" class="signature-mode-tab" aria-pressed="false" style="font-size: var(--font-size-xs); padding: var(--space-xs) var(--space-m); border-radius: var(--border-radius-xs); border: 1px solid var(--pg-border); background: transparent; color: var(--color-neutral-8); cursor: pointer;">
-              <i data-lucide="keyboard" style="width: 12px; height: 12px; vertical-align: middle;"></i> ${esc(this.translations.signatureModeTypeLabel)}
+            <button type="button" id="${did('mode-type')}" class="signature-mode-tab" aria-pressed="false" style="font-size: var(--of-font-size-xs); padding: var(--of-space-xs) var(--of-space-m); border-radius: var(--of-border-radius-xs); border: 1px solid var(--of-border); background: transparent; color: var(--of-color-neutral-8); cursor: pointer;">
+              ${OpenFormRenderer.icon('keyboard', '', 'width: 12px; height: 12px; vertical-align: middle;')} ${esc(this.translations.signatureModeTypeLabel)}
             </button>
           </div>
           `}
-          <input type="hidden" id="input-${fid}" ${field.required ? 'required aria-required="true"' : ''} aria-describedby="error-${fid}" />
+          <input type="hidden" id="${did('input')}" ${field.required ? 'required aria-required="true"' : ''} aria-describedby="${did('error')}" />
         `;
         break;
 
       case 'file':
         container.innerHTML = `
-          <div id="uploader-${fid}" class="form-file-uploader" style="display: flex;" role="button" tabindex="0" aria-labelledby="label-${fid}">
-            <i data-lucide="upload-cloud"></i>
-            <div style="font-size: var(--font-size-s); font-weight: var(--font-weight-semibold); color: var(--color-neutral-10); margin-bottom: 2px;">
+          <div id="${did('uploader')}" class="form-file-uploader" style="display: flex;" role="button" tabindex="0" aria-labelledby="${did('label')}">
+            ${OpenFormRenderer.icon('upload-cloud')}
+            <div style="font-size: var(--of-font-size-s); font-weight: var(--of-font-weight-semibold); color: var(--of-color-neutral-10); margin-bottom: 2px;">
               ${esc(this.translations.fileClickToUpload)}
             </div>
-            <div style="font-size: var(--font-size-xs); color: var(--color-neutral-7);">${(() => {
+            <div style="font-size: var(--of-font-size-xs); color: var(--of-color-neutral-7);">${(() => {
             let reqText = this.getTranslatedValue('fields', field.key || field.id, 'fileRequirementsText', null, field.fileRequirementsText || this.translations.fileTypeRequirements);
             if (!field.fileRequirementsText) {
               const maxLimit = field.maxFileSizeMB !== undefined ? field.maxFileSizeMB : 5;
@@ -1515,10 +1867,10 @@ class OpenFormRenderer {
             }
             return esc(reqText);
           })()}</div>
-            <input type="file" id="filepicker-${fid}" style="display: none;" accept="${esc(field.acceptedTypes || '.pdf,.docx,image/*')}" />
+            <input type="file" id="${did('filepicker')}" style="display: none;" accept="${esc(field.acceptedTypes || '.pdf,.docx,image/*')}" />
           </div>
-          <div id="filedetails-${fid}" style="display: none;"></div>
-          <input type="hidden" id="input-${fid}" ${field.required ? 'required' : ''} />
+          <div id="${did('filedetails')}" style="display: none;"></div>
+          <input type="hidden" id="${did('input')}" ${field.required ? 'required' : ''} />
         `;
         break;
 
@@ -1530,20 +1882,31 @@ class OpenFormRenderer {
       case 'matrix':
         container.innerHTML = `
           <div class="form-matrix-wrapper">
-            <table class="form-matrix-table" id="matrix-${fid}"></table>
+            <table class="form-matrix-table" id="${did('matrix')}"></table>
           </div>
         `;
         this.loadMatrixWidget(field, container.querySelector('.form-matrix-table'));
         break;
+
+      default: {
+        // Unknown type (typo, or a newer schema): show a visible placeholder, not an empty box.
+        wrapper.classList.add('is-unsupported');
+        const note = document.createElement('div');
+        note.className = 'form-unsupported-field';
+        note.setAttribute('role', 'note');
+        note.style.cssText = 'padding: 8px 12px; border: 1px dashed currentColor; border-radius: 6px; opacity: 0.75; font-size: 0.9em;';
+        note.textContent = `${this.translations.unsupportedFieldType}: ${String(field.type)}`;
+        container.appendChild(note);
+      }
     }
 
     // Required warning messages
-    if (!['header', 'paragraph'].includes(field.type)) {
+    if (supportedType && !['header', 'paragraph'].includes(field.type)) {
       const errorEl = document.createElement('span');
       errorEl.className = 'form-error-message';
-      errorEl.id = `error-${field.id}`;
+      errorEl.id = this._domId('error', field.id);
       errorEl.setAttribute('role', 'alert');
-      errorEl.innerHTML = `<i data-lucide="alert-circle"></i> ${esc(this.translations.requiredFieldBubble)}`;
+      errorEl.innerHTML = `${OpenFormRenderer.icon('alert-circle')} ${esc(this.translations.requiredFieldBubble)}`;
       wrapper.appendChild(errorEl);
     }
 
@@ -1670,7 +2033,7 @@ class OpenFormRenderer {
     if (!hostEl) return;
     const msg = document.createElement('span');
     msg.className = 'form-options-error';
-    msg.id = `options-error-${field.id}`;
+    msg.id = this._domId('options-error', field.id);
     msg.setAttribute('role', 'status');
     msg.textContent = this.translations[messageKey] || this.translations.optionsLoadError;
     if (describedEl) {
@@ -1708,7 +2071,7 @@ class OpenFormRenderer {
         const itemEl = document.createElement('div');
         itemEl.className = 'form-radio-item';
 
-        const radioId = `radio-${field.id}-${idx}`;
+        const radioId = this._domId('radio', `${field.id}-${idx}`);
         const isChecked = selectedVal !== undefined && selectedVal !== null && selectedVal !== ''
           && (opt.value === selectedVal || String(opt.value) === String(selectedVal));
 
@@ -1717,7 +2080,7 @@ class OpenFormRenderer {
           : opt.label;
 
         itemEl.innerHTML = `
-          <input type="radio" id="${esc(radioId)}" name="radio-${esc(field.id)}" value="${esc(opt.value)}" class="form-radio-input" ${isChecked ? 'checked' : ''} ${this.readOnly ? 'disabled' : ''} aria-describedby="error-${esc(field.id)}" />
+          <input type="radio" id="${esc(radioId)}" name="${esc(this._domId('radio', field.id))}" value="${esc(opt.value)}" class="form-radio-input" ${isChecked ? 'checked' : ''} ${this.readOnly ? 'disabled' : ''} aria-describedby="${esc(this._domId('error', field.id))}" />
           <label for="${esc(radioId)}" class="form-radio-label">${esc(displayOptLabel)}</label>
         `;
 
@@ -1727,7 +2090,7 @@ class OpenFormRenderer {
             this.answers[field.key] = opt.value;
             this.handleFieldChanged(field.key);
 
-            const wrapper = this.formEl.querySelector(`#wrapper-${field.id}`);
+            const wrapper = this._byId('wrapper', field.id);
             if (wrapper) {
               wrapper.classList.remove('is-invalid');
             }
@@ -1775,7 +2138,7 @@ class OpenFormRenderer {
         const itemEl = document.createElement('div');
         itemEl.className = 'form-checkbox-item';
 
-        const checkboxId = `checkbox-${field.id}-${idx}`;
+        const checkboxId = this._domId('checkbox', `${field.id}-${idx}`);
         const isChecked = selectedVals.includes(opt.value);
 
         const displayOptLabel = field.optionsType === 'static'
@@ -1783,7 +2146,7 @@ class OpenFormRenderer {
           : opt.label;
 
         itemEl.innerHTML = `
-          <input type="checkbox" id="${esc(checkboxId)}" name="checkbox-${esc(field.id)}" value="${esc(opt.value)}" class="form-checkbox-input" ${isChecked ? 'checked' : ''} ${this.readOnly ? 'disabled' : ''} aria-describedby="error-${esc(field.id)}" />
+          <input type="checkbox" id="${esc(checkboxId)}" name="${esc(this._domId('checkbox', field.id))}" value="${esc(opt.value)}" class="form-checkbox-input" ${isChecked ? 'checked' : ''} ${this.readOnly ? 'disabled' : ''} aria-describedby="${esc(this._domId('error', field.id))}" />
           <label for="${esc(checkboxId)}" class="form-checkbox-label">${esc(displayOptLabel)}</label>
         `;
 
@@ -1801,7 +2164,7 @@ class OpenFormRenderer {
             this.answers[field.key] = currentVals;
             this.handleFieldChanged(field.key);
 
-            const wrapper = this.formEl.querySelector(`#wrapper-${field.id}`);
+            const wrapper = this._byId('wrapper', field.id);
             if (wrapper && currentVals.length > 0) {
               wrapper.classList.remove('is-invalid');
             }
@@ -1903,7 +2266,7 @@ class OpenFormRenderer {
           const td = document.createElement('td');
           td.className = 'form-matrix-cell';
 
-          const radioId = `matrix-radio-${field.id}-${row.key}-${optIdx}`;
+          const radioId = this._domId('matrix-radio', `${field.id}-${row.key}-${optIdx}`);
           const rowVal = selectedVals[row.key];
           const isChecked = rowVal !== undefined && rowVal !== null && rowVal !== ''
             && (rowVal === opt.value || String(rowVal) === String(opt.value));
@@ -1913,7 +2276,7 @@ class OpenFormRenderer {
 
           td.innerHTML = `
             <label class="form-matrix-radio-label" for="${esc(radioId)}">
-              <input type="radio" id="${esc(radioId)}" name="matrix-${esc(field.id)}-${esc(row.key)}" value="${esc(opt.value)}" class="form-radio-input" aria-label="${esc(displayRowLabel)}: ${esc(displayOptLabel)}" ${isChecked ? 'checked' : ''} ${this.readOnly ? 'disabled' : ''} />
+              <input type="radio" id="${esc(radioId)}" name="${esc(this._domId('matrix', `${field.id}-${row.key}`))}" value="${esc(opt.value)}" class="form-radio-input" aria-label="${esc(displayRowLabel)}: ${esc(displayOptLabel)}" ${isChecked ? 'checked' : ''} ${this.readOnly ? 'disabled' : ''} />
               <span class="matrix-cell-mobile-text">${esc(displayOptLabel)}</span>
             </label>
           `;
@@ -1928,7 +2291,7 @@ class OpenFormRenderer {
               this.handleFieldChanged(field.key);
 
               // Remove invalid warning classes if fully answered
-              const wrapper = this.formEl.querySelector(`#wrapper-${field.id}`);
+              const wrapper = this._byId('wrapper', field.id);
               if (wrapper) {
                 const allRowsAnswered = (field.matrixRows || []).every(r => {
                   const val = this.answers[field.key] && this.answers[field.key][r.key];
@@ -1983,89 +2346,100 @@ class OpenFormRenderer {
       (section.rows || []).forEach(row => {
         row.columns.forEach(col => {
           if (!col.field) return;
-          const field = col.field;
-
-          if (field.type === 'header') return;
-
-          const inputEl = this.formEl.querySelector(`#input-${field.id}`);
-
-          if (inputEl) {
-            // Pre-populate answers
-            if (field.type !== 'boolean' && field.type !== 'signature' && field.type !== 'file') {
-              let val = this.answers[field.key] || '';
-              if (field.mask && val) {
-                val = this.applyMask(String(val), field.mask);
-              }
-              inputEl.value = val;
-            }
-
-            if (this.readOnly) {
-              inputEl.disabled = true;
-            }
-
-            if (field.type === 'boolean') {
-              if (!this.readOnly) {
-                inputEl.addEventListener('change', (e) => {
-                  this.answers[field.key] = e.target.checked;
-                  this.handleFieldChanged(field.key);
-                });
-              }
-            } else {
-              if (!this.readOnly) {
-                const eventName = ['text', 'textarea', 'number'].includes(field.type) ? 'input' : 'change';
-                inputEl.addEventListener(eventName, (e) => {
-                  let rawVal = e.target.value;
-
-                  if (field.mask && ['text', 'number'].includes(field.type)) {
-                    const formatted = this.applyMask(rawVal, field.mask);
-
-                    const start = e.target.selectionStart;
-                    const oldLen = rawVal.length;
-                    e.target.value = formatted;
-
-                    const newLen = formatted.length;
-                    e.target.selectionStart = e.target.selectionEnd = start + (newLen - oldLen);
-
-                    if (field.maskCleanValue !== false) {
-                      this.answers[field.key] = this.getCleanValue(formatted, field.mask);
-                    } else {
-                      this.answers[field.key] = formatted;
-                    }
-                  } else {
-                    this.answers[field.key] = rawVal;
-                  }
-
-                  this.handleFieldChanged(field.key);
-
-                  const wrapper = this.formEl.querySelector(`#wrapper-${field.id}`);
-                  if (wrapper && e.target.value.trim() !== '') {
-                    wrapper.classList.remove('is-invalid');
-                  }
-                });
-              }
-            }
-          }
-
-          // Initialize Signature
-          if (field.type === 'signature') {
-            this.initSignatureCanvas(field);
-          }
-
-          // Initialize File Uploaders
-          if (field.type === 'file') {
-            this.initFileUploader(field);
-          }
+          this.bindFieldEvents(col.field);
         });
       });
     });
   }
 
+  /** Pre-fills one rendered top-level field from this.answers and wires its listeners. */
+  bindFieldEvents(field) {
+    if (field.type === 'header') return;
+
+    const inputEl = this._byId('input', field.id);
+
+    if (inputEl) {
+      // Pre-populate answers
+      if (field.type !== 'boolean' && field.type !== 'signature' && field.type !== 'file') {
+        const stored = this.answers[field.key];
+        let val = stored === undefined || stored === null ? '' : stored;
+        if (field.mask && val) {
+          val = this.applyMask(String(val), field.mask);
+        }
+        inputEl.value = val;
+      }
+
+      if (this.readOnly) {
+        inputEl.disabled = true;
+      }
+
+      if (field.type === 'boolean') {
+        if (!this.readOnly) {
+          inputEl.addEventListener('change', (e) => {
+            this.answers[field.key] = e.target.checked;
+            this.handleFieldChanged(field.key);
+          });
+        }
+      } else {
+        if (!this.readOnly) {
+          const eventName = ['text', 'textarea', 'number'].includes(field.type) ? 'input' : 'change';
+          inputEl.addEventListener(eventName, (e) => {
+            let rawVal = e.target.value;
+
+            if (field.mask && ['text', 'number'].includes(field.type)) {
+              const formatted = this.applyMask(rawVal, field.mask);
+
+              const start = e.target.selectionStart;
+              const oldLen = rawVal.length;
+              e.target.value = formatted;
+
+              const newLen = formatted.length;
+              e.target.selectionStart = e.target.selectionEnd = start + (newLen - oldLen);
+
+              if (field.maskCleanValue !== false) {
+                this.answers[field.key] = this.getCleanValue(formatted, field.mask);
+              } else {
+                this.answers[field.key] = formatted;
+              }
+            } else {
+              this.answers[field.key] = rawVal;
+            }
+            if (field.type === 'number') {
+              this.answers[field.key] = OpenFormRenderer._toNumberAnswer(this.answers[field.key]);
+            }
+
+            this.handleFieldChanged(field.key);
+
+            const wrapper = this._byId('wrapper', field.id);
+            if (wrapper && e.target.value.trim() !== '') {
+              wrapper.classList.remove('is-invalid');
+            }
+          });
+        }
+      }
+    }
+
+    // Initialize Signature
+    if (field.type === 'signature') {
+      this.initSignatureCanvas(field);
+    }
+
+    // Initialize File Uploaders
+    if (field.type === 'file') {
+      this.initFileUploader(field);
+    }
+  }
+
+  /**
+   * Reacts to an answer change: recalculates formulas, re-evaluates rules and notifies the
+   * host. `changedFieldKey` may be an internal repeater sub-field key; the host always gets
+   * the top-level key (the repeater's).
+   */
   handleFieldChanged(changedFieldKey) {
+    if (this._destroyed || !this.schema) return;
     this.recalculateFormulas();
     this.evalBusinessRules();
-    if (this.onFieldChange) {
-      this.onFieldChange(this.answers);
-    }
+    this.notifyFieldChange(changedFieldKey);
   }
 
   /**
@@ -2079,7 +2453,9 @@ class OpenFormRenderer {
     // sorts after any digit — an unanswered field would spuriously satisfy `greaterThan <number>`.
     // Returning NaN here makes every ordering operator (>, >=, <, <=) evaluate to false, same as
     // the old Number(a) > Number(b) behavior did for missing values.
-    if (a === undefined || b === undefined) return NaN;
+    // Same for null: an empty `number` answer is stored as null, and Number(null) === 0
+    // would otherwise make it "less than" any positive number.
+    if (a === undefined || b === undefined || a === null || b === null) return NaN;
 
     const numA = Number(a);
     const numB = Number(b);
@@ -2103,13 +2479,19 @@ class OpenFormRenderer {
   isConditionSatisfied(cond) {
     if (!cond || !cond.dependentFieldKey) return false;
 
-    const dependentVal = this.answers[cond.dependentFieldKey];
+    // An empty `number` answer is stored as null: for (in)equality and contains it reads as
+    // an empty string, as it did when numbers were stored as text; ordering operators get
+    // null and never match (see compareOrdinal).
+    const rawDependentVal = this.answers[cond.dependentFieldKey];
 
     // Support field-to-field comparison (Cross-Field Validations)
     const compareMode = cond.compareMode || 'value';
-    const targetVal = compareMode === 'field' && cond.compareToFieldKey
+    const rawTargetVal = compareMode === 'field' && cond.compareToFieldKey
       ? this.answers[cond.compareToFieldKey]
       : cond.equalsValue;
+    const isOrdering = ['greaterThan', 'greaterThanOrEquals', 'gte', 'lessThan', 'lessThanOrEquals', 'lte'].includes(cond.operator);
+    const dependentVal = rawDependentVal === null && !isOrdering ? '' : rawDependentVal;
+    const targetVal = rawTargetVal === null && !isOrdering ? '' : rawTargetVal;
 
     switch (cond.operator) {
       case 'equals':
@@ -2131,7 +2513,8 @@ class OpenFormRenderer {
       case 'lte':
         return this.compareOrdinal(dependentVal, targetVal) <= 0;
       default:
-        return (dependentVal === targetVal || String(dependentVal) === String(targetVal));
+        // Unknown operators are never satisfied (reported by validateSchema).
+        return false;
     }
   }
 
@@ -2196,8 +2579,12 @@ class OpenFormRenderer {
    */
   clearRepeaterScopedKeys(field) {
     const answerPrefix = `sub-${field.id}-`;
-    Object.keys(this.answers).forEach(k => {
-      if (k.startsWith(answerPrefix)) delete this.answers[k];
+    // The scoped accessors are non-enumerable, so Object.keys() wouldn't see them
+    Object.getOwnPropertyNames(this.answers).forEach(k => {
+      if (k.startsWith(answerPrefix)) {
+        delete this.answers[k];
+        this._scopedKeyOwners.delete(k);
+      }
     });
 
     const scopedIdPrefix = `${field.id}-`;
@@ -2228,12 +2615,14 @@ class OpenFormRenderer {
       (field.matrixRows || []).forEach(row => {
         this.answers[field.key][row.key] = '';
       });
+    } else if (field.type === 'number') {
+      this.answers[field.key] = null;
     } else {
       this.answers[field.key] = '';
     }
 
     // 2. Synchronize DOM element states if rendered in the document
-    const wrapper = this.formEl.querySelector(`#wrapper-${field.id}`);
+    const wrapper = this._byId('wrapper', field.id);
     if (!wrapper) return;
 
     if (field.type === 'boolean') {
@@ -2258,16 +2647,16 @@ class OpenFormRenderer {
         padState.ctx.clearRect(0, 0, padState.canvas.width, padState.canvas.height);
         padState.hasDrawn = false;
       }
-      const hiddenInput = wrapper.querySelector(`#input-${field.id}`);
+      const hiddenInput = this._byId('input', field.id, wrapper);
       if (hiddenInput) hiddenInput.value = '';
-      const typeInput = wrapper.querySelector(`#type-input-${field.id}`);
+      const typeInput = this._byId('type-input', field.id, wrapper);
       if (typeInput) typeInput.value = '';
     } else if (field.type === 'file') {
       delete this.uploadedFiles[field.id];
-      const details = wrapper.querySelector(`#filedetails-${field.id}`);
-      const uploader = wrapper.querySelector(`#uploader-${field.id}`);
-      const hiddenInput = wrapper.querySelector(`#input-${field.id}`);
-      const picker = wrapper.querySelector(`#filepicker-${field.id}`);
+      const details = this._byId('filedetails', field.id, wrapper);
+      const uploader = this._byId('uploader', field.id, wrapper);
+      const hiddenInput = this._byId('input', field.id, wrapper);
+      const picker = this._byId('filepicker', field.id, wrapper);
       if (details) details.style.display = 'none';
       if (uploader) uploader.style.display = 'flex';
       if (hiddenInput) hiddenInput.value = '';
@@ -2426,7 +2815,7 @@ class OpenFormRenderer {
             colEl.style.display = overallVisible ? 'block' : 'none';
           }
 
-          const fieldWrapper = this.formEl.querySelector(`#wrapper-${field.id}`);
+          const fieldWrapper = this._byId('wrapper', field.id);
           if (fieldWrapper) {
             // The renderer's required indicator is the `.required` class on the field's own
             // .form-label (CSS draws the " *"). Only direct children: a repeater wrapper also
@@ -2438,7 +2827,7 @@ class OpenFormRenderer {
 
             // Keep aria-required on the element assistive tech treats as the field: the
             // visible input/select/textarea (never the hidden value holder) or the radiogroup.
-            const primaryInput = Array.from(fieldWrapper.querySelectorAll('input, select, textarea')).find(el => el.id === `input-${field.id}`);
+            const primaryInput = Array.from(fieldWrapper.querySelectorAll('input, select, textarea')).find(el => el.id === this._domId('input', field.id));
             const radioGroup = field.type === 'radio' ? fieldWrapper.querySelector('[role="radiogroup"]') : null;
             [primaryInput && primaryInput.type !== 'hidden' ? primaryInput : null, radioGroup].forEach(el => {
               if (!el) return;
@@ -2498,20 +2887,21 @@ class OpenFormRenderer {
    * Initializes high-fidelity touch canvas for Signature widgets
    */
   initSignatureCanvas(field, parentEl = null) {
-    // Dynamic loading of Caveat handwriting font for accessibility fallback typed signatures
-    if (!document.getElementById('form-handwriting-font')) {
+    // Opt-in handwriting webfont for typed signatures (handwritingFontUrl). Without it the
+    // renderer makes no external request and uses HANDWRITING_FONT_STACK as is.
+    if (this.handwritingFontUrl && !document.getElementById('form-handwriting-font')) {
       const link = document.createElement('link');
       link.id = 'form-handwriting-font';
       link.rel = 'stylesheet';
-      link.href = 'https://fonts.googleapis.com/css2?family=Caveat:wght@500&display=swap';
+      link.href = this.handwritingFontUrl;
       document.head.appendChild(link);
     }
 
     const searchRoot = parentEl || this.formEl;
     if (!searchRoot) return;
-    const canvas = searchRoot.querySelector(`#canvas-${field.id}`);
-    const clearBtn = searchRoot.querySelector(`#clear-${field.id}`);
-    const hiddenInput = searchRoot.querySelector(`#input-${field.id}`);
+    const canvas = this._byId('canvas', field.id, searchRoot);
+    const clearBtn = this._byId('clear', field.id, searchRoot);
+    const hiddenInput = this._byId('input', field.id, searchRoot);
 
     if (!canvas) return;
 
@@ -2602,6 +2992,7 @@ class OpenFormRenderer {
       if (this.fieldDisabledStates && this.fieldDisabledStates[field.id]) return;
       e.preventDefault();
       padState.isDrawing = true;
+      padState.strokeChanged = false;
       const pos = getPos(e);
       ctx.beginPath();
       ctx.moveTo(pos.x, pos.y);
@@ -2615,17 +3006,23 @@ class OpenFormRenderer {
       ctx.lineTo(pos.x, pos.y);
       ctx.stroke();
       padState.hasDrawn = true;
+      padState.strokeChanged = true;
 
       const dataUrl = canvas.toDataURL();
       this.answers[field.key] = dataUrl;
       hiddenInput.value = this.translations.signatureInputVal;
 
-      const wrapper = this.formEl.querySelector(`#wrapper-${field.id}`);
+      const wrapper = this._byId('wrapper', field.id);
       if (wrapper) wrapper.classList.remove('is-invalid');
     };
 
+    // A stroke ends on the window-level mouseup/touchend: that's when the drawn signature is
+    // reported (rules, formulas, onFieldChange) — not on every mousemove.
     const stopDraw = () => {
+      const strokeEnded = padState.isDrawing && padState.strokeChanged;
       padState.isDrawing = false;
+      padState.strokeChanged = false;
+      if (strokeEnded && !this._destroyed) this.handleFieldChanged(field.key);
     };
     padState.stopDraw = stopDraw;
 
@@ -2642,30 +3039,32 @@ class OpenFormRenderer {
         if (this.fieldDisabledStates && this.fieldDisabledStates[field.id]) return;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         padState.hasDrawn = false;
+        const hadValue = this.hasSignatureAnswer(this.answers[field.key]);
         this.answers[field.key] = '';
         hiddenInput.value = '';
-        const typeInput = this.formEl.querySelector(`#type-input-${field.id}`);
+        const typeInput = this._byId('type-input', field.id);
         if (typeInput) typeInput.value = '';
         // Disconnect ResizeObserver if active to prevent accumulation
         if (padState.resizeObserver) {
           padState.resizeObserver.disconnect();
           padState.resizeObserver = null;
         }
+        if (hadValue) this.handleFieldChanged(field.key);
       });
 
       // Bind accessible draw vs type mode switchers
-      const modeDrawBtn = searchRoot.querySelector(`#mode-draw-${field.id}`);
-      const modeTypeBtn = searchRoot.querySelector(`#mode-type-${field.id}`);
-      const typeContainer = searchRoot.querySelector(`#type-container-${field.id}`);
-      const typeInput = searchRoot.querySelector(`#type-input-${field.id}`);
-      const indicator = searchRoot.querySelector(`#indicator-${field.id}`);
+      const modeDrawBtn = this._byId('mode-draw', field.id, searchRoot);
+      const modeTypeBtn = this._byId('mode-type', field.id, searchRoot);
+      const typeContainer = this._byId('type-container', field.id, searchRoot);
+      const typeInput = this._byId('type-input', field.id, searchRoot);
+      const indicator = this._byId('indicator', field.id, searchRoot);
 
       if (modeDrawBtn && modeTypeBtn && typeContainer && typeInput) {
         modeDrawBtn.addEventListener('click', () => {
           padState.mode = 'draw';
           modeDrawBtn.classList.add('active');
           modeDrawBtn.setAttribute('aria-pressed', 'true');
-          modeDrawBtn.style.background = 'var(--color-neutral-2)';
+          modeDrawBtn.style.background = 'var(--of-color-neutral-2)';
           modeTypeBtn.classList.remove('active');
           modeTypeBtn.setAttribute('aria-pressed', 'false');
           modeTypeBtn.style.background = 'transparent';
@@ -2674,15 +3073,17 @@ class OpenFormRenderer {
 
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           padState.hasDrawn = false;
+          const hadValue = this.hasSignatureAnswer(this.answers[field.key]);
           this.answers[field.key] = '';
           hiddenInput.value = '';
+          if (hadValue) this.handleFieldChanged(field.key);
         });
 
         modeTypeBtn.addEventListener('click', () => {
           padState.mode = 'type';
           modeTypeBtn.classList.add('active');
           modeTypeBtn.setAttribute('aria-pressed', 'true');
-          modeTypeBtn.style.background = 'var(--color-neutral-2)';
+          modeTypeBtn.style.background = 'var(--of-color-neutral-2)';
           modeDrawBtn.classList.remove('active');
           modeDrawBtn.setAttribute('aria-pressed', 'false');
           modeDrawBtn.style.background = 'transparent';
@@ -2691,12 +3092,14 @@ class OpenFormRenderer {
 
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           padState.hasDrawn = false;
+          const hadValue = this.hasSignatureAnswer(this.answers[field.key]);
           this.answers[field.key] = '';
           hiddenInput.value = '';
           typeInput.value = '';
+          if (hadValue) this.handleFieldChanged(field.key);
         });
 
-        typeInput.addEventListener('input', (e) => {
+        const paintTypedSignature = (e) => {
           if (padState.mode !== 'type') return;
           const val = e.target.value.trim();
 
@@ -2704,7 +3107,7 @@ class OpenFormRenderer {
 
           if (val) {
             padState.hasDrawn = true;
-            ctx.font = "italic 40px 'Caveat', cursive, sans-serif";
+            ctx.font = `italic 40px ${OpenFormRenderer.HANDWRITING_FONT_STACK}`;
             ctx.fillStyle = "#1a1a1a";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
@@ -2714,7 +3117,7 @@ class OpenFormRenderer {
             this.answers[field.key] = dataUrl;
             hiddenInput.value = this.translations.signatureInputVal;
 
-            const wrapper = this.formEl.querySelector(`#wrapper-${field.id}`);
+            const wrapper = this._byId('wrapper', field.id);
             if (wrapper) {
               wrapper.classList.remove('is-invalid');
               const inputEl = wrapper.querySelector('input, textarea, select');
@@ -2725,6 +3128,22 @@ class OpenFormRenderer {
             this.answers[field.key] = '';
             hiddenInput.value = '';
           }
+          this.handleFieldChanged(field.key);
+        };
+
+        typeInput.addEventListener('input', (e) => {
+          // With a configured handwriting font, wait for it before drawing: a canvas painted
+          // before the webfont is ready would bake a fallback face into the signature image.
+          if (this.handwritingFontUrl && e.target.value.trim() && document.fonts && typeof document.fonts.load === 'function') {
+            const val = e.target.value.trim();
+            const ready = Promise.resolve(document.fonts.load(`italic 500 40px ${OpenFormRenderer.HANDWRITING_FONT_STACK}`, val)).catch(() => {});
+            ready.then(() => {
+              if (this._destroyed || padState.mode !== 'type' || typeInput.value.trim() !== val) return;
+              paintTypedSignature({ target: typeInput });
+            });
+            return;
+          }
+          paintTypedSignature(e);
         });
       }
     }
@@ -2736,10 +3155,10 @@ class OpenFormRenderer {
   initFileUploader(field, parentEl = null) {
     const searchRoot = parentEl || this.formEl;
     if (!searchRoot) return;
-    const uploader = searchRoot.querySelector(`#uploader-${field.id}`);
-    const picker = searchRoot.querySelector(`#filepicker-${field.id}`);
-    const details = searchRoot.querySelector(`#filedetails-${field.id}`);
-    const hiddenInput = searchRoot.querySelector(`#input-${field.id}`);
+    const uploader = this._byId('uploader', field.id, searchRoot);
+    const picker = this._byId('filepicker', field.id, searchRoot);
+    const details = this._byId('filedetails', field.id, searchRoot);
+    const hiddenInput = this._byId('input', field.id, searchRoot);
 
     if (!uploader || !picker) return;
 
@@ -2762,8 +3181,8 @@ class OpenFormRenderer {
         uploader.style.display = 'flex';
         uploader.className = 'form-file-uploader is-readonly';
         uploader.innerHTML = `
-          <i data-lucide="file" style="margin-bottom: var(--space-s);"></i>
-          <div style="font-size: var(--font-size-s); color: var(--color-neutral-6);">${OpenFormRenderer.escapeHtml(this.translations.fileNoneUploaded)}</div>
+          ${OpenFormRenderer.icon('file', '', 'margin-bottom: var(--of-space-s);')}
+          <div style="font-size: var(--of-font-size-s); color: var(--of-color-neutral-6);">${OpenFormRenderer.escapeHtml(this.translations.fileNoneUploaded)}</div>
         `;
       }
       return;
@@ -2842,10 +3261,10 @@ class OpenFormRenderer {
   }
 
   handleFileUpload(field, file) {
-    const uploader = this.formEl.querySelector(`#uploader-${field.id}`);
-    const details = this.formEl.querySelector(`#filedetails-${field.id}`);
-    const hiddenInput = this.formEl.querySelector(`#input-${field.id}`);
-    const picker = this.formEl.querySelector(`#filepicker-${field.id}`);
+    const uploader = this._byId('uploader', field.id);
+    const details = this._byId('filedetails', field.id);
+    const hiddenInput = this._byId('input', field.id);
+    const picker = this._byId('filepicker', field.id);
 
     const maxLimit = field.maxFileSizeMB !== undefined ? field.maxFileSizeMB : 5;
     if (file.size > maxLimit * 1024 * 1024) {
@@ -2877,13 +3296,11 @@ class OpenFormRenderer {
       details.className = 'form-file-details';
       details.innerHTML = this.renderFileDetailsHTML(fileObj, false);
 
-      const wrapper = this.formEl.querySelector(`#wrapper-${field.id}`);
+      const wrapper = this._byId('wrapper', field.id);
       if (wrapper) wrapper.classList.remove('is-invalid');
 
-      this.evalBusinessRules();
-      this.recalculateFormulas();
-
       this.bindFileEvents(details, fileObj, field, hiddenInput, uploader, false);
+      this.handleFieldChanged(field.key);
     };
 
     reader.readAsDataURL(file);
@@ -2969,7 +3386,6 @@ class OpenFormRenderer {
    * Helper to bind events (preview click, download share/fallback, and delete action) to file details element
    */
   bindFileEvents(details, file, field, hiddenInput, uploader, isReadOnly) {
-    if (window.lucide) window.lucide.createIcons();
 
     // Bind preview/lightbox click
     const leftEl = details.querySelector('.form-file-details-left');
@@ -2998,12 +3414,11 @@ class OpenFormRenderer {
           delete this.uploadedFiles[field.id];
           this.answers[field.key] = '';
           if (hiddenInput) hiddenInput.value = '';
-          const picker = this.formEl.querySelector(`#filepicker-${field.id}`);
+          const picker = this._byId('filepicker', field.id);
           if (picker) picker.value = '';
           details.style.display = 'none';
           if (uploader) uploader.style.display = 'flex';
-          this.evalBusinessRules();
-          this.recalculateFormulas();
+          this.handleFieldChanged(field.key);
         });
       }
     }
@@ -3028,7 +3443,7 @@ class OpenFormRenderer {
     const hasSafeContent = OpenFormRenderer.isSafeDataUrl(file.content);
     const isImg = hasSafeContent && (String(file.type || '').startsWith('image/') || /^data:image\//i.test(file.content));
     const previewHtml = isImg ? `
-      <div class="form-file-preview-thumbnail" style="margin-right: var(--space-m); width: 44px; height: 44px; border-radius: var(--border-radius-xs); overflow: hidden; border: 1px solid var(--color-neutral-4); flex-shrink: 0; background: var(--color-neutral-2);">
+      <div class="form-file-preview-thumbnail" style="margin-right: var(--of-space-m); width: 44px; height: 44px; border-radius: var(--of-border-radius-xs); overflow: hidden; border: 1px solid var(--of-color-neutral-4); flex-shrink: 0; background: var(--of-color-neutral-2);">
         <img src="${esc(file.content)}" alt="" style="width: 100%; height: 100%; object-fit: cover;" />
       </div>
     ` : '';
@@ -3037,20 +3452,20 @@ class OpenFormRenderer {
       <div class="form-file-details-left" style="display: flex; align-items: center; flex: 1; overflow: hidden;">
         ${previewHtml}
         <div style="display: flex; flex-direction: column; overflow: hidden; text-align: left;">
-          <div style="font-weight: var(--font-weight-semibold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px; color: var(--color-neutral-10);" title="${esc(file.name)}">${esc(file.name)}</div>
-          <div style="font-size: var(--font-size-xs); color: var(--color-neutral-7);">${esc(this.formatFileSize(file.size))}</div>
+          <div style="font-weight: var(--of-font-weight-semibold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px; color: var(--of-color-neutral-10);" title="${esc(file.name)}">${esc(file.name)}</div>
+          <div style="font-size: var(--of-font-size-xs); color: var(--of-color-neutral-7);">${esc(this.formatFileSize(file.size))}</div>
         </div>
       </div>
-      <div class="form-file-details-actions" style="display: flex; align-items: center; gap: var(--space-s); flex-shrink: 0;">
+      <div class="form-file-details-actions" style="display: flex; align-items: center; gap: var(--of-space-s); flex-shrink: 0;">
         ${hasSafeContent ? `
         <!-- Download Button -->
-        <a href="${esc(file.content)}" download="${esc(file.name)}" class="pg-btn pg-btn-secondary form-file-download-btn" title="${esc(this.translations.fileDownloadTitle)}" style="padding: 6px var(--space-s); display: flex; align-items: center; justify-content: center; height: auto;">
-          <i data-lucide="download" style="width: 14px; height: 14px;"></i>
+        <a href="${esc(file.content)}" download="${esc(file.name)}" class="pg-btn pg-btn-secondary form-file-download-btn" title="${esc(this.translations.fileDownloadTitle)}" style="padding: 6px var(--of-space-s); display: flex; align-items: center; justify-content: center; height: auto;">
+          ${OpenFormRenderer.icon('download', '', 'width: 14px; height: 14px;')}
         </a>
         ` : ''}
         ${isReadOnly ? '' : `
-        <button type="button" class="form-file-delete-btn" title="${esc(this.translations.fileDeleteTitle)}" style="padding: 6px var(--space-s); display: flex; align-items: center; justify-content: center; height: auto; color: var(--color-error); border-color: rgba(219,60,60,0.15);">
-          <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+        <button type="button" class="form-file-delete-btn" title="${esc(this.translations.fileDeleteTitle)}" style="padding: 6px var(--of-space-s); display: flex; align-items: center; justify-content: center; height: auto; color: var(--of-color-error); border-color: rgba(219,60,60,0.15);">
+          ${OpenFormRenderer.icon('trash-2', '', 'width: 14px; height: 14px;')}
         </button>
         `}
       </div>
@@ -3069,12 +3484,26 @@ class OpenFormRenderer {
   }
 
   /**
-   * Strictly validates fields on selected page tab indexes
+   * Validates one page from the schema and this.answers (any page, rendered or not).
+   * Returns true when it has no errors.
+   *
+   * @param {number} pageIndex
+   * @param {Object} [options]
+   * @param {boolean} [options.paint=true] Mark/unmark the rendered fields (is-invalid, aria-invalid,
+   *   error text). Only fields currently in the DOM can be painted.
+   * @param {boolean} [options.toast=true] Show the validation error toast when invalid.
+   * @param {Array} [options.errors] Receives one `{ key, message, pageIndex, type }` per error
+   *   (`type`: 'required' | 'pattern' | 'crossField'; repeater sub-fields add `itemIndex` and
+   *   `subKey`, with `key` being the repeater's key).
    */
-  validatePage(pageIndex) {
+  validatePage(pageIndex, options = {}) {
     if (this._destroyed || !this.schema) return false;
+    const paint = options.paint !== false;
+    const toast = options.toast !== false;
+    const errors = Array.isArray(options.errors) ? options.errors : [];
     let hasErrors = false;
     const page = this.schema.pages[pageIndex];
+    if (!page) return false;
 
     (page.sections || []).forEach(section => {
       (section.rows || []).forEach(row => {
@@ -3082,7 +3511,7 @@ class OpenFormRenderer {
           if (!col.field) return;
           const field = col.field;
 
-          if (['header', 'paragraph'].includes(field.type)) return;
+          if (['header', 'paragraph'].includes(field.type) || !OpenFormRenderer.FIELD_TYPES.includes(field.type)) return;
 
           if (field.type === 'repeater') {
             const repeaterState = this.evaluateFieldState(field, section);
@@ -3104,6 +3533,7 @@ class OpenFormRenderer {
                       // item is currently rendered in the DOM
                       let isFieldInvalid = false;
                       let errorMessage = '';
+                      let errorType = 'required';
                       const isRequired = subField.required;
 
                       if (isRequired) {
@@ -3136,6 +3566,7 @@ class OpenFormRenderer {
                           const regex = new RegExp(pattern);
                           if (!regex.test(val)) {
                             isFieldInvalid = true;
+                            errorType = 'pattern';
                             errorMessage = subField.errorMessage || this.translations.patternValidationBubble;
                           }
                         } catch (e) {
@@ -3143,17 +3574,20 @@ class OpenFormRenderer {
                         }
                       }
 
-                      if (isFieldInvalid) hasErrors = true;
+                      if (isFieldInvalid) {
+                        hasErrors = true;
+                        errors.push({ key: field.key, itemIndex, subKey: subField.key, message: errorMessage, pageIndex, type: errorType });
+                      }
 
                       // Best-effort: only paint markings if this item happens to be rendered
-                      const wrapper = this.formEl.querySelector(`#wrapper-${scopedId}`);
-                      const errorEl = this.formEl.querySelector(`#error-${scopedId}`);
+                      const wrapper = paint ? this._byId('wrapper', scopedId) : null;
+                      const errorEl = paint ? this._byId('error', scopedId) : null;
                       if (wrapper && errorEl) {
                         const inputEl = wrapper.querySelector('input, textarea, select');
                         if (isFieldInvalid) {
                           wrapper.classList.add('is-invalid');
                           if (inputEl) inputEl.setAttribute('aria-invalid', 'true');
-                          errorEl.innerHTML = `<i data-lucide="alert-circle"></i> ${OpenFormRenderer.escapeHtml(errorMessage)}`;
+                          errorEl.innerHTML = `${OpenFormRenderer.icon('alert-circle')} ${OpenFormRenderer.escapeHtml(errorMessage)}`;
                         } else {
                           wrapper.classList.remove('is-invalid');
                           if (inputEl) inputEl.removeAttribute('aria-invalid');
@@ -3176,6 +3610,7 @@ class OpenFormRenderer {
             const val = this.answers[field.key];
             let isFieldInvalid = false;
             let errorMessage = '';
+            let errorType = 'required';
 
             // 1. Validate required toggles
             if (state.required) {
@@ -3221,6 +3656,7 @@ class OpenFormRenderer {
                 const regex = new RegExp(pattern);
                 if (!regex.test(val)) {
                   isFieldInvalid = true;
+                  errorType = 'pattern';
                   errorMessage = field.errorMessage || this.translations.patternValidationBubble;
                 }
               } catch (e) {
@@ -3228,26 +3664,28 @@ class OpenFormRenderer {
               }
             }
 
-            if (isFieldInvalid) hasErrors = true;
+            if (isFieldInvalid) {
+              hasErrors = true;
+              errors.push({ key: field.key, message: errorMessage, pageIndex, type: errorType });
+            }
 
             // Best-effort: only paint markings if this field happens to be rendered
             // (validity above is already correctly computed either way)
-            const colEl = this.formEl.querySelector(`.form-column[data-field-id="${field.id}"]`);
-            const wrapper = this.formEl.querySelector(`#wrapper-${field.id}`);
-            const errorEl = this.formEl.querySelector(`#error-${field.id}`);
-            if (colEl && wrapper && errorEl) {
+            const wrapper = paint ? this._byId('wrapper', field.id) : null;
+            const errorEl = paint ? this._byId('error', field.id) : null;
+            if (wrapper && errorEl) {
               const inputEl = wrapper.querySelector('input, textarea, select');
               if (isFieldInvalid) {
                 wrapper.classList.add('is-invalid');
                 if (inputEl) inputEl.setAttribute('aria-invalid', 'true');
-                errorEl.innerHTML = `<i data-lucide="alert-circle"></i> ${OpenFormRenderer.escapeHtml(errorMessage)}`;
+                errorEl.innerHTML = `${OpenFormRenderer.icon('alert-circle')} ${OpenFormRenderer.escapeHtml(errorMessage)}`;
               } else {
                 wrapper.classList.remove('is-invalid');
                 if (inputEl) inputEl.removeAttribute('aria-invalid');
               }
             }
           } else {
-            const wrapper = this.formEl.querySelector(`#wrapper-${field.id}`);
+            const wrapper = paint ? this._byId('wrapper', field.id) : null;
             if (wrapper) {
               wrapper.classList.remove('is-invalid');
               const inputEl = wrapper.querySelector('input, textarea, select');
@@ -3302,13 +3740,14 @@ class OpenFormRenderer {
           (rule.targetFields || []).forEach(targetFieldKey => {
             const targetField = pageFieldsMap.get(targetFieldKey);
             if (targetField) {
-              const wrapper = this.formEl.querySelector(`#wrapper-${targetField.id}`);
-              const errorEl = this.formEl.querySelector(`#error-${targetField.id}`);
+              errors.push({ key: targetFieldKey, message: rule.errorMessage || 'Invalid field combination.', pageIndex, type: 'crossField' });
+              const wrapper = paint ? this._byId('wrapper', targetField.id) : null;
+              const errorEl = paint ? this._byId('error', targetField.id) : null;
               if (wrapper && errorEl) {
                 wrapper.classList.add('is-invalid');
                 const inputEl = wrapper.querySelector('input, textarea, select');
                 if (inputEl) inputEl.setAttribute('aria-invalid', 'true');
-                errorEl.innerHTML = `<i data-lucide="alert-circle"></i> ${OpenFormRenderer.escapeHtml(rule.errorMessage || 'Invalid field combination.')}`;
+                errorEl.innerHTML = `${OpenFormRenderer.icon('alert-circle')} ${OpenFormRenderer.escapeHtml(rule.errorMessage || 'Invalid field combination.')}`;
               }
             }
           });
@@ -3316,62 +3755,248 @@ class OpenFormRenderer {
       });
     }
 
-    if (window.lucide) window.lucide.createIcons();
-
-    if (hasErrors) {
+    if (hasErrors && toast) {
       this.showToast(this.translations.validationToastError, true);
     }
     return !hasErrors;
   }
 
+  /** Validates every page without touching the DOM; errors are ordered by page. */
+  collectValidationErrors(paint = false) {
+    const errors = [];
+    if (this._destroyed || !this.schema) return errors;
+    this.schema.pages.forEach((page, index) => {
+      this.validatePage(index, { paint, toast: false, errors });
+    });
+    return errors;
+  }
+
   /**
-   * Runs validation checks across all pages and formats submissions answers
+   * Validates the whole form (every page) without toasts or callbacks.
+   *
+   * @param {Object} [options]
+   * @param {boolean} [options.showErrors=false] Also mark the invalid fields that are currently
+   *   rendered (the active page). The page is not changed: use goToPage(errors[0].pageIndex)
+   *   to show another page's errors.
+   * @returns {{ valid: boolean, errors: Array<{ key: string, message: string, pageIndex: number, type: string }> }}
    */
-  validateAndSubmit() {
-    if (this._destroyed || !this.schema) return;
-    let allValid = true;
-    const totalPages = this.schema.pages.length;
+  validate(options = {}) {
+    if (this._destroyed || !this.schema) return { valid: false, errors: [] };
+    const errors = this.collectValidationErrors(!!(options && options.showErrors));
+    return { valid: errors.length === 0, errors };
+  }
 
-    for (let idx = 0; idx < totalPages; idx++) {
-      if (!this.validatePage(idx)) {
-        allValid = false;
-        // Focus first invalid page to aid corrections, only redrawing if switching pages
-        if (this.activePageIndex !== idx) {
-          this.activePageIndex = idx;
-          this.drawActivePage();
-          this.validatePage(idx); // Apply error markings to the newly drawn page
-        }
-        break;
-      }
-    }
-
-    if (!allValid) return;
-
-    // Filter responses of fields that are logically visible and enabled
+  /**
+   * The answers that a submit would send right now: a deep copy holding only the fields that
+   * are visible and enabled according to the rules (headers/paragraphs excluded), keyed by
+   * field key. Never contains internal keys.
+   */
+  getAnswers() {
     const submittedAnswers = {};
+    if (this._destroyed || !this.schema) return submittedAnswers;
 
     this.schema.pages.forEach(page => {
       (page.sections || []).forEach(section => {
         (section.rows || []).forEach(row => {
-          row.columns.forEach(col => {
+          (row.columns || []).forEach(col => {
             if (!col.field) return;
             const field = col.field;
 
-            if (['header', 'paragraph'].includes(field.type)) return;
+            if (['header', 'paragraph'].includes(field.type) || !OpenFormRenderer.FIELD_TYPES.includes(field.type)) return;
 
             if (this.isFieldActiveInSchema(field, section)) {
-              submittedAnswers[field.key] = this.answers[field.key];
+              submittedAnswers[field.key] = OpenFormRenderer._deepClone(this.answers[field.key]);
             }
           });
         });
       });
     });
+    return submittedAnswers;
+  }
 
-    this.showToast(this.translations.validationToastSuccess, false);
-
-    if (this.onSubmit) {
-      this.onSubmit(submittedAnswers);
+  /** Finds a top-level field by key: `{ field, section, pageIndex }` or null. */
+  findFieldByKey(key) {
+    if (!this.schema) return null;
+    for (let pageIndex = 0; pageIndex < this.schema.pages.length; pageIndex++) {
+      for (const section of this.schema.pages[pageIndex].sections || []) {
+        for (const row of section.rows || []) {
+          for (const col of row.columns || []) {
+            if (col && col.field && col.field.key === key) return { field: col.field, section, pageIndex };
+          }
+        }
+      }
     }
+    return null;
+  }
+
+  /**
+   * Sets a top-level field's answer from code, as if the user had entered it: updates the
+   * answers, the field's DOM (when its page is shown), formulas and rules, then fires
+   * onFieldChange(answers, key). `number` values are stored as numbers (empty -> null); a
+   * repeater takes an array of item objects; a file takes `{ name, size, type, content }`.
+   * A field hidden by a rule is cleared again by that rule, as a user edit would be.
+   *
+   * @returns {boolean} false when no field has that key (or it holds no answer).
+   */
+  setValue(key, value) {
+    if (this._destroyed || !this.schema) return false;
+    const located = this.findFieldByKey(key);
+    if (!located || ['header', 'paragraph'].includes(located.field.type)) {
+      console.warn(`OpenFormRenderer.setValue: no answerable field with key "${key}"`);
+      return false;
+    }
+    const field = located.field;
+    let next = OpenFormRenderer._deepClone(value);
+
+    if (field.type === 'number') {
+      next = OpenFormRenderer._toNumberAnswer(next);
+    } else if (field.type === 'repeater') {
+      next = (Array.isArray(next) ? next : []).map(item => (item && typeof item === 'object' && !Array.isArray(item) ? item : {}));
+      this.clearRepeaterScopedKeys(field);
+    } else if (field.type === 'file') {
+      delete this.uploadedFiles[field.id];
+    }
+    this.answers[field.key] = next;
+    if (field.type === 'repeater') this.normalizeAnswerTypes();
+
+    if (located.pageIndex === this.activePageIndex) this.redrawField(field);
+    this.handleFieldChanged(field.key);
+    return true;
+  }
+
+  /** Re-creates one rendered top-level field's widget from this.answers (see setValue). */
+  redrawField(field) {
+    const oldWrapper = this._byId('wrapper', field.id);
+    if (!oldWrapper) return;
+    if (field.type === 'signature') this.teardownSignaturePad(field.id);
+    const newWrapper = this.createWidgetWrapper(field);
+    oldWrapper.replaceWith(newWrapper);
+    this.bindFieldEvents(field);
+  }
+
+  /**
+   * Shows page `index`. Going back is always allowed; going forward requires every page from
+   * the current one up to the one before `index` to be valid — the same rule as the step tabs
+   * and the Next button. When blocked, the current page stays, its invalid fields are marked,
+   * the error toast is shown and onValidationError fires.
+   *
+   * @returns {boolean} true when the page is (now) shown.
+   */
+  goToPage(index) {
+    if (this._destroyed || !this.schema) return false;
+    if (!Number.isInteger(index) || index < 0 || index >= this.schema.pages.length) return false;
+    return this.navigateToPage(index);
+  }
+
+  navigateToPage(index) {
+    if (index === this.activePageIndex) return true;
+    if (index > this.activePageIndex) {
+      for (let i = this.activePageIndex; i < index; i++) {
+        const errors = [];
+        if (!this.validatePage(i, { errors })) {
+          this.notifyValidationError(errors);
+          return false;
+        }
+      }
+    }
+    this.showPage(index);
+    return true;
+  }
+
+  /** Switches the active page without validation and fires onPageChange. */
+  showPage(index) {
+    this.activePageIndex = index;
+    this.drawActivePage();
+    if (this.onPageChange && !this._destroyed) {
+      this.onPageChange(index, OpenFormRenderer._deepClone(this.schema.pages[index]));
+    }
+  }
+
+  notifyValidationError(errors) {
+    if (this.onValidationError && !this._destroyed && errors.length > 0) {
+      this.onValidationError(errors.map(err => Object.assign({}, err)));
+    }
+  }
+
+  /**
+   * Submits the form exactly like the submit button: validates every page (on failure, shows
+   * the first invalid page with its errors marked, the error toast, and fires
+   * onValidationError), then calls onSubmit(getAnswers()). If onSubmit returns a promise the
+   * submit button is disabled until it settles; the success toast is shown only once it
+   * resolves, and a rejection shows the `submitErrorToast` error and leaves the form editable.
+   * Calls made while a submit is pending return that same pending promise.
+   *
+   * @returns {Promise<{ submitted: boolean, answers?: Object, errors: Array, error?: any }>}
+   */
+  submit() {
+    if (this._destroyed || !this.schema || this.readOnly) {
+      return Promise.resolve({ submitted: false, errors: [] });
+    }
+    if (this._submitPromise) return this._submitPromise;
+
+    const errors = this.collectValidationErrors(false);
+    if (errors.length > 0) {
+      // Focus the first invalid page to aid corrections, only redrawing if switching pages
+      const firstInvalidPage = errors[0].pageIndex;
+      if (this.activePageIndex !== firstInvalidPage) this.showPage(firstInvalidPage);
+      this.validatePage(firstInvalidPage); // mark the errors + toast
+      this.notifyValidationError(errors);
+      return Promise.resolve({ submitted: false, errors });
+    }
+
+    const answers = this.getAnswers();
+    let result;
+    let threw = false;
+    try {
+      result = typeof this.onSubmit === 'function' ? this.onSubmit(answers) : undefined;
+    } catch (err) {
+      threw = true;
+      result = err;
+    }
+
+    if (!threw && !(result && typeof result.then === 'function')) {
+      this.showToast(this.translations.validationToastSuccess, false);
+      return Promise.resolve({ submitted: true, answers, errors: [] });
+    }
+
+    this.setSubmitting(true);
+    const pending = (threw ? Promise.reject(result) : Promise.resolve(result)).then(
+      () => {
+        this.setSubmitting(false);
+        this.showToast(this.translations.validationToastSuccess, false);
+        return { submitted: true, answers, errors: [] };
+      },
+      (err) => {
+        this.setSubmitting(false);
+        console.warn('OpenFormRenderer: onSubmit failed:', err);
+        this.showToast(this.translations.submitErrorToast, true);
+        return { submitted: false, errors: [], error: err };
+      }
+    );
+    this._submitPromise = pending;
+    return pending;
+  }
+
+  /** Kept for compatibility: same as submit(). */
+  validateAndSubmit() {
+    return this.submit();
+  }
+
+  /** Disables the submit button (and marks the form busy) while onSubmit is pending. */
+  setSubmitting(isSubmitting) {
+    if (!isSubmitting) this._submitPromise = null;
+    if (this._destroyed || !this.formEl) return;
+    this.applySubmittingState(isSubmitting);
+  }
+
+  applySubmittingState(isSubmitting) {
+    this.formEl.querySelectorAll('button[type="submit"]').forEach(btn => {
+      btn.disabled = !!isSubmitting;
+      if (isSubmitting) btn.setAttribute('aria-disabled', 'true');
+      else btn.removeAttribute('aria-disabled');
+    });
+    if (isSubmitting) this.formEl.setAttribute('aria-busy', 'true');
+    else this.formEl.removeAttribute('aria-busy');
   }
 
   /**
@@ -3402,16 +4027,13 @@ class OpenFormRenderer {
     this._requestFrame(() => {
       const toast = document.createElement('div');
       toast.className = `toast ${isError ? 'toast-error' : 'toast-success'}`;
-      const icon = document.createElement('i');
-      icon.setAttribute('data-lucide', isError ? 'x-circle' : 'check-circle');
+      toast.insertAdjacentHTML('afterbegin', OpenFormRenderer.icon(isError ? 'x-circle' : 'check-circle'));
       const text = document.createElement('span');
       text.textContent = message === null || message === undefined ? '' : String(message);
-      toast.appendChild(icon);
       toast.appendChild(text);
       container.appendChild(toast);
       this._toasts.add(toast);
 
-      if (window.lucide) window.lucide.createIcons();
 
       this._setTimeout(() => {
         toast.style.opacity = '0';
@@ -3460,12 +4082,12 @@ class OpenFormRenderer {
           delBtn.type = 'button';
           delBtn.className = 'form-repeater-card-delete';
           delBtn.title = `${this.translations.repeaterDeleteItemTitle} ${itemIndex + 1}`;
-          delBtn.innerHTML = `<i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>`;
+          delBtn.innerHTML = `${OpenFormRenderer.icon('trash-2', '', 'width: 12px; height: 12px;')}`;
           delBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             items.splice(itemIndex, 1);
             this.clearRepeaterScopedKeys(field);
-            this.notifyFieldChange();
+            this.notifyFieldChange(field.key);
             updateUI();
             checkAddButtonState();
           });
@@ -3476,7 +4098,7 @@ class OpenFormRenderer {
         // Card Fields Grid
         const grid = document.createElement('div');
         grid.className = 'form-repeater-grid';
-        grid.style.cssText = "display: flex; flex-direction: column; gap: var(--space-m);";
+        grid.style.cssText = "display: flex; flex-direction: column; gap: var(--of-space-m);";
 
         if (field.rows) {
           field.rows.forEach(row => {
@@ -3484,7 +4106,7 @@ class OpenFormRenderer {
 
             const rowEl = document.createElement('div');
             rowEl.className = 'renderer-row';
-            rowEl.style.cssText = "display: grid; grid-template-columns: repeat(12, 1fr); gap: var(--space-m); margin-bottom: var(--space-s);";
+            rowEl.style.cssText = "display: grid; grid-template-columns: repeat(12, 1fr); gap: var(--of-space-m); margin-bottom: var(--of-space-s);";
 
             row.columns.forEach(col => {
               if (!col.field) return;
@@ -3500,12 +4122,16 @@ class OpenFormRenderer {
                   item[subField.key] = subField.defaultValue !== undefined ? subField.defaultValue : false;
                 } else if (subField.type === 'checkbox') {
                   item[subField.key] = [];
+                } else if (subField.type === 'number') {
+                  item[subField.key] = null;
                 } else {
                   item[subField.key] = '';
                 }
               }
 
-              // 2. Define getter/setter on this.answers
+              // 2. Define an internal getter/setter on this.answers so the shared widget,
+              // validation and rule code can address the sub-field by a flat key. It's
+              // non-enumerable: it never shows up in getAnswers(), callbacks or JSON.
               const scopedKey = `sub-${field.id}-${itemIndex}-${subField.key}`;
               Object.defineProperty(this.answers, scopedKey, {
                 get: () => {
@@ -3515,8 +4141,9 @@ class OpenFormRenderer {
                   item[subField.key] = val;
                 },
                 configurable: true,
-                enumerable: true
+                enumerable: false
               });
+              this._scopedKeyOwners.set(scopedKey, field.key);
 
               // 3. Create scoped field clone
               const scopedField = JSON.parse(JSON.stringify(subField));
@@ -3557,15 +4184,15 @@ class OpenFormRenderer {
                     val = e.target.value;
                   }
 
-                  if (subField.type === 'number' && val !== '') {
-                    val = Number(val);
+                  if (subField.type === 'number') {
+                    val = OpenFormRenderer._toNumberAnswer(val);
                   }
 
                   this.answers[scopedKey] = val;
                   this.handleFieldChanged(scopedKey);
 
                   const wrapper = widgetWrapper.querySelector('.form-widget-wrapper') || widgetWrapper;
-                  if (wrapper && String(val).trim() !== '') {
+                  if (wrapper && val !== null && String(val).trim() !== '') {
                     wrapper.classList.remove('is-invalid');
                   }
                 });
@@ -3590,7 +4217,6 @@ class OpenFormRenderer {
         listEl.appendChild(card);
       });
 
-      if (window.lucide) window.lucide.createIcons();
     };
 
     // Render "Add Item" button first if not read-only, so DOM order matches the visual
@@ -3601,7 +4227,7 @@ class OpenFormRenderer {
       addBtn.type = 'button';
       addBtn.className = 'pg-btn pg-btn-secondary form-repeater-add-btn';
       const displayAddBtnLabel = this.getTranslatedValue('fields', field.key, 'addButtonLabel', null, field.addButtonLabel || 'Add Item');
-      addBtn.innerHTML = `<i data-lucide="plus-circle" style="width: 14px; height: 14px;"></i> ${OpenFormRenderer.escapeHtml(displayAddBtnLabel)}`;
+      addBtn.innerHTML = `${OpenFormRenderer.icon('plus-circle', '', 'width: 14px; height: 14px;')} ${OpenFormRenderer.escapeHtml(displayAddBtnLabel)}`;
 
       checkAddButtonState = () => {
         const currentCount = (this.answers[field.key] || []).length;
@@ -3616,7 +4242,7 @@ class OpenFormRenderer {
         const items = this.answers[field.key] || [];
         if (items.length < (field.maxItems || 10)) {
           items.push({});
-          this.notifyFieldChange();
+          this.notifyFieldChange(field.key);
           updateUI();
           checkAddButtonState();
         }
@@ -3632,10 +4258,11 @@ class OpenFormRenderer {
     checkAddButtonState();
   }
 
-  notifyFieldChange() {
-    if (this.onFieldChange) {
-      this.onFieldChange(this.answers);
-    }
+  /** Calls onFieldChange(answers, changedKey) with a deep copy of the answers. */
+  notifyFieldChange(changedKey) {
+    if (this._destroyed || typeof this.onFieldChange !== 'function') return;
+    const publicKey = this._scopedKeyOwners.get(changedKey) || changedKey;
+    this.onFieldChange(OpenFormRenderer._deepClone(this.answers), publicKey);
   }
 
   /**
@@ -3783,7 +4410,7 @@ class OpenFormRenderer {
     }
 
     try {
-      const result = new Function(`return (${sanitized});`)();
+      const result = this._evaluateExpression(sanitized);
       const numResult = Number(result);
       if (isNaN(numResult) || !isFinite(numResult)) {
         return 0;
@@ -3845,13 +4472,298 @@ class OpenFormRenderer {
     }
 
     try {
-      // Evaluate in a secure isolated Function context
-      const result = new Function(`return (${sanitized});`)();
+      // CSP-safe: parsed and evaluated by _evaluateExpression, never eval/new Function.
+      const result = this._evaluateExpression(sanitized);
       return !!result;
     } catch (e) {
       console.error("Error evaluating validation rule:", expression, sanitized, e);
       return false;
     }
+  }
+
+  /**
+   * CSP-safe evaluator for `formulaExpression` and legacy `crossFieldRules[].expression`.
+   *
+   * Replaces the former `new Function('return (' + expr + ');')`, which throws under a
+   * Content-Security-Policy without 'unsafe-eval' (calculated fields silently became 0 and
+   * expression rules blocked submit forever). It is a hand-written tokenizer + recursive-descent
+   * parser for exactly the JavaScript expression subset that can be spelled with the
+   * allow-listed characters checked by the callers (digits, `. , + - * / % ( ) ? : < > = ! & |`,
+   * whitespace) plus `Math.min|max|round|abs|floor|ceil`. Operators are applied with the native
+   * JS operators to the same values, so results match the old evaluator for every expression it
+   * accepted, with these deliberate exceptions (all of which are now syntax errors): arrow
+   * functions (`()=>1`), regex literals (`/1/`), spread (`...`), HTML-like comments
+   * (`<!--`, `-->`) and assignments (`Math.max = 5` used to overwrite the global). No eval,
+   * Function, `with`, or property access other than the whitelisted `Math.*` functions is
+   * ever performed.
+   *
+   * @param {string} source Expression with `{field}` placeholders already substituted.
+   * @returns {*} The raw JS value (number, boolean, or — for odd inputs — a Math function or
+   *   a string produced by native coercion); the callers normalise it.
+   * @throws {SyntaxError|TypeError} On invalid syntax or a call to a non-function.
+   */
+  _evaluateExpression(source) {
+    const MATH_FNS = {
+      min: Math.min, max: Math.max, round: Math.round,
+      abs: Math.abs, floor: Math.floor, ceil: Math.ceil
+    };
+    const fail = (msg) => { throw new SyntaxError(`Invalid expression: ${msg}`); };
+
+    // ---- Tokenizer -------------------------------------------------------------------
+    // Wrapped in parentheses exactly like the old `return (${expr});`, so an input such as
+    // "1) || (2" keeps the meaning it had before.
+    const src = `(${source})`;
+    // Longest first (maximal munch). Assignment/update/arrow/spread tokens are recognised only
+    // so the parser can reject them, mirroring the SyntaxError JS would raise.
+    const PUNCT = [
+      '>>>=', '...', '===', '!==', '**=', '<<=', '>>=', '>>>', '&&=', '||=', '??=',
+      '=>', '==', '!=', '<=', '>=', '&&', '||', '??', '**', '<<', '>>', '++', '--',
+      '+=', '-=', '*=', '/=', '%=', '&=', '|=',
+      '+', '-', '*', '/', '%', '(', ')', ',', '?', ':', '<', '>', '=', '!', '&', '|', '.'
+    ];
+    const isDigit = (c) => c >= '0' && c <= '9';
+    const isIdStart = (c) => /[A-Za-z_$\\]/.test(c);
+    const isIdPart = (c) => /[A-Za-z0-9_$]/.test(c);
+    const tokens = [];
+    let i = 0;
+
+    while (i < src.length) {
+      const c = src[i];
+      const next = src[i + 1] || '';
+      if (/\s/.test(c)) { i++; continue; }
+      if (c === '/' && next === '*') {
+        const end = src.indexOf('*/', i + 2);
+        if (end < 0) fail('unterminated comment');
+        i = end + 2;
+        continue;
+      }
+      if (c === '/' && next === '/') {
+        while (i < src.length && !/[\n\r\u2028\u2029]/.test(src[i])) i++;
+        continue;
+      }
+      if (isDigit(c) || (c === '.' && isDigit(next))) {
+        const start = i;
+        let value;
+        if (c === '0' && isDigit(next)) {
+          // Legacy (sloppy-mode) leading-zero literal: octal if all digits are 0-7 (no
+          // fraction allowed), otherwise decimal ("019.5" === 19.5).
+          while (isDigit(src[i] || '')) i++;
+          const digits = src.slice(start, i);
+          if (/^[0-7]+$/.test(digits)) {
+            value = parseInt(digits, 8);
+          } else {
+            if (src[i] === '.') { i++; while (isDigit(src[i] || '')) i++; }
+            value = Number(src.slice(start, i));
+          }
+        } else {
+          while (isDigit(src[i] || '')) i++;
+          if (src[i] === '.') { i++; while (isDigit(src[i] || '')) i++; }
+          value = Number(src.slice(start, i));
+        }
+        if (i < src.length && (isDigit(src[i]) || isIdStart(src[i]))) fail('identifier directly after number');
+        tokens.push({ t: 'num', v: value });
+        continue;
+      }
+      if (isIdStart(c)) {
+        if (c === '\\') fail('escape sequence');
+        const start = i;
+        while (i < src.length && isIdPart(src[i])) i++;
+        if (src[i] === '\\') fail('escape sequence');
+        tokens.push({ t: 'id', v: src.slice(start, i) });
+        continue;
+      }
+      // `?.` is optional chaining only when not followed by a digit (`a?.5:b` is a ternary).
+      if (c === '?' && next === '.' && !isDigit(src[i + 2] || '')) {
+        tokens.push({ t: 'op', v: '?.' });
+        i += 2;
+        continue;
+      }
+      const op = PUNCT.find(candidate => src.startsWith(candidate, i));
+      if (!op) fail(`unexpected character "${c}"`);
+      tokens.push({ t: 'op', v: op });
+      i += op.length;
+    }
+
+    // ---- Parser (JS precedence, lowest first) ---------------------------------------
+    let p = 0;
+    const isOp = (v, k = 0) => { const tk = tokens[p + k]; return !!tk && tk.t === 'op' && tk.v === v; };
+    const take = (v) => { if (!isOp(v)) fail(`expected "${v}"`); p++; };
+    const isUnary = () => isOp('-') || isOp('+') || isOp('!');
+    const BINARY_LEVELS = [
+      ['||'], ['&&'], ['|'], ['&'],
+      ['==', '!=', '===', '!=='],
+      ['<', '>', '<=', '>='],
+      ['<<', '>>', '>>>'],
+      ['+', '-'],
+      ['*', '/', '%']
+    ];
+    const BITWISE_OR_LEVEL = 2;
+
+    const parseExpression = () => {
+      let node = parseConditional();
+      while (isOp(',')) { p++; node = { k: 'seq', a: node, b: parseConditional() }; }
+      return node;
+    };
+    const parseConditional = () => {
+      const test = parseShortCircuit();
+      if (!isOp('?')) return test;
+      p++;
+      const yes = parseConditional();
+      take(':');
+      return { k: 'cond', test, yes, no: parseConditional() };
+    };
+    const parseShortCircuit = () => {
+      let node = parseBinary(0);
+      if (isOp('??')) {
+        // JS forbids mixing ?? with unparenthesised && / ||.
+        if (node.k === 'logic' && !node.paren) fail('cannot mix ?? with && or ||');
+        while (isOp('??')) { p++; node = { k: 'coalesce', a: node, b: parseBinary(BITWISE_OR_LEVEL) }; }
+      }
+      return node;
+    };
+    const parseBinary = (level) => {
+      if (level === BINARY_LEVELS.length) return parseExponent();
+      let node = parseBinary(level + 1);
+      for (;;) {
+        const tk = tokens[p];
+        if (!tk || tk.t !== 'op' || !BINARY_LEVELS[level].includes(tk.v)) return node;
+        p++;
+        const kind = (tk.v === '&&' || tk.v === '||') ? 'logic' : 'bin';
+        node = { k: kind, op: tk.v, a: node, b: parseBinary(level + 1) };
+      }
+    };
+    const parseExponent = () => {
+      if (isUnary()) {
+        const node = parseUnary();
+        if (isOp('**')) fail('unary operator before **');
+        return node;
+      }
+      const base = parsePostfix();
+      if (!isOp('**')) return base;
+      p++;
+      return { k: 'bin', op: '**', a: base, b: parseExponent() };
+    };
+    const parseUnary = () => {
+      const op = tokens[p++].v;
+      return { k: 'unary', op, a: isUnary() ? parseUnary() : parsePostfix() };
+    };
+    const parsePostfix = () => {
+      let node = parsePrimary();
+      let optionalChain = false;
+      for (;;) {
+        let optional = false;
+        if (isOp('?.')) { p++; optional = optionalChain = true; }
+        else if (isOp('.')) {
+          p++;
+          if (!tokens[p] || tokens[p].t !== 'id') fail('expected a name after "."');
+        }
+        const tk = tokens[p];
+        if (tk && tk.t === 'id') {
+          // `.name` / `?.name` on a computed value. Reachable through the allow-list only as
+          // e.g. `(1).Math.max(2)` or `Math.roundMath.round4`; never reads a real property.
+          p++;
+          node = { k: 'member', obj: node, optional };
+          continue;
+        }
+        if (isOp('(')) { p++; }
+        else if (optional) fail('unexpected token after "?."');
+        // An optional link on a nullish value short-circuits the rest of the chain.
+        else return optionalChain ? { k: 'chain', a: node } : node;
+        const args = [];
+        while (!isOp(')')) {
+          if (isOp('...')) fail('spread is not supported');
+          args.push(parseConditional());
+          if (!isOp(',')) break;
+          p++;
+        }
+        take(')');
+        node = { k: 'call', callee: node, args, optional };
+      }
+    };
+    const parsePrimary = () => {
+      const tk = tokens[p];
+      if (!tk) fail('unexpected end of expression');
+      if (tk.t === 'num') { p++; return { k: 'val', v: tk.v }; }
+      if (tk.t === 'op' && tk.v === '(') {
+        p++;
+        if (isOp(')')) fail('empty parentheses');
+        const inner = parseExpression();
+        take(')');
+        return { ...inner, paren: true };
+      }
+      const member = tokens[p + 2];
+      if (tk.t === 'id' && tk.v === 'Math' && isOp('.', 1) && member && member.t === 'id') {
+        p += 3;
+        // Only the whitelisted functions are ever looked up; any other name (reachable through
+        // the allow-list only as e.g. `Math.max2`, which is not a real Math property) is
+        // `undefined`, as it was under the old evaluator. No real property access happens.
+        const fn = Object.prototype.hasOwnProperty.call(MATH_FNS, member.v) ? MATH_FNS[member.v] : undefined;
+        return { k: 'val', v: fn };
+      }
+      fail(`unexpected token "${tk.v}"`);
+    };
+
+    const ast = parseExpression();
+    if (p !== tokens.length) fail(`unexpected token "${tokens[p].v}"`);
+
+    // ---- Evaluator (native JS operators, lazy where JS short-circuits) ----------------
+    const allowedFns = Object.values(MATH_FNS);
+    const SHORT_CIRCUIT = {};
+    const BINARY = {
+      '|': (a, b) => a | b, '&': (a, b) => a & b,
+      '==': (a, b) => a == b, '!=': (a, b) => a != b, // eslint-disable-line eqeqeq
+      '===': (a, b) => a === b, '!==': (a, b) => a !== b,
+      '<': (a, b) => a < b, '>': (a, b) => a > b, '<=': (a, b) => a <= b, '>=': (a, b) => a >= b,
+      '<<': (a, b) => a << b, '>>': (a, b) => a >> b, '>>>': (a, b) => a >>> b,
+      '+': (a, b) => a + b, '-': (a, b) => a - b,
+      '*': (a, b) => a * b, '/': (a, b) => a / b, '%': (a, b) => a % b, '**': (a, b) => a ** b
+    };
+    const evaluate = (n) => {
+      switch (n.k) {
+        case 'val': return n.v;
+        case 'seq': evaluate(n.a); return evaluate(n.b);
+        case 'cond': return evaluate(n.test) ? evaluate(n.yes) : evaluate(n.no);
+        case 'logic': {
+          const a = evaluate(n.a);
+          if (n.op === '&&') return a ? evaluate(n.b) : a;
+          return a ? a : evaluate(n.b);
+        }
+        case 'coalesce': {
+          const a = evaluate(n.a);
+          return (a !== null && a !== undefined) ? a : evaluate(n.b);
+        }
+        case 'unary': {
+          const a = evaluate(n.a);
+          if (n.op === '-') return -a;
+          if (n.op === '+') return +a;
+          return !a;
+        }
+        case 'chain': {
+          const v = evaluate(n.a);
+          return v === SHORT_CIRCUIT ? undefined : v;
+        }
+        case 'member': {
+          const obj = evaluate(n.obj);
+          if (obj === SHORT_CIRCUIT) return SHORT_CIRCUIT;
+          if (obj === null || obj === undefined) {
+            if (n.optional) return SHORT_CIRCUIT;
+            throw new TypeError('Invalid expression: cannot read a property of undefined');
+          }
+          // The only names the allow-list lets through (`Math`, `maxMath`, ...) do not exist
+          // on numbers, booleans, strings or the Math functions, so the result is undefined.
+          return undefined;
+        }
+        case 'call': {
+          const fn = evaluate(n.callee);
+          if (fn === SHORT_CIRCUIT) return SHORT_CIRCUIT;
+          if (n.optional && (fn === null || fn === undefined)) return SHORT_CIRCUIT;
+          if (!allowedFns.includes(fn)) throw new TypeError('Invalid expression: value is not a function');
+          return fn.apply(Math, n.args.map(evaluate));
+        }
+        default: return BINARY[n.op](evaluate(n.a), evaluate(n.b));
+      }
+    };
+    return evaluate(ast);
   }
 
   /**
@@ -3881,7 +4793,7 @@ class OpenFormRenderer {
                   changed = true;
 
                   // Update input value in active DOM
-                  const inputEl = this.formEl.querySelector(`#input-${field.id}`);
+                  const inputEl = this._byId('input', field.id);
                   if (inputEl) {
                     inputEl.value = newVal;
                   }
@@ -3955,9 +4867,9 @@ class OpenFormRenderer {
    */
   handleNativeCameraSuccess(field, dataUrl) {
     if (this._destroyed) return;
-    const uploader = this.formEl.querySelector(`#uploader-${field.id}`);
-    const details = this.formEl.querySelector(`#filedetails-${field.id}`);
-    const hiddenInput = this.formEl.querySelector(`#input-${field.id}`);
+    const uploader = this._byId('uploader', field.id);
+    const details = this._byId('filedetails', field.id);
+    const hiddenInput = this._byId('input', field.id);
 
     // Estimate file size from base64
     const head = dataUrl.indexOf(",") + 1;
@@ -3984,11 +4896,10 @@ class OpenFormRenderer {
       this.bindFileEvents(details, fileObj, field, hiddenInput, uploader, false);
     }
 
-    const wrapper = this.formEl.querySelector(`#wrapper-${field.id}`);
+    const wrapper = this._byId('wrapper', field.id);
     if (wrapper) wrapper.classList.remove('is-invalid');
 
-    this.evalBusinessRules();
-    this.recalculateFormulas();
+    this.handleFieldChanged(field.key);
   }
 
   /**
@@ -4018,17 +4929,17 @@ class OpenFormRenderer {
     Object.assign(sheet.style, {
       width: '100%',
       maxWidth: '480px',
-      backgroundColor: 'var(--color-neutral-2, #ffffff)',
+      backgroundColor: 'var(--of-color-neutral-2, #ffffff)',
       borderTopLeftRadius: '16px',
       borderTopRightRadius: '16px',
-      padding: 'var(--space-base) var(--space-base) var(--space-l) var(--space-base)',
+      padding: 'var(--of-space-base) var(--of-space-base) var(--of-space-l) var(--of-space-base)',
       boxSizing: 'border-box',
       transform: 'translateY(100%)',
       transition: 'transform 0.25s ease',
       display: 'flex',
       flexDirection: 'column',
-      gap: 'var(--space-m)',
-      boxShadow: '0 -4px var(--space-m) rgba(0, 0, 0, 0.15)'
+      gap: 'var(--of-space-m)',
+      boxShadow: '0 -4px var(--of-space-m) rgba(0, 0, 0, 0.15)'
     });
 
     const title = document.createElement('div');
@@ -4036,7 +4947,7 @@ class OpenFormRenderer {
     Object.assign(title.style, {
       fontSize: '14px',
       fontWeight: '600',
-      color: 'var(--color-neutral-8, #333333)',
+      color: 'var(--of-color-neutral-8, #333333)',
       textAlign: 'center',
       marginBottom: '8px'
     });
@@ -4045,15 +4956,15 @@ class OpenFormRenderer {
     const cameraBtn = document.createElement('button');
     cameraBtn.type = 'button';
     cameraBtn.className = 'pg-btn';
-    cameraBtn.innerHTML = `<i data-lucide="camera" style="width: 16px; height: 16px; margin-right: var(--space-s); vertical-align: middle;"></i> Take Photo`;
+    cameraBtn.innerHTML = `${OpenFormRenderer.icon('camera', '', 'width: 16px; height: 16px; margin-right: var(--of-space-s); vertical-align: middle;')} Take Photo`;
     Object.assign(cameraBtn.style, {
-      padding: 'var(--space-m)',
+      padding: 'var(--of-space-m)',
       fontSize: '14px',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       width: '100%',
-      borderRadius: 'var(--space-s)',
+      borderRadius: 'var(--of-space-s)',
       cursor: 'pointer'
     });
     cameraBtn.addEventListener('click', () => {
@@ -4065,15 +4976,15 @@ class OpenFormRenderer {
     const fileBtn = document.createElement('button');
     fileBtn.type = 'button';
     fileBtn.className = 'pg-btn pg-btn-secondary';
-    fileBtn.innerHTML = `<i data-lucide="file-text" style="width: 16px; height: 16px; margin-right: var(--space-s); vertical-align: middle;"></i> Choose Document/File`;
+    fileBtn.innerHTML = `${OpenFormRenderer.icon('file-text', '', 'width: 16px; height: 16px; margin-right: var(--of-space-s); vertical-align: middle;')} Choose Document/File`;
     Object.assign(fileBtn.style, {
-      padding: 'var(--space-m)',
+      padding: 'var(--of-space-m)',
       fontSize: '14px',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       width: '100%',
-      borderRadius: 'var(--space-s)',
+      borderRadius: 'var(--of-space-s)',
       cursor: 'pointer'
     });
     fileBtn.addEventListener('click', () => {
@@ -4087,13 +4998,13 @@ class OpenFormRenderer {
     cancelBtn.className = 'pg-btn pg-btn-secondary';
     cancelBtn.textContent = 'Cancel';
     Object.assign(cancelBtn.style, {
-      padding: 'var(--space-m)',
+      padding: 'var(--of-space-m)',
       fontSize: '14px',
       width: '100%',
-      borderRadius: 'var(--space-s)',
+      borderRadius: 'var(--of-space-s)',
       border: 'none',
       background: 'transparent',
-      color: 'var(--color-neutral-7, #666666)',
+      color: 'var(--of-color-neutral-7, #666666)',
       cursor: 'pointer'
     });
     cancelBtn.addEventListener('click', closeSheet);
@@ -4103,7 +5014,6 @@ class OpenFormRenderer {
     document.body.appendChild(backdrop);
     this._actionSheetEl = backdrop;
 
-    if (window.lucide) window.lucide.createIcons({ container: sheet });
 
     // Trigger animations
     this._requestFrame(() => {
@@ -4123,5 +5033,22 @@ class OpenFormRenderer {
   }
 }
 
-// Bind to global namespace
-window.OpenFormRenderer = OpenFormRenderer;
+// UMD footer: CommonJS/bundlers get `module.exports`; a plain <script> attaches to the global.
+// Nothing here touches `window`/`document` unguarded, so importing in Node/SSR is safe.
+if (typeof module === 'object' && module && module.exports) {
+  module.exports = OpenFormRenderer;
+} else {
+  const root = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : this);
+  const existing = root.OpenFormRenderer;
+  if (existing && existing !== OpenFormRenderer) {
+    // Double-load guard (e.g. an OutSystems block and a screen both requiring this script):
+    // keep the first definition so live instances and `instanceof` checks stay valid.
+    if (existing.VERSION !== OpenFormRenderer.VERSION && typeof console !== 'undefined') {
+      console.warn('OpenFormRenderer: v' + OpenFormRenderer.VERSION + ' was loaded after v' + existing.VERSION + '; keeping the first (v' + existing.VERSION + ').');
+    }
+  } else {
+    root.OpenFormRenderer = OpenFormRenderer;
+  }
+}
+
+}).call(this);

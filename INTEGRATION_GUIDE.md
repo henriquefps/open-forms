@@ -12,16 +12,36 @@ You can load OpenForms assets directly using **jsDelivr**:
 
 ```html
 <!-- Stylesheet -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.1.1/src/openforms.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.2.0/src/openforms.css">
 
 <!-- Visual Builder (OpenFormBuilder) -->
-<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.1.1/src/builder.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.2.0/src/builder.js"></script>
 
 <!-- Form Player / Renderer (OpenFormRenderer) -->
-<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.1.1/src/renderer.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.2.0/src/renderer.js"></script>
 ```
 
 Both scripts are plain classic `<script>` tags — no bundler, no ES module imports required. Each one is fully self-contained; load only `renderer.js` if you just need to play back forms, without ever loading `builder.js`.
+
+**Global scope and double loading.** Each script is wrapped in a function, so the only thing it adds to the page is its class (`window.OpenFormBuilder` / `window.OpenFormRenderer`). It declares no other globals, so a host page with its own `const debounce = …` is safe. Loading the same script twice (for example an OutSystems Block and a Screen that both require it) does not throw: the **first** definition is kept, so existing instances and `instanceof` checks stay valid, and if the second copy has a different `VERSION` a single `console.warn` says which one was kept.
+
+**Bundlers, Node and SSR.** When CommonJS is present (`module.exports`), the script exports its class instead of attaching a global:
+
+```js
+const OpenFormRenderer = require('./openforms/renderer.js'); // or: import OpenFormRenderer from './openforms/renderer.js'
+```
+
+Importing never touches `window` or `document`, so it is safe in Node or during server-side rendering; only constructing an instance and calling `render()` need a DOM.
+
+**TypeScript.** `src/openforms.d.ts` declares both classes, their options and callbacks, and the schema and answer types (`FormSchema`, `Field`, `FormAnswers`, …). Reference it from your project, for example by copying it next to your sources, or straight from the CDN:
+
+```ts
+/// <reference path="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.2.0/src/openforms.d.ts" />
+```
+
+and `import type { FormSchema } from './openforms'` when you use a local copy.
+
+`openforms.css` is scoped to the components: it declares no `:root` variables and styles none of your page's own elements. Its colour and border-radius tokens follow the OutSystems UI-named tokens (`--color-primary`, `--border-radius-soft`, …) when your page defines them. Spacing and typography use OpenForms' own values. See [customization.md](./customization.md) for theming.
 
 ---
 
@@ -68,12 +88,13 @@ To render a dynamic form from a saved schema JSON:
 
   const renderer = new OpenFormRenderer({
     containerEl: document.getElementById('form-renderer-container'),
-    onSubmit: (answers) => {
+    // May return a promise: the success toast waits for it (see "Submitting" below)
+    onSubmit: async (answers) => {
       console.log("Form Submitted! Answers:", answers);
-      // Send answers to your server/API database
+      await saveToYourApi(answers);
     },
-    onFieldChange: (answers) => {
-      console.log("Real-time answers updated:", answers);
+    onFieldChange: (answers, changedKey) => {
+      console.log(`"${changedKey}" changed. Answers so far:`, answers);
     }
   });
 
@@ -86,6 +107,88 @@ To render a dynamic form from a saved schema JSON:
 > There is no separate `loadSchema()` method on the renderer. `render()` is the one call that mounts (and re-mounts, if called again) the form — see section 4 for passing pre-filled answers and read-only mode through its 2nd and 3rd parameters.
 
 Each `render()` call starts a fresh record: attachments, signature pads and loaded API options from the previous call are dropped. Passing `answers` also opens the form on its first page; `render(schema)` with no answers keeps the current answers and page.
+
+`render()` works on copies: the schema and answers objects you pass are never modified, and later edits never write back into them. Read the current state with `getAnswers()` or from `onFieldChange`.
+
+### Callbacks
+
+| Option | Signature | When |
+| :--- | :--- | :--- |
+| `onSubmit` | `(answers) => void \| Promise` | After a submit passed validation. `answers` is the same object `getAnswers()` returns. |
+| `onFieldChange` | `(answers, changedKey) => void` | After every answer change: typing, choices, signatures (when a stroke ends, and while typing a typed signature), file upload/delete, camera photos, repeater items added/removed, `setValue()`. `answers` is a deep copy of **all** answers (including fields currently hidden or disabled; useful for drafts). `changedKey` is the top-level field key (the repeater's key for an edit inside a repeater item). |
+| `onPageChange` | `(index, page) => void` | After the visible page changes (Next/Previous, step tabs, `goToPage()`, or a failed submit jumping to the invalid page). `page` is a copy of the page's schema. Not called by `render()`. |
+| `onValidationError` | `(errors) => void` | When validation blocks a user action or `submit()`/`goToPage()`. `errors` has the same shape as `validate().errors`. |
+
+Callbacks always receive copies: changing them does not change the form.
+
+### Methods
+
+```javascript
+renderer.validate();                       // { valid, errors: [{ key, message, pageIndex, type }] }
+renderer.validate({ showErrors: true });   // ...and mark the invalid fields on the current page
+renderer.getAnswers();                     // what a submit would send right now (deep copy)
+renderer.setValue('country', 'PT');        // set an answer from code
+renderer.goToPage(2);                      // true if page 2 is now shown
+await renderer.submit();                   // same as clicking the submit button
+```
+
+- **`validate({ showErrors = false })`** checks every page (including pages not opened yet) without toasts or callbacks. Each error is `{ key, message, pageIndex, type }`, where `type` is `"required"`, `"pattern"` or `"crossField"`; an error inside a repeater item also has `itemIndex` and `subKey` (and `key` is the repeater's key). `showErrors: true` marks the invalid fields that are on screen; it does not change page. To show another page's errors, call `goToPage(errors[0].pageIndex)` and then `validate({ showErrors: true })`.
+- **`getAnswers()`** returns `{ fieldKey: value }` for the fields that are visible and enabled according to the rules, the same filtering as a submit. Headers and paragraphs are left out. It is a copy and never contains internal keys.
+- **`setValue(key, value)`** sets a top-level field's answer as if the user had entered it: the field on screen updates, formulas and rules run, and `onFieldChange(answers, key)` fires. It works for fields on other pages too. A repeater takes an array of item objects, a file takes `{ name, size, type, content }`. It returns `false` (and logs a warning) when no field has that key. If a rule hides the field, the rule clears the value again, just as it would after a user edit.
+- **`goToPage(index)`** follows the same rules as the step tabs: going back is always allowed; going forward requires every page from the current one up to the page before `index` to be valid. If one isn't, the form stays on the current page, marks its invalid fields, shows the validation toast, fires `onValidationError` and returns `false`.
+- **`submit()`** runs the submit button's path and returns a promise of `{ submitted, answers?, errors, error? }`. If validation fails, it opens the first page with errors, marks them, shows the validation toast and fires `onValidationError`; `onSubmit` is not called. Read-only forms never submit.
+
+### Validating stored schemas
+
+Schemas saved by older builds, edited by hand or generated by another system can contain mistakes (unknown field types, duplicate keys, rules pointing at missing fields…). Check them before rendering:
+
+```javascript
+const result = OpenFormRenderer.validateSchema(storedSchema);
+// { valid, errors: [{ path, code, message }], warnings: [{ path, code, message }] }
+if (!result.valid) console.error('Invalid form schema', result.errors);
+renderer.render(storedSchema); // still renders best-effort
+```
+
+It is static, does not modify the schema and does not need a renderer instance (`OpenFormBuilder.validateSchema` gives the same result). Unknown field types render a visible "Unsupported field type" placeholder and are left out of the answers; conditions with an unknown operator are never satisfied. A schema whose `schemaVersion` is newer than your renderer supports logs one `console.warn` and renders best-effort, so keep the renderer at least as new as the builder that saved the schema. See SCHEMA_REFERENCE.md, section 1, for the codes.
+
+### Submitting
+
+`onSubmit` can return a promise, for example the `fetch()` that saves the answers:
+
+- the submit button is disabled (and the form has `aria-busy="true"`) until the promise settles; calling `submit()` again in the meantime returns the same pending promise;
+- the success toast (`validationToastSuccess`) appears only once the promise resolves;
+- if it rejects (or `onSubmit` throws), an error toast (`submitErrorToast`, translated, overridable via `translations`) is shown, the form stays as it was and the user can submit again. `submit()` then resolves with `{ submitted: false, error }`.
+
+If `onSubmit` returns nothing, the success toast is shown right after it runs.
+
+### Answer values
+
+Answers are keyed by field `key`; see the value shape per field type in the [Schema Reference](SCHEMA_REFERENCE.md#field-types-reference). `number` fields always hold a JS number, or `null` when empty, both at the top level and inside repeater items. Pre-filled answers stored as strings (`"42"`) are converted when you call `render()`. An empty number never matches `greaterThan`/`lessThan`-style conditions, and still matches `equals ""`. Every field gets its default value on `render()` (`""`, `null` for numbers, `false` for switches, `[]` for repeaters with `minItems` empty items…), including fields on pages the user hasn't opened yet.
+
+### Several forms on one page
+
+Every element id the renderer creates starts with a per-instance prefix (`ofr1-`, `ofr2-`, … in creation order), for example `ofr1-input-<fieldId>`, `ofr1-label-<fieldId>`, `ofr1-renderer-form-title`. Two renderers, or a form and its `print()` copy, never share an id, and each label and `aria-*` reference points to its own form. To get predictable ids (CSS or end-to-end tests), pass `idPrefix`:
+
+```javascript
+new OpenFormRenderer({ containerEl, onSubmit, idPrefix: 'checkout-' }); // ids: checkout-input-<fieldId>, ...
+```
+
+Elements shared by all renderers keep fixed ids: `#lightbox-modal`, `#toast-container`, `#openforms-print-root`.
+
+### Icons and fonts: no external requests
+
+Both scripts ship their icons as inline SVG (Lucide paths, ISC license), so there is no icon library to load and the components never touch `window.lucide` or any other element of your page. Page icons you draw with Lucide yourself keep working untouched.
+
+Typed signatures are drawn with the font stack `'Caveat', 'Segoe Script', 'Bradley Hand', cursive`: Caveat if your page already loaded it, a handwriting face from the OS otherwise. To have the renderer load a webfont for it, pass the stylesheet URL (this is the only way the renderer ever makes an external request):
+
+```javascript
+new OpenFormRenderer({
+  containerEl, onSubmit,
+  handwritingFontUrl: 'https://fonts.googleapis.com/css2?family=Caveat:wght@500&display=swap'
+});
+```
+
+The `<link id="form-handwriting-font">` is added the first time a signature field is shown, and the typed signature is drawn only after the font has loaded. Self-hosting the stylesheet works the same way.
 
 ### API-sourced options (`optionsProvider`)
 
@@ -120,7 +223,7 @@ In single-page apps, call `renderer.destroy()` before removing the form's contai
 renderer.destroy();
 ```
 
-It removes the `window` listeners and ResizeObservers used by signature pads, cancels pending timers, removes this instance's toasts and print snapshot, ignores `optionsProvider` results that arrive later, and empties the container. The image lightbox, a `#toast-container` the renderer created itself, and the handwriting font `<link>` are shared by every renderer on the page, so they are removed only when no other renderer is still mounted. A `#toast-container` that your page provides is never removed. `destroy()` can be called more than once, and other methods do nothing after it.
+It removes the `window` listeners and ResizeObservers used by signature pads, cancels pending timers, removes this instance's toasts and print snapshot, ignores `optionsProvider` results that arrive later, and empties the container. The image lightbox, a `#toast-container` the renderer created itself, and the opt-in handwriting font `<link>` are shared by every renderer on the page, so they are removed only when no other renderer is still mounted. A `#toast-container` that your page provides is never removed. `destroy()` can be called more than once, and other methods do nothing after it.
 
 ## 3. Implementing the Visual Builder (Designer)
 
@@ -141,9 +244,14 @@ To allow administrators to visually create/edit forms:
   // Optionally load an existing schema to edit, or pass null/{} for a new blank form
   builder.loadSchema(initialSchema);
 
-  // The current schema is always readable directly off the instance — there is no
-  // separate getSchema() method.
-  const finalSchema = builder.schema;
+  // Read the current schema as a deep clone (safe to keep or mutate):
+  const finalSchema = builder.getSchema();
+
+  // Unsaved-changes tracking: isDirty() compares against the last loadSchema()/markSaved().
+  if (builder.isDirty()) {
+    saveToBackend(finalSchema);
+    builder.markSaved();
+  }
 
   // When the builder's screen goes away (SPA navigation, OutSystems Reactive screen
   // change, closing a modal), tear it down:
@@ -151,9 +259,18 @@ To allow administrators to visually create/edit forms:
 </script>
 ```
 
+### Schema API, dirty state and undo
+
+- `onSchemaChange(schema)` receives a **deep clone** on every change; mutating it never affects the builder. `builder.getSchema()` returns the same kind of clone on demand.
+- The builder stamps `schemaVersion` on every schema it outputs. `loadSchema()` validates what it receives (`OpenFormBuilder.validateSchema`) and shows a toast if there are errors; the schema still loads.
+- `builder.isDirty()` is `true` when the schema differs from the last `loadSchema()` / `markSaved()`; undoing back to the saved state makes it `false` again. Call `builder.markSaved()` after persisting.
+- Typing in a field is one undo step per burst: consecutive edits to the same control within ~500 ms (or until it loses focus) are grouped. History keeps the last 100 steps.
+- `loadSchema()`, undo/redo and deleting a page reset the selection and editing language when the selected section/field/translation no longer exists. `loadSchema(null)` (or `{}`) clears the canvas to an empty form.
+- If the host page has no `#toast-container`, the builder creates its own (`role`/`aria-live`, styled by `openforms.css`) and `destroy()` removes it. Load `openforms.css` or provide your own container.
+
 ### Tearing down: `destroy()`
 
-`builder.destroy()` removes every listener the builder added outside its container (the undo/redo shortcut listeners on `document`), cancels the pending debounced canvas render and any pending timers, removes the toasts it added to the host's `#toast-container`, and empties `containerEl`. It is idempotent: calling it again does nothing. Don't use the instance after destroying it; create a new `OpenFormBuilder` to mount again.
+`builder.destroy()` removes every listener the builder added outside its container (the undo/redo shortcut listeners on `document`), cancels the pending debounced canvas render and any pending timers, removes the toasts it added (and the toast container, if the builder created it), and empties `containerEl`. It is idempotent: calling it again does nothing. Don't use the instance after destroying it; create a new `OpenFormBuilder` to mount again.
 
 ### Undo / redo shortcuts
 
@@ -184,6 +301,8 @@ To later unlock the same instance (e.g. an "Edit" button toggling out of view mo
 ```javascript
 renderer.render(schema, renderer.answers, false);
 ```
+
+`render()` copies the answers you pass, so the object you hold is never modified by later edits. Read the current answers back with `renderer.getAnswers()` (what a submit would send) or from `onFieldChange`.
 
 ---
 

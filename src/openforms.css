@@ -1,74 +1,79 @@
-:root {
-  --color-neutral-0: #ffffff;
-  --color-neutral-1: #fafafb;
-  --color-neutral-2: #f5f6f8;
-  --color-neutral-3: #eeeeee;
-  --color-neutral-4: #dedede;
-  --color-neutral-5: #b0b0b0;
-  --color-neutral-6: #a0a0a0;
-  --color-neutral-7: #666666;
-  --color-neutral-8: #4a4a4a;
-  --color-neutral-9: #333333;
-  --color-neutral-10: #1a1a1a;
+/* ==========================================================================
+   Design tokens
+   Every token is namespaced (--of-*) and declared on the component roots only, so
+   OpenForms never defines or overrides a variable on the host page. Colour and
+   border-radius tokens read the same-named OutSystems UI token first (e.g.
+   --color-primary), so the host's brand palette and corner style flow in; the literal
+   is the fallback. Spacing, typography and shadows use OpenForms' own values only, so
+   a host type/spacing scale can't change the form's layout. See docs/customization.md.
+   ========================================================================== */
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop, #openforms-print-root, #toast-container, .openforms-toast-container) {
+  --of-color-neutral-0: var(--color-neutral-0, #ffffff);
+  --of-color-neutral-1: var(--color-neutral-1, #fafafb);
+  --of-color-neutral-2: var(--color-neutral-2, #f5f6f8);
+  --of-color-neutral-3: var(--color-neutral-3, #eeeeee);
+  --of-color-neutral-4: var(--color-neutral-4, #dedede);
+  --of-color-neutral-5: var(--color-neutral-5, #b0b0b0);
+  --of-color-neutral-6: var(--color-neutral-6, #a0a0a0);
+  --of-color-neutral-7: var(--color-neutral-7, #666666);
+  --of-color-neutral-8: var(--color-neutral-8, #4a4a4a);
+  --of-color-neutral-9: var(--color-neutral-9, #333333);
+  --of-color-neutral-10: var(--color-neutral-10, #1a1a1a);
 
-  --color-primary: #1068eb;
-  --color-primary-selected: #e7f0fd;
-  --color-primary-hover: #0d52ba;
-  --color-secondary: #4a5673;
-  --color-error: #db3c3c;
-  --color-success: #2e7d32;
-  --color-warning: #f9a825;
-  /* Playground UI Variables (Premium Dark Mode Dashboard Frame) */
-  --pg-bg: #f3f4f6;
-  --pg-panel-bg: rgba(20, 26, 42, 0.7);
-  --pg-border: rgba(255, 255, 255, 0.08);
-  --pg-text-primary: #f3f4f6;
-  --pg-text-secondary: #9ca3af;
-  --pg-glow: rgba(16, 104, 235, 0.15);
-  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --space-xs: 4px;
-  --space-s: 8px;
-  --space-m: 12px;
-  --space-base: 16px;
-  --space-l: 24px;
-  --space-xl: 32px;
+  --of-color-primary: var(--color-primary, #1068eb);
+  --of-color-primary-selected: var(--color-primary-selected, #e7f0fd);
+  --of-color-primary-hover: var(--color-primary-hover, #0d52ba);
+  --of-color-secondary: var(--color-secondary, #4a5673);
+  --of-color-error: var(--color-error, #db3c3c);
+  --of-color-success: var(--color-success, #2e7d32);
+  --of-color-warning: var(--color-warning, #f9a825);
 
-  --border-radius-xs: 4px;
-  --border-radius-s: 6px;
-  --border-radius-m: 8px;
-  --border-radius-soft: 8px;
-  /* Legacy alias */
-  --border-radius-l: 12px;
-  --border-radius-pill: 50px;
+  --of-font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 
-  --font-size-xs: 11px;
-  --font-size-s: 13px;
-  --font-size-base: 14px;
-  --font-size-m: 16px;
+  --of-space-xs: 4px;
+  --of-space-s: 8px;
+  --of-space-m: 12px;
+  --of-space-base: 16px;
+  --of-space-l: 24px;
+  --of-space-xl: 32px;
 
-  --font-weight-normal: 400;
-  --font-weight-medium: 500;
-  --font-weight-semibold: 600;
-  --font-weight-bold: 700;
+  --of-border-radius-xs: var(--border-radius-xs, 4px);
+  --of-border-radius-s: var(--border-radius-s, 6px);
+  --of-border-radius-m: var(--border-radius-m, 8px);
+  --of-border-radius-soft: var(--border-radius-soft, 8px);
+  --of-border-radius-l: var(--border-radius-l, 12px);
+  --of-border-radius-pill: var(--border-radius-pill, 50px);
 
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.15);
+  --of-font-size-xs: 11px;
+  --of-font-size-s: 13px;
+  --of-font-size-base: 14px;
+  --of-font-size-m: 16px;
+
+  --of-font-weight-normal: 400;
+  --of-font-weight-medium: 500;
+  --of-font-weight-semibold: 600;
+  --of-font-weight-bold: 700;
+
+  --of-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --of-shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --of-shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.15);
+
+  /* OpenForms-only tokens (no OutSystems UI equivalent): borders and text on the image lightbox */
+  --of-border: rgba(255, 255, 255, 0.08);
+  --of-text-primary: #f3f4f6;
+  --of-text-secondary: #9ca3af;
 }
 
 .builder-layout *,
 .builder-layout *::before,
-.builder-layout *::after,
-.renderer-layout *,
-.renderer-layout *::before,
-.renderer-layout *::after {
+.builder-layout *::after {
   box-sizing: border-box;
 }
 
 /* ==========================================================================
-   Global Utilities (Accessibility)
+   Shared Utilities (Accessibility)
    ========================================================================== */
-.sr-only {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .sr-only {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -81,16 +86,16 @@
 }
 
 /* ==========================================================================
-   Global Utilities (Buttons)
+   Shared Utilities (Buttons)
    ========================================================================== */
-.pg-btn {
-  background: var(--color-primary);
-  color: var(--color-neutral-0);
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .pg-btn {
+  background: var(--of-color-primary);
+  color: var(--of-color-neutral-0);
   border: none;
-  border-radius: var(--border-radius-soft);
-  padding: var(--space-s) var(--space-base);
-  font-size: var(--font-size-s);
-  font-weight: var(--font-weight-medium);
+  border-radius: var(--of-border-radius-soft);
+  padding: var(--of-space-s) var(--of-space-base);
+  font-size: var(--of-font-size-s);
+  font-weight: var(--of-font-weight-medium);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -99,29 +104,29 @@
   font-family: inherit
 }
 
-.pg-btn:hover {
-  background: var(--color-primary-hover);
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .pg-btn:hover {
+  background: var(--of-color-primary-hover);
   transform: translateY(-1px)
 }
 
-.pg-btn:active {
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .pg-btn:active {
   transform: translateY(0)
 }
 
-.pg-btn:disabled {
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .pg-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
   pointer-events: none;
 }
 
-.pg-btn-secondary {
-  background: var(--color-neutral-0);
-  border: 1px solid var(--color-primary);
-  color: var(--color-primary);
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .pg-btn-secondary {
+  background: var(--of-color-neutral-0);
+  border: 1px solid var(--of-color-primary);
+  color: var(--of-color-primary);
 }
 
-.pg-btn-secondary:hover {
-  background: var(--color-neutral-4);
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .pg-btn-secondary:hover {
+  background: var(--of-color-neutral-4);
 }
 
 
@@ -138,38 +143,38 @@
 }
 
 /* 1. Palette Panel (Left Column) */
-.builder-palette {
-  background-color: var(--color-neutral-0);
-  border: 1px solid var(--color-neutral-4);
+:where(.builder-layout) .builder-palette {
+  background-color: var(--of-color-neutral-0);
+  border: 1px solid var(--of-color-neutral-4);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  padding: var(--space-base);
+  padding: var(--of-space-base);
   min-width: 200px;
 }
 
-.section-label {
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-neutral-7);
+:where(.builder-layout) .section-label {
+  font-size: var(--of-font-size-xs);
+  font-weight: var(--of-font-weight-semibold);
+  color: var(--of-color-neutral-7);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin-bottom: var(--space-m);
+  margin-bottom: var(--of-space-m);
 }
 
-.palette-grid {
+:where(.builder-layout) .palette-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: var(--space-s);
+  gap: var(--of-space-s);
 }
 
 /* Drag Item Tiles */
-.palette-item {
-  background-color: var(--color-neutral-2);
-  border: 1px solid var(--color-neutral-4);
-  color: var(--color-neutral-10);
-  font-size: var(--font-size-s);
-  font-weight: var(--font-weight-medium);
+:where(.builder-layout) .palette-item {
+  background-color: var(--of-color-neutral-2);
+  border: 1px solid var(--of-color-neutral-4);
+  color: var(--of-color-neutral-10);
+  font-size: var(--of-font-size-s);
+  font-weight: var(--of-font-weight-medium);
   display: flex;
   cursor: grab;
   user-select: none;
@@ -178,26 +183,26 @@
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: var(--space-s);
-  font-size: var(--font-size-xs);
+  padding: var(--of-space-s);
+  font-size: var(--of-font-size-xs);
   gap: 6px;
-  border-radius: var(--border-radius-soft);
+  border-radius: var(--of-border-radius-soft);
   height: 64px;
 }
 
-.palette-item:hover {
-  background-color: var(--color-primary-selected);
-  border-color: var(--color-primary);
-  color: var(--color-primary);
+:where(.builder-layout) .palette-item:hover {
+  background-color: var(--of-color-primary-selected);
+  border-color: var(--of-color-primary);
+  color: var(--of-color-primary);
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
 }
 
-.palette-item:active {
+:where(.builder-layout) .palette-item:active {
   cursor: grabbing;
 }
 
-.palette-item svg {
+:where(.builder-layout) .palette-item svg {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
@@ -205,337 +210,337 @@
 }
 
 /* 2. Workspace Canvas (Center Column) */
-.builder-canvas {
+:where(.builder-layout) .builder-canvas {
   flex: 1;
   overflow-y: auto;
-  padding: var(--space-l);
+  padding: var(--of-space-l);
   display: flex;
   flex-direction: column;
-  background: var(--color-neutral-1);
-  gap: var(--space-base);
+  background: var(--of-color-neutral-1);
+  gap: var(--of-space-base);
 }
 
-.canvas-header-bar {
+:where(.builder-layout) .canvas-header-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--space-s);
+  margin-bottom: var(--of-space-s);
 }
 
-.canvas-title {
-  color: var(--color-neutral-10);
-  font-size: var(--font-size-m);
-  font-weight: var(--font-weight-bold);
+:where(.builder-layout) .canvas-title {
+  color: var(--of-color-neutral-10);
+  font-size: var(--of-font-size-m);
+  font-weight: var(--of-font-weight-bold);
 }
 
 /* Canvas Drop Empty state */
-.canvas-empty-state {
-  border: 2px dashed var(--color-neutral-4);
-  border-radius: var(--border-radius-soft);
-  background-color: var(--color-neutral-0);
-  padding: 48px var(--space-l);
+:where(.builder-layout) .canvas-empty-state {
+  border: 2px dashed var(--of-color-neutral-4);
+  border-radius: var(--of-border-radius-soft);
+  background-color: var(--of-color-neutral-0);
+  padding: 48px var(--of-space-l);
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-m);
-  color: var(--color-neutral-7);
+  gap: var(--of-space-m);
+  color: var(--of-color-neutral-7);
   transition: all 0.2s ease;
   user-select: none;
 }
 
-.canvas-empty-state svg {
+:where(.builder-layout) .canvas-empty-state svg {
   width: 48px;
   height: 48px;
-  color: var(--color-neutral-5);
+  color: var(--of-color-neutral-5);
 }
 
-.canvas-empty-state h3 {
-  font-size: var(--font-size-m);
-  color: var(--color-neutral-10);
-  font-weight: var(--font-weight-semibold);
+:where(.builder-layout) .canvas-empty-state h3 {
+  font-size: var(--of-font-size-m);
+  color: var(--of-color-neutral-10);
+  font-weight: var(--of-font-weight-semibold);
 }
 
-.canvas-empty-state p {
-  font-size: var(--font-size-s);
+:where(.builder-layout) .canvas-empty-state p {
+  font-size: var(--of-font-size-s);
   max-width: 300px;
 }
 
-.canvas-empty-state.drag-over {
-  border-color: var(--color-primary);
-  background-color: var(--color-primary-selected);
-  color: var(--color-primary);
+:where(.builder-layout) .canvas-empty-state.drag-over {
+  border-color: var(--of-color-primary);
+  background-color: var(--of-color-primary-selected);
+  color: var(--of-color-primary);
 }
 
 /* ==========================================================================
  Canvas Section & Row Card Nesting Styling
  ========================================================================== */
-.canvas-section {
-  background-color: var(--color-neutral-1);
-  border: 1.5px dashed var(--color-neutral-5);
-  border-radius: var(--border-radius-soft);
+:where(.builder-layout) .canvas-section {
+  background-color: var(--of-color-neutral-1);
+  border: 1.5px dashed var(--of-color-neutral-5);
+  border-radius: var(--of-border-radius-soft);
   padding: 18px;
-  margin-bottom: var(--space-l);
+  margin-bottom: var(--of-space-l);
   position: relative;
   transition: all 0.2s ease;
 }
 
-.canvas-section:hover {
-  border-color: var(--color-neutral-7);
+:where(.builder-layout) .canvas-section:hover {
+  border-color: var(--of-color-neutral-7);
 }
 
-.canvas-section.selected {
-  border-color: var(--color-primary);
+:where(.builder-layout) .canvas-section.selected {
+  border-color: var(--of-color-primary);
   border-style: solid;
-  box-shadow: 0 4px 16px rgba(var(--color-primary), 0.08);
+  box-shadow: 0 4px 16px rgba(var(--of-color-primary), 0.08);
 }
 
-.canvas-section-header {
+:where(.builder-layout) .canvas-section-header {
   display: flex;
   flex-flow: wrap;
-  gap: var(--space-s);
+  gap: var(--of-space-s);
   justify-content: space-between;
   align-items: center;
   margin-bottom: 14px;
-  padding-bottom: var(--space-s);
-  border-bottom: 1px solid var(--color-neutral-3);
+  padding-bottom: var(--of-space-s);
+  border-bottom: 1px solid var(--of-color-neutral-3);
 }
 
-.section-drag-handle {
+:where(.builder-layout) .section-drag-handle {
   display: flex;
   align-items: center;
-  gap: var(--space-xs);
+  gap: var(--of-space-xs);
   flex: 1;
 }
 
-.section-title-input:focus {
-  border-bottom: 1px solid var(--color-primary);
+:where(.builder-layout) .section-title-input:focus {
+  border-bottom: 1px solid var(--of-color-primary);
 }
 
-.canvas-section-rows {
+:where(.builder-layout) .canvas-section-rows {
   display: flex;
   flex-direction: column;
-  gap: var(--space-base);
+  gap: var(--of-space-base);
   min-height: 40px;
 }
 
-.empty-section-drop-zone {
-  padding: var(--space-s) 0;
+:where(.builder-layout) .empty-section-drop-zone {
+  padding: var(--of-space-s) 0;
 }
 
-.canvas-section.drag-over-section {
-  border-top: 3px solid var(--color-primary);
-  background-color: var(--color-primary-selected);
+:where(.builder-layout) .canvas-section.drag-over-section {
+  border-top: 3px solid var(--of-color-primary);
+  background-color: var(--of-color-primary-selected);
 }
 
-.canvas-section.dragging-section {
+:where(.builder-layout) .canvas-section.dragging-section {
   opacity: 0.4;
-  border: 1.5px dashed var(--color-primary);
-  background-color: var(--color-neutral-2);
+  border: 1.5px dashed var(--of-color-primary);
+  background-color: var(--of-color-neutral-2);
 }
 
 /* ==========================================================================
  Advanced Business Rules Builder Styling
  ========================================================================== */
-.business-rules-panel {
-  padding: var(--space-s) 0;
-  border-top: 1px solid var(--color-neutral-4);
-  margin-top: var(--space-base);
+:where(.builder-layout) .business-rules-panel {
+  padding: var(--of-space-s) 0;
+  border-top: 1px solid var(--of-color-neutral-4);
+  margin-top: var(--of-space-base);
 }
 
-.business-rules-title {
-  color: var(--color-neutral-8);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-bold);
+:where(.builder-layout) .business-rules-title {
+  color: var(--of-color-neutral-8);
+  font-size: var(--of-font-size-xs);
+  font-weight: var(--of-font-weight-bold);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin-bottom: var(--space-m);
+  margin-bottom: var(--of-space-m);
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.business-rules-title i,
-.business-rules-title svg {
-  color: var(--color-primary);
+:where(.builder-layout) .business-rules-title i,
+:where(.builder-layout) .business-rules-title svg {
+  color: var(--of-color-primary);
   width: 14px;
   height: 14px;
 }
 
-.rules-locale-notice {
-  font-size: var(--font-size-xs);
-  color: var(--color-neutral-7);
+:where(.builder-layout) .rules-locale-notice {
+  font-size: var(--of-font-size-xs);
+  color: var(--of-color-neutral-7);
   text-align: center;
-  margin-bottom: var(--space-m);
+  margin-bottom: var(--of-space-m);
 }
 
-.rules-list-container {
+:where(.builder-layout) .rules-list-container {
   display: flex;
   flex-direction: column;
-  gap: var(--space-m);
+  gap: var(--of-space-m);
 }
 
-.formula-token-chips {
-  margin-top: var(--space-s);
+:where(.builder-layout) .formula-token-chips {
+  margin-top: var(--of-space-s);
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.formula-chip-row-label {
+:where(.builder-layout) .formula-chip-row-label {
   font-size: 9px;
-  font-weight: var(--font-weight-bold);
+  font-weight: var(--of-font-weight-bold);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--color-neutral-6);
+  color: var(--of-color-neutral-6);
 }
 
-.formula-chip-row {
+:where(.builder-layout) .formula-chip-row {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
 }
 
-.formula-chip-empty {
-  font-size: var(--font-size-xs);
-  color: var(--color-neutral-5);
+:where(.builder-layout) .formula-chip-empty {
+  font-size: var(--of-font-size-xs);
+  color: var(--of-color-neutral-5);
   font-style: italic;
 }
 
-.formula-token-chip {
+:where(.builder-layout) .formula-token-chip {
   font-size: 9px;
   padding: 2px 8px;
   border-radius: 10px;
   cursor: pointer;
-  background: var(--color-neutral-3);
-  color: var(--color-neutral-7);
-  border: 1px solid var(--color-neutral-4);
+  background: var(--of-color-neutral-3);
+  color: var(--of-color-neutral-7);
+  border: 1px solid var(--of-color-neutral-4);
   font-family: monospace;
   transition: all 0.15s ease;
 }
 
-.formula-token-chip:hover:not(:disabled) {
-  background: var(--color-primary);
-  color: var(--color-neutral-0);
-  border-color: var(--color-primary);
+:where(.builder-layout) .formula-token-chip:hover:not(:disabled) {
+  background: var(--of-color-primary);
+  color: var(--of-color-neutral-0);
+  border-color: var(--of-color-primary);
 }
 
-.formula-fn-chip {
-  background: var(--color-primary-selected);
-  color: var(--color-primary);
-  border-color: var(--color-primary-selected);
+:where(.builder-layout) .formula-fn-chip {
+  background: var(--of-color-primary-selected);
+  color: var(--of-color-primary);
+  border-color: var(--of-color-primary-selected);
 }
 
-.rule-card {
-  border: 1px solid var(--color-neutral-4);
-  border-radius: var(--border-radius-soft);
-  padding: var(--space-m);
-  background-color: var(--color-neutral-1);
+:where(.builder-layout) .rule-card {
+  border: 1px solid var(--of-color-neutral-4);
+  border-radius: var(--of-border-radius-soft);
+  padding: var(--of-space-m);
+  background-color: var(--of-color-neutral-1);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
   transition: all 0.2s ease-in-out;
   display: flex;
   flex-direction: column;
-  gap: var(--space-s);
+  gap: var(--of-space-s);
 }
 
-.rule-card:hover {
-  border-color: var(--color-neutral-5);
+:where(.builder-layout) .rule-card:hover {
+  border-color: var(--of-color-neutral-5);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
 }
 
-.rule-card-header {
+:where(.builder-layout) .rule-card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--space-xs);
-  gap: var(--space-s);
+  margin-bottom: var(--of-space-xs);
+  gap: var(--of-space-s);
 }
 
-.rule-section-title {
-  font-size: var(--font-size-s);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-neutral-8);
+:where(.builder-layout) .rule-section-title {
+  font-size: var(--of-font-size-s);
+  font-weight: var(--of-font-weight-semibold);
+  color: var(--of-color-neutral-8);
 }
 
-.rule-target-prop {
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
+:where(.builder-layout) .rule-target-prop {
+  font-size: var(--of-font-size-xs);
+  font-weight: var(--of-font-weight-semibold);
   width: auto;
   flex: 1;
-  padding: var(--space-xs) var(--space-s);
+  padding: var(--of-space-xs) var(--of-space-s);
   height: 28px;
 }
 
-.and-groups-list-container {
+:where(.builder-layout) .and-groups-list-container {
   display: flex;
   flex-direction: column;
-  gap: var(--space-s);
+  gap: var(--of-space-s);
 }
 
-.and-group-card {
-  background-color: var(--color-neutral-0);
-  border: 1px solid var(--color-neutral-3);
-  border-radius: var(--border-radius-s);
-  padding: var(--space-s) 10px;
+:where(.builder-layout) .and-group-card {
+  background-color: var(--of-color-neutral-0);
+  border: 1px solid var(--of-color-neutral-3);
+  border-radius: var(--of-border-radius-s);
+  padding: var(--of-space-s) 10px;
   display: flex;
   flex-direction: column;
-  gap: var(--space-s);
+  gap: var(--of-space-s);
   transition: all 0.2s ease;
 }
 
-.and-group-card:hover {
-  border-color: var(--color-neutral-4);
-  background-color: var(--color-neutral-1);
+:where(.builder-layout) .and-group-card:hover {
+  border-color: var(--of-color-neutral-4);
+  background-color: var(--of-color-neutral-1);
 }
 
-.and-group-header {
+:where(.builder-layout) .and-group-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-.and-group-title {
+:where(.builder-layout) .and-group-title {
   font-size: 9px;
-  font-weight: var(--font-weight-bold);
-  color: var(--color-primary);
+  font-weight: var(--of-font-weight-bold);
+  color: var(--of-color-primary);
   letter-spacing: 0.5px;
 }
 
-.rules-row {
+:where(.builder-layout) .rules-row {
   display: flex;
   gap: 6px;
   align-items: center;
   width: 100%;
 }
 
-.rules-row select,
-.rules-row input {
-  padding: 5px var(--space-s);
-  font-size: var(--font-size-xs);
+:where(.builder-layout) .rules-row select,
+:where(.builder-layout) .rules-row input {
+  padding: 5px var(--of-space-s);
+  font-size: var(--of-font-size-xs);
   height: 28px;
-  border-radius: var(--border-radius-xs);
+  border-radius: var(--of-border-radius-xs);
 }
 
-.rules-row .rule-cond-field {
+:where(.builder-layout) .rules-row .rule-cond-field {
   flex: 2;
   min-width: 70px;
   width: 0;
   /* allows flex basis to govern width */
 }
 
-.rules-row .rule-cond-operator {
+:where(.builder-layout) .rules-row .rule-cond-operator {
   flex: 1;
   min-width: 50px;
   width: 0;
 }
 
-.rules-row .rule-cond-value {
+:where(.builder-layout) .rules-row .rule-cond-value {
   flex: 1.5;
   min-width: 60px;
   width: 0;
 }
 
-.rules-row .rule-cond-value-wrap {
+:where(.builder-layout) .rules-row .rule-cond-value-wrap {
   display: flex;
   gap: 4px;
   flex: 1.5;
@@ -543,187 +548,187 @@
   width: 0;
 }
 
-.rules-row .rule-cond-value-wrap .rule-cond-compare-mode {
+:where(.builder-layout) .rules-row .rule-cond-value-wrap .rule-cond-compare-mode {
   flex: 0 0 60px;
   min-width: 60px;
   width: auto;
 }
 
-.rules-row .rule-cond-value-wrap .rule-cond-value,
-.rules-row .rule-cond-value-wrap .rule-cond-compare-field {
+:where(.builder-layout) .rules-row .rule-cond-value-wrap .rule-cond-value,
+:where(.builder-layout) .rules-row .rule-cond-value-wrap .rule-cond-compare-field {
   flex: 1;
   min-width: 0;
   width: auto;
 }
 
 /* Custom Outlined Style Buttons in Business Rules Editor */
-.business-rules-panel .pg-btn-secondary {
-  background: var(--color-neutral-0);
-  border: 1px solid var(--color-neutral-4);
-  color: var(--color-neutral-8);
-  padding: var(--space-xs) var(--space-s);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
+:where(.builder-layout) .business-rules-panel .pg-btn-secondary {
+  background: var(--of-color-neutral-0);
+  border: 1px solid var(--of-color-neutral-4);
+  color: var(--of-color-neutral-8);
+  padding: var(--of-space-xs) var(--of-space-s);
+  font-size: var(--of-font-size-xs);
+  font-weight: var(--of-font-weight-medium);
   height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-xs);
-  border-radius: var(--border-radius-xs);
+  gap: var(--of-space-xs);
+  border-radius: var(--of-border-radius-xs);
   cursor: pointer;
   transition: all 0.15s ease-in-out;
 }
 
-.business-rules-panel .pg-btn-secondary:hover {
-  background: var(--color-neutral-2);
-  border-color: var(--color-neutral-5);
-  color: var(--color-neutral-10);
+:where(.builder-layout) .business-rules-panel .pg-btn-secondary:hover {
+  background: var(--of-color-neutral-2);
+  border-color: var(--of-color-neutral-5);
+  color: var(--of-color-neutral-10);
   transform: none;
 }
 
-.business-rules-panel .pg-btn-secondary svg {
+:where(.builder-layout) .business-rules-panel .pg-btn-secondary svg {
   width: 10px;
   height: 10px;
 }
 
 /* Action Specific Buttons overrides */
-.business-rules-panel .rule-delete-rule,
-.business-rules-panel .rule-delete-group,
-.business-rules-panel .rule-delete-cond {
-  color: var(--color-error);
+:where(.builder-layout) .business-rules-panel .rule-delete-rule,
+:where(.builder-layout) .business-rules-panel .rule-delete-group,
+:where(.builder-layout) .business-rules-panel .rule-delete-cond {
+  color: var(--of-color-error);
   border-color: rgba(219, 60, 60, 0.15);
   background: rgba(219, 60, 60, 0.02);
 }
 
-.business-rules-panel .rule-delete-rule:hover,
-.business-rules-panel .rule-delete-group:hover,
-.business-rules-panel .rule-delete-cond:hover {
+:where(.builder-layout) .business-rules-panel .rule-delete-rule:hover,
+:where(.builder-layout) .business-rules-panel .rule-delete-group:hover,
+:where(.builder-layout) .business-rules-panel .rule-delete-cond:hover {
   background: rgba(219, 60, 60, 0.08);
-  border-color: var(--color-error);
-  color: var(--color-error);
+  border-color: var(--of-color-error);
+  color: var(--of-color-error);
 }
 
-.business-rules-panel .rule-delete-cond {
+:where(.builder-layout) .business-rules-panel .rule-delete-cond {
   width: 28px;
   height: 28px;
   padding: 0;
   flex-shrink: 0;
 }
 
-.business-rules-panel .rule-delete-cond i,
-.business-rules-panel .rule-delete-cond svg {
+:where(.builder-layout) .business-rules-panel .rule-delete-cond i,
+:where(.builder-layout) .business-rules-panel .rule-delete-cond svg {
   width: 12px;
   height: 12px;
 }
 
-.business-rules-panel .rule-add-cond,
-.business-rules-panel .rule-add-group {
+:where(.builder-layout) .business-rules-panel .rule-add-cond,
+:where(.builder-layout) .business-rules-panel .rule-add-group {
   border-style: dashed;
   width: 100%;
   justify-content: center;
 }
 
-.business-rules-panel .btn-add-rule {
-  margin-top: var(--space-m);
-  border-color: var(--color-neutral-4);
-  color: var(--color-primary);
-  background: var(--color-neutral-0);
-  font-weight: var(--font-weight-semibold);
-  font-size: var(--font-size-xs);
+:where(.builder-layout) .business-rules-panel .btn-add-rule {
+  margin-top: var(--of-space-m);
+  border-color: var(--of-color-neutral-4);
+  color: var(--of-color-primary);
+  background: var(--of-color-neutral-0);
+  font-weight: var(--of-font-weight-semibold);
+  font-size: var(--of-font-size-xs);
   height: 32px;
   width: 100%;
   justify-content: center;
 }
 
-.business-rules-panel .btn-add-rule:hover {
-  background: var(--color-primary-selected);
-  border-color: var(--color-primary);
-  color: var(--color-primary-hover);
+:where(.builder-layout) .business-rules-panel .btn-add-rule:hover {
+  background: var(--of-color-primary-selected);
+  border-color: var(--of-color-primary);
+  color: var(--of-color-primary-hover);
 }
 
 /* Empty states */
-.rules-empty-state {
-  font-size: var(--font-size-xs);
-  color: var(--color-neutral-5);
+:where(.builder-layout) .rules-empty-state {
+  font-size: var(--of-font-size-xs);
+  color: var(--of-color-neutral-5);
   text-align: center;
   font-style: italic;
   padding: 6px 0;
 }
 
-.rules-empty-panel {
+:where(.builder-layout) .rules-empty-panel {
   padding: 20px;
-  border: 1px dashed var(--color-neutral-4);
-  border-radius: var(--border-radius-soft);
-  background: var(--color-neutral-1);
+  border: 1px dashed var(--of-color-neutral-4);
+  border-radius: var(--of-border-radius-soft);
+  background: var(--of-color-neutral-1);
 }
 
 /* ==========================================================================
  Repeatable List (Master-Detail) Designer & Player Styles
  ========================================================================== */
 /* Canvas Designer Preview Styles */
-.canvas-field-repeater-wrapper {
-  background-color: var(--color-neutral-0);
-  border: 1px solid var(--color-neutral-3);
-  border-radius: var(--border-radius-soft);
-  padding: var(--space-m);
+:where(.builder-layout) .canvas-field-repeater-wrapper {
+  background-color: var(--of-color-neutral-0);
+  border: 1px solid var(--of-color-neutral-3);
+  border-radius: var(--of-border-radius-soft);
+  padding: var(--of-space-m);
   width: 100%;
 }
 
-.canvas-repeater-subfields-container {
+:where(.builder-layout) .canvas-repeater-subfields-container {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   width: 100%;
-  padding-top: var(--space-xs);
+  padding-top: var(--of-space-xs);
 }
 
-.canvas-repeater-subfield-tag {
-  background: var(--color-neutral-2);
-  border: 1px solid var(--color-neutral-4);
-  border-radius: var(--border-radius-xs);
-  padding: var(--space-xs) var(--space-s);
+:where(.builder-layout) .canvas-repeater-subfield-tag {
+  background: var(--of-color-neutral-2);
+  border: 1px solid var(--of-color-neutral-4);
+  border-radius: var(--of-border-radius-xs);
+  padding: var(--of-space-xs) var(--of-space-s);
   display: flex;
   align-items: center;
-  gap: var(--space-xs);
-  font-size: var(--font-size-xs);
-  color: var(--color-neutral-8);
-  font-weight: var(--font-weight-medium);
+  gap: var(--of-space-xs);
+  font-size: var(--of-font-size-xs);
+  color: var(--of-color-neutral-8);
+  font-weight: var(--of-font-weight-medium);
 }
 
-.canvas-repeater-subfield-tag i,
-.canvas-repeater-subfield-tag svg {
-  width: var(--font-size-xs);
-  height: var(--font-size-xs);
-  color: var(--color-neutral-7);
+:where(.builder-layout) .canvas-repeater-subfield-tag i,
+:where(.builder-layout) .canvas-repeater-subfield-tag svg {
+  width: var(--of-font-size-xs);
+  height: var(--of-font-size-xs);
+  color: var(--of-color-neutral-7);
 }
 
-.canvas-repeater-empty-subfields {
-  font-size: var(--font-size-xs);
-  color: var(--color-neutral-5);
+:where(.builder-layout) .canvas-repeater-empty-subfields {
+  font-size: var(--of-font-size-xs);
+  color: var(--of-color-neutral-5);
   font-style: italic;
   padding: 6px;
   width: 100%;
 }
 
 /* Runtime Player Repeater Styles */
-.form-repeater-container {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-repeater-container {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: var(--space-m);
+  gap: var(--of-space-m);
 }
 
-.form-repeater-items-list {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-repeater-items-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-m);
+  gap: var(--of-space-m);
   width: 100%;
 }
 
-.form-repeater-card {
-  background-color: var(--color-neutral-0);
-  border: 1px solid var(--color-neutral-4);
-  border-radius: var(--border-radius-soft);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-repeater-card {
+  background-color: var(--of-color-neutral-0);
+  border: 1px solid var(--of-color-neutral-4);
+  border-radius: var(--of-border-radius-soft);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
   display: flex;
   flex-direction: column;
@@ -731,261 +736,261 @@
   transition: all 0.2s ease-in-out;
 }
 
-.form-repeater-card:hover {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-repeater-card:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
-  border-color: var(--color-neutral-5);
+  border-color: var(--of-color-neutral-5);
 }
 
-.form-repeater-card-header {
-  background-color: var(--color-neutral-1);
-  border-bottom: 1px solid var(--color-neutral-3);
-  padding: var(--space-s) 14px;
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-repeater-card-header {
+  background-color: var(--of-color-neutral-1);
+  border-bottom: 1px solid var(--of-color-neutral-3);
+  padding: var(--of-space-s) 14px;
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-.form-repeater-card-title {
-  font-size: var(--font-size-s);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-neutral-8);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-repeater-card-title {
+  font-size: var(--of-font-size-s);
+  font-weight: var(--of-font-weight-bold);
+  color: var(--of-color-neutral-8);
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
 
-.form-repeater-card-delete {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-repeater-card-delete {
   background: transparent;
   border: none;
-  color: var(--color-error);
+  color: var(--of-color-error);
   cursor: pointer;
-  padding: var(--space-xs);
+  padding: var(--of-space-xs);
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--border-radius-xs);
+  border-radius: var(--of-border-radius-xs);
   transition: all 0.15s ease-in-out;
 }
 
-.form-repeater-card-delete:hover {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-repeater-card-delete:hover {
   background-color: rgba(219, 60, 60, 0.08);
   transform: scale(1.1);
 }
 
-.form-repeater-grid {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-repeater-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 14px;
-  padding: var(--space-base);
+  padding: var(--of-space-base);
 }
 
 /* Sub field grid responsive wrapping */
 @media (max-width: 768px) {
-  .form-repeater-grid {
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-repeater-grid {
     grid-template-columns: 1fr;
     gap: 10px;
-    padding: var(--space-m);
+    padding: var(--of-space-m);
   }
 
-  .form-repeater-grid .span-2 {
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-repeater-grid .span-2 {
     grid-column: span 1;
   }
 }
 
-.form-repeater-grid .span-2 {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-repeater-grid .span-2 {
   grid-column: span 2;
 }
 
-.form-sub-field-wrapper {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-sub-field-wrapper {
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
+  gap: var(--of-space-xs);
   width: 100%;
 }
 
-.form-sub-label {
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-neutral-8);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-sub-label {
+  font-size: var(--of-font-size-xs);
+  font-weight: var(--of-font-weight-semibold);
+  color: var(--of-color-neutral-8);
 }
 
-.form-sub-label.required::after {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-sub-label.required::after {
   content: " *";
-  color: var(--color-error);
+  color: var(--of-color-error);
 }
 
-.form-sub-input-container {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-sub-input-container {
   position: relative;
   width: 100%;
   display: flex;
   align-items: center;
 }
 
-.form-sub-input-container .form-input {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-sub-input-container .form-input {
   padding-left: 28px;
-  font-size: var(--font-size-s);
+  font-size: var(--of-font-size-s);
 }
 
-.form-sub-input-container textarea.form-input {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-sub-input-container textarea.form-input {
   padding-left: 10px;
   height: auto;
 }
 
-.form-sub-input-container select.form-input {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-sub-input-container select.form-input {
   padding-left: 28px;
   padding-right: 20px;
 }
 
-.form-sub-input-container .form-input-icon {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-sub-input-container .form-input-icon {
   position: absolute;
   left: 8px;
-  color: var(--color-neutral-5);
-  width: var(--font-size-s);
-  height: var(--font-size-s);
+  color: var(--of-color-neutral-5);
+  width: var(--of-font-size-s);
+  height: var(--of-font-size-s);
   pointer-events: none;
 }
 
-.form-sub-field-wrapper.is-invalid .form-input {
-  border-color: var(--color-error);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-sub-field-wrapper.is-invalid .form-input {
+  border-color: var(--of-color-error);
   background-color: rgba(219, 60, 60, 0.02);
 }
 
-.form-sub-field-wrapper.is-invalid .form-error-message {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-sub-field-wrapper.is-invalid .form-error-message {
   display: flex;
   margin-top: 2px;
 }
 
-.form-repeater-add-btn {
-  margin-bottom: var(--space-xs);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-repeater-add-btn {
+  margin-bottom: var(--of-space-xs);
   align-self: flex-start;
-  font-weight: var(--font-weight-semibold);
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-  background-color: var(--color-neutral-0);
+  font-weight: var(--of-font-weight-semibold);
+  border-color: var(--of-color-primary);
+  color: var(--of-color-primary);
+  background-color: var(--of-color-neutral-0);
   height: 32px;
-  padding: 0 var(--space-base);
-  border-radius: var(--border-radius-soft);
-  font-size: var(--font-size-s);
+  padding: 0 var(--of-space-base);
+  border-radius: var(--of-border-radius-soft);
+  font-size: var(--of-font-size-s);
 }
 
-.form-repeater-add-btn:hover {
-  background-color: var(--color-primary-selected);
-  border-color: var(--color-primary-hover);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-repeater-add-btn:hover {
+  background-color: var(--of-color-primary-selected);
+  border-color: var(--of-color-primary-hover);
 }
 
 /* ==========================================================================
  Live Form Player (Renderer) Section Styles
  ========================================================================== */
-.renderer-section {
-  background-color: var(--color-neutral-0);
-  border: 1px solid var(--color-neutral-4);
-  border-radius: var(--border-radius-soft);
-  padding: var(--space-l);
-  margin-bottom: var(--space-l);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-section {
+  background-color: var(--of-color-neutral-0);
+  border: 1px solid var(--of-color-neutral-4);
+  border-radius: var(--of-border-radius-soft);
+  padding: var(--of-space-l);
+  margin-bottom: var(--of-space-l);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
   transition: all 0.3s ease;
 }
 
-.renderer-section-header {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-section-header {
   margin-bottom: 18px;
   padding-bottom: 10px;
-  border-bottom: 2px solid var(--color-primary-selected);
+  border-bottom: 2px solid var(--of-color-primary-selected);
   text-align: left;
 }
 
-.renderer-section-header h3 {
-  font-size: var(--font-size-m);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-primary);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-section-header h3 {
+  font-size: var(--of-font-size-m);
+  font-weight: var(--of-font-weight-semibold);
+  color: var(--of-color-primary);
   margin: 0;
 }
 
-.renderer-section-body {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-section-body {
   display: flex;
   flex-direction: column;
-  gap: var(--space-base);
+  gap: var(--of-space-base);
 }
 
-.is-disabled {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .is-disabled {
   opacity: 0.6;
   pointer-events: none;
 }
 
 /* Grid Layout rows and columns styling */
-.canvas-row {
-  background-color: var(--color-neutral-0);
-  border: 1px solid var(--color-neutral-4);
-  border-radius: var(--border-radius-soft);
-  padding: var(--space-base);
+:where(.builder-layout) .canvas-row {
+  background-color: var(--of-color-neutral-0);
+  border: 1px solid var(--of-color-neutral-4);
+  border-radius: var(--of-border-radius-soft);
+  padding: var(--of-space-base);
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: var(--space-m);
+  gap: var(--of-space-m);
   transition: all 0.2s ease;
 }
 
-.canvas-row:hover {
+:where(.builder-layout) .canvas-row:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
-.canvas-row.dragging {
+:where(.builder-layout) .canvas-row.dragging {
   opacity: 0.4;
-  border: 1.5px dashed var(--color-primary);
-  background-color: var(--color-neutral-2);
+  border: 1.5px dashed var(--of-color-primary);
+  background-color: var(--of-color-neutral-2);
 }
 
-.canvas-row.drag-over-row {
-  border-top: 3px solid var(--color-primary);
-  background-color: var(--color-primary-selected);
+:where(.builder-layout) .canvas-row.drag-over-row {
+  border-top: 3px solid var(--of-color-primary);
+  background-color: var(--of-color-primary-selected);
   transform: translateY(2px);
 }
 
-.canvas-field.dragging {
+:where(.builder-layout) .canvas-field.dragging {
   opacity: 0.4;
-  border: 1px dashed var(--color-primary);
+  border: 1px dashed var(--of-color-primary);
 }
 
 /* Drag handles and operations on Rows */
-.row-actions-bar {
+:where(.builder-layout) .row-actions-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-bottom: var(--space-s);
-  border-bottom: 1px dashed var(--color-neutral-3);
-  margin-bottom: var(--space-xs);
+  padding-bottom: var(--of-space-s);
+  border-bottom: 1px dashed var(--of-color-neutral-3);
+  margin-bottom: var(--of-space-xs);
 }
 
-.row-drag-handle {
+:where(.builder-layout) .row-drag-handle {
   cursor: move;
-  color: var(--color-neutral-5);
+  color: var(--of-color-neutral-5);
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
+  font-size: var(--of-font-size-xs);
+  font-weight: var(--of-font-weight-semibold);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
-.row-drag-handle:hover {
-  color: var(--color-neutral-7);
+:where(.builder-layout) .row-drag-handle:hover {
+  color: var(--of-color-neutral-7);
 }
 
-.row-drag-handle svg {
+:where(.builder-layout) .row-drag-handle svg {
   width: 14px;
   height: 14px;
 }
 
-.row-operations {
+:where(.builder-layout) .row-operations {
   display: flex;
-  gap: var(--space-s);
+  gap: var(--of-space-s);
 }
 
-.row-op-btn {
+:where(.builder-layout) .row-op-btn {
   background: none;
   border: none;
-  color: var(--color-neutral-7);
+  color: var(--of-color-neutral-7);
   cursor: pointer;
-  border-radius: var(--border-radius-xs);
+  border-radius: var(--of-border-radius-xs);
   width: 24px;
   height: 24px;
   display: flex;
@@ -994,56 +999,56 @@
   transition: all 0.15s ease;
 }
 
-.row-op-btn:hover {
-  background-color: var(--color-neutral-2);
-  color: var(--color-neutral-10);
+:where(.builder-layout) .row-op-btn:hover {
+  background-color: var(--of-color-neutral-2);
+  color: var(--of-color-neutral-10);
 }
 
-.row-op-btn.delete:hover {
+:where(.builder-layout) .row-op-btn.delete:hover {
   background-color: #fee2e2;
-  color: var(--color-error);
+  color: var(--of-color-error);
 }
 
-.row-op-btn svg {
+:where(.builder-layout) .row-op-btn svg {
   width: 14px;
   height: 14px;
 }
 
 /* Column Grid */
-.canvas-row-columns {
+:where(.builder-layout) .canvas-row-columns {
   display: grid;
   grid-template-columns: repeat(12, 1fr);
-  gap: var(--space-base);
+  gap: var(--of-space-base);
   min-height: 80px;
 }
 
 /* Columns cells styling */
-.canvas-column-cell {
-  background-color: var(--color-neutral-2);
-  border: 1px dashed var(--color-neutral-4);
-  border-radius: var(--border-radius-soft);
+:where(.builder-layout) .canvas-column-cell {
+  background-color: var(--of-color-neutral-2);
+  border: 1px dashed var(--of-color-neutral-4);
+  border-radius: var(--of-border-radius-soft);
   position: relative;
   min-height: 72px;
   display: flex;
   flex-direction: column;
-  padding: var(--space-s);
+  padding: var(--of-space-s);
   transition: all 0.2s ease;
 }
 
-.canvas-column-cell.drag-over {
-  border-color: var(--color-primary);
-  background-color: var(--color-primary-selected);
+:where(.builder-layout) .canvas-column-cell.drag-over {
+  border-color: var(--of-color-primary);
+  background-color: var(--of-color-primary-selected);
 }
 
 /* Column resizing & actions on Canvas Cell */
-.column-controls {
+:where(.builder-layout) .column-controls {
   position: absolute;
   top: -10px;
   right: 6px;
   display: flex;
-  background-color: var(--color-neutral-0);
-  border: 1px solid var(--color-neutral-4);
-  border-radius: var(--border-radius-pill);
+  background-color: var(--of-color-neutral-0);
+  border: 1px solid var(--of-color-neutral-4);
+  border-radius: var(--of-border-radius-pill);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
   padding: 1px 3px;
   gap: 1px;
@@ -1052,54 +1057,54 @@
   transition: opacity 0.15s ease;
 }
 
-.canvas-column-cell:hover .column-controls {
+:where(.builder-layout) .canvas-column-cell:hover .column-controls {
   opacity: 1;
 }
 
-.col-btn {
+:where(.builder-layout) .col-btn {
   background: none;
   border: none;
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-bold);
+  font-size: var(--of-font-size-xs);
+  font-weight: var(--of-font-weight-bold);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: var(--color-neutral-7);
+  color: var(--of-color-neutral-7);
 }
 
-.properties-locale-switcher {
-  padding: var(--space-m) 14px;
-  border: 1px solid var(--color-neutral-4);
-  background: var(--color-neutral-2);
-  margin-bottom: var(--space-base);
-  border-radius: var(--border-radius-xs);
+:where(.builder-layout) .properties-locale-switcher {
+  padding: var(--of-space-m) 14px;
+  border: 1px solid var(--of-color-neutral-4);
+  background: var(--of-color-neutral-2);
+  margin-bottom: var(--of-space-base);
+  border-radius: var(--of-border-radius-xs);
 }
 
-.col-btn:hover {
-  background-color: var(--color-neutral-2);
-  color: var(--color-neutral-10);
+:where(.builder-layout) .col-btn:hover {
+  background-color: var(--of-color-neutral-2);
+  color: var(--of-color-neutral-10);
 }
 
-.col-badge {
+:where(.builder-layout) .col-badge {
   font-size: 9px;
-  font-weight: var(--font-weight-bold);
-  color: var(--color-neutral-7);
+  font-weight: var(--of-font-weight-bold);
+  color: var(--of-color-neutral-7);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 var(--space-xs);
+  padding: 0 var(--of-space-xs);
 }
 
 /* Dropped Fields in Columns */
-.canvas-field {
-  background-color: var(--color-neutral-0);
-  border: 1px solid var(--color-neutral-4);
-  border-radius: var(--border-radius-s);
-  padding: 10px var(--space-m);
+:where(.builder-layout) .canvas-field {
+  background-color: var(--of-color-neutral-0);
+  border: 1px solid var(--of-color-neutral-4);
+  border-radius: var(--of-border-radius-s);
+  padding: 10px var(--of-space-m);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1110,155 +1115,155 @@
   min-height: 48px;
 }
 
-.canvas-field:hover {
-  border-color: var(--color-primary);
+:where(.builder-layout) .canvas-field:hover {
+  border-color: var(--of-color-primary);
   box-shadow: 0 2px 8px rgba(16, 104, 235, 0.05);
 }
 
-.canvas-field.selected {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px var(--color-primary-selected);
-  background-color: var(--color-primary-selected);
+:where(.builder-layout) .canvas-field.selected {
+  border-color: var(--of-color-primary);
+  box-shadow: 0 0 0 2px var(--of-color-primary-selected);
+  background-color: var(--of-color-primary-selected);
 }
 
-.canvas-field-info {
+:where(.builder-layout) .canvas-field-info {
   display: flex;
   align-items: center;
-  gap: var(--space-s);
+  gap: var(--of-space-s);
 }
 
-.canvas-field-icon {
-  color: var(--color-neutral-7);
+:where(.builder-layout) .canvas-field-icon {
+  color: var(--of-color-neutral-7);
 }
 
-.canvas-field.selected .canvas-field-icon {
-  color: var(--color-primary);
+:where(.builder-layout) .canvas-field.selected .canvas-field-icon {
+  color: var(--of-color-primary);
 }
 
-.canvas-field-title {
-  font-size: var(--font-size-s);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-neutral-10);
+:where(.builder-layout) .canvas-field-title {
+  font-size: var(--of-font-size-s);
+  font-weight: var(--of-font-weight-semibold);
+  color: var(--of-color-neutral-10);
 }
 
-.canvas-field-key {
-  font-size: var(--font-size-xs);
-  color: var(--color-neutral-7);
-  background-color: var(--color-neutral-3);
+:where(.builder-layout) .canvas-field-key {
+  font-size: var(--of-font-size-xs);
+  color: var(--of-color-neutral-7);
+  background-color: var(--of-color-neutral-3);
   padding: 1px 5px;
-  border-radius: var(--border-radius-xs);
+  border-radius: var(--of-border-radius-xs);
   font-family: monospace;
 }
 
-.canvas-field-actions {
+:where(.builder-layout) .canvas-field-actions {
   display: flex;
-  gap: var(--space-xs);
+  gap: var(--of-space-xs);
 }
 
-.canvas-field-btn {
+:where(.builder-layout) .canvas-field-btn {
   background: none;
   border: none;
   width: 20px;
   height: 20px;
-  border-radius: var(--border-radius-xs);
+  border-radius: var(--of-border-radius-xs);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-neutral-7);
+  color: var(--of-color-neutral-7);
   cursor: pointer;
   opacity: 0.6;
 }
 
-.canvas-field-btn:hover {
+:where(.builder-layout) .canvas-field-btn:hover {
   opacity: 1;
-  background-color: var(--color-neutral-3);
+  background-color: var(--of-color-neutral-3);
 }
 
-.canvas-field-btn.delete:hover {
+:where(.builder-layout) .canvas-field-btn.delete:hover {
   background-color: #fee2e2;
-  color: var(--color-error);
+  color: var(--of-color-error);
 }
 
-.canvas-field-btn svg {
+:where(.builder-layout) .canvas-field-btn svg {
   width: 12px;
   height: 12px;
 }
 
 /* Empty column cell drag help */
-.column-empty-indicator {
+:where(.builder-layout) .column-empty-indicator {
   display: flex;
   align-items: center;
   justify-content: center;
   flex: 1;
-  color: var(--color-neutral-5);
-  font-size: var(--font-size-xs);
+  color: var(--of-color-neutral-5);
+  font-size: var(--of-font-size-xs);
   text-align: center;
-  border: 1px dashed var(--color-neutral-4);
-  border-radius: var(--border-radius-xs);
+  border: 1px dashed var(--of-color-neutral-4);
+  border-radius: var(--of-border-radius-xs);
   pointer-events: none;
   min-height: 48px;
 }
 
 /* Column Grid Width Overrides */
-.col-1 {
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .col-1 {
   grid-column: span 1;
 }
 
-.col-2 {
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .col-2 {
   grid-column: span 2;
 }
 
-.col-3 {
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .col-3 {
   grid-column: span 3;
 }
 
-.col-4 {
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .col-4 {
   grid-column: span 4;
 }
 
-.col-5 {
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .col-5 {
   grid-column: span 5;
 }
 
-.col-6 {
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .col-6 {
   grid-column: span 6;
 }
 
-.col-7 {
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .col-7 {
   grid-column: span 7;
 }
 
-.col-8 {
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .col-8 {
   grid-column: span 8;
 }
 
-.col-9 {
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .col-9 {
   grid-column: span 9;
 }
 
-.col-10 {
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .col-10 {
   grid-column: span 10;
 }
 
-.col-11 {
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .col-11 {
   grid-column: span 11;
 }
 
-.col-12 {
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .col-12 {
   grid-column: span 12;
 }
 
 /* Canvas Drop Indicator on Bottom */
-.canvas-add-row-zone {
-  border: 2px dashed var(--color-neutral-4);
-  border-radius: var(--border-radius-soft);
-  padding: var(--space-m);
+:where(.builder-layout) .canvas-add-row-zone {
+  border: 2px dashed var(--of-color-neutral-4);
+  border-radius: var(--of-border-radius-soft);
+  padding: var(--of-space-m);
   text-align: center;
-  color: var(--color-neutral-7);
-  font-size: var(--font-size-s);
-  font-weight: var(--font-weight-medium);
+  color: var(--of-color-neutral-7);
+  font-size: var(--of-font-size-s);
+  font-weight: var(--of-font-weight-medium);
   cursor: pointer;
-  background-color: var(--color-neutral-0);
+  background-color: var(--of-color-neutral-0);
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
@@ -1266,131 +1271,131 @@
   gap: 6px;
 }
 
-.canvas-add-row-zone:hover {
-  border-color: var(--color-primary);
-  background-color: var(--color-primary-selected);
-  color: var(--color-primary);
+:where(.builder-layout) .canvas-add-row-zone:hover {
+  border-color: var(--of-color-primary);
+  background-color: var(--of-color-primary-selected);
+  color: var(--of-color-primary);
 }
 
-.canvas-add-row-zone svg {
+:where(.builder-layout) .canvas-add-row-zone svg {
   width: 14px;
   height: 14px;
 }
 
 /* 3. Properties Panel (Right Column) */
-.builder-properties {
-  background-color: var(--color-neutral-0);
-  border: 1px solid var(--color-neutral-4);
+:where(.builder-layout) .builder-properties {
+  background-color: var(--of-color-neutral-0);
+  border: 1px solid var(--of-color-neutral-4);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  padding: var(--space-base);
+  padding: var(--of-space-base);
   min-width: 300px;
 }
 
-.properties-empty {
+:where(.builder-layout) .properties-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--space-m);
+  gap: var(--of-space-m);
   height: 100%;
-  color: var(--color-neutral-5);
+  color: var(--of-color-neutral-5);
   text-align: center;
-  padding: var(--space-l);
+  padding: var(--of-space-l);
 }
 
-.properties-empty svg {
+:where(.builder-layout) .properties-empty svg {
   width: 40px;
   height: 40px;
 }
 
-.properties-empty p {
-  font-size: var(--font-size-s);
+:where(.builder-layout) .properties-empty p {
+  font-size: var(--of-font-size-s);
 }
 
-.properties-form {
+:where(.builder-layout) .properties-form {
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
 
-.prop-header {
-  border-bottom: 1px solid var(--color-neutral-4);
-  padding-bottom: var(--space-m);
-  margin-bottom: var(--space-xs);
+:where(.builder-layout) .prop-header {
+  border-bottom: 1px solid var(--of-color-neutral-4);
+  padding-bottom: var(--of-space-m);
+  margin-bottom: var(--of-space-xs);
   display: flex;
   align-items: center;
-  gap: var(--space-s);
+  gap: var(--of-space-s);
 }
 
-.prop-header svg {
+:where(.builder-layout) .prop-header svg {
   width: 16px;
   height: 16px;
-  color: var(--color-primary);
+  color: var(--of-color-primary);
 }
 
-.prop-title {
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-neutral-10);
+:where(.builder-layout) .prop-title {
+  font-size: var(--of-font-size-base);
+  font-weight: var(--of-font-weight-bold);
+  color: var(--of-color-neutral-10);
 }
 
-.prop-group {
+:where(.builder-layout) .prop-group {
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
+  gap: var(--of-space-xs);
 }
 
-.prop-label {
-  font-size: var(--font-size-s);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-neutral-8);
+:where(.builder-layout) .prop-label {
+  font-size: var(--of-font-size-s);
+  font-weight: var(--of-font-weight-semibold);
+  color: var(--of-color-neutral-8);
 }
 
-.prop-input {
+:where(.builder-layout) .prop-input {
   width: 100%;
-  padding: var(--space-s) 10px;
-  border: 1px solid var(--color-neutral-4);
-  background: var(--color-neutral-0);
-  border-radius: var(--border-radius-s);
+  padding: var(--of-space-s) 10px;
+  border: 1px solid var(--of-color-neutral-4);
+  background: var(--of-color-neutral-0);
+  border-radius: var(--of-border-radius-s);
   font-family: inherit;
-  color: var(--color-neutral-10);
+  color: var(--of-color-neutral-10);
   outline: none;
 }
 
-.prop-input:focus {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px var(--color-primary-selected);
+:where(.builder-layout) .prop-input:focus {
+  border-color: var(--of-color-primary);
+  box-shadow: 0 0 0 2px var(--of-color-primary-selected);
 }
 
-.prop-input:disabled {
-  background: var(--color-neutral-3);
+:where(.builder-layout) .prop-input:disabled {
+  background: var(--of-color-neutral-3);
   cursor: not-allowed;
   opacity: 0.7;
 }
 
-.prop-checkbox-label {
+:where(.builder-layout) .prop-checkbox-label {
   display: flex;
   align-items: center;
-  gap: var(--space-s);
-  font-size: var(--font-size-s);
-  color: var(--color-neutral-10);
+  gap: var(--of-space-s);
+  font-size: var(--of-font-size-s);
+  color: var(--of-color-neutral-10);
   cursor: pointer;
-  padding: var(--space-xs) 0;
+  padding: var(--of-space-xs) 0;
   user-select: none;
 }
 
-.prop-checkbox-label input[type="checkbox"],
-input[type="checkbox"]:not(.form-switch input) {
+:where(.builder-layout) .prop-checkbox-label input[type="checkbox"],
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) input[type="checkbox"]:not(.form-switch input) {
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;
   width: 16px;
   height: 16px;
-  border: 1.5px solid var(--color-neutral-4);
-  border-radius: var(--border-radius-xs);
-  background-color: var(--color-neutral-1);
+  border: 1.5px solid var(--of-color-neutral-4);
+  border-radius: var(--of-border-radius-xs);
+  background-color: var(--of-color-neutral-1);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1401,21 +1406,21 @@ input[type="checkbox"]:not(.form-switch input) {
   vertical-align: middle;
 }
 
-.prop-checkbox-label input[type="checkbox"]:hover,
-input[type="checkbox"]:not(.form-switch input):hover {
-  border-color: var(--color-primary);
-  background-color: var(--color-primary-selected);
+:where(.builder-layout) .prop-checkbox-label input[type="checkbox"]:hover,
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) input[type="checkbox"]:not(.form-switch input):hover {
+  border-color: var(--of-color-primary);
+  background-color: var(--of-color-primary-selected);
 }
 
-.prop-checkbox-label input[type="checkbox"]:checked,
-input[type="checkbox"]:not(.form-switch input):checked {
-  background-color: var(--color-primary);
-  border-color: var(--color-primary);
+:where(.builder-layout) .prop-checkbox-label input[type="checkbox"]:checked,
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) input[type="checkbox"]:not(.form-switch input):checked {
+  background-color: var(--of-color-primary);
+  border-color: var(--of-color-primary);
 }
 
 /* Premium checkmark overlay */
-.prop-checkbox-label input[type="checkbox"]:checked::after,
-input[type="checkbox"]:not(.form-switch input):checked::after {
+:where(.builder-layout) .prop-checkbox-label input[type="checkbox"]:checked::after,
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) input[type="checkbox"]:not(.form-switch input):checked::after {
   content: "";
   position: absolute;
   width: 4px;
@@ -1427,21 +1432,21 @@ input[type="checkbox"]:not(.form-switch input):checked::after {
   left: 4.5px;
 }
 
-.prop-checkbox-label input[type="checkbox"]:focus,
-input[type="checkbox"]:not(.form-switch input):focus {
+:where(.builder-layout) .prop-checkbox-label input[type="checkbox"]:focus,
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) input[type="checkbox"]:not(.form-switch input):focus {
   outline: none;
-  box-shadow: 0 0 0 3px var(--color-primary-selected);
+  box-shadow: 0 0 0 3px var(--of-color-primary-selected);
 }
 
-.nested-prop-box {
-  background-color: var(--color-neutral-2);
-  border: 1px solid var(--color-neutral-4);
-  border-radius: var(--border-radius-s);
-  padding: var(--space-m);
+:where(.builder-layout) .nested-prop-box {
+  background-color: var(--of-color-neutral-2);
+  border: 1px solid var(--of-color-neutral-4);
+  border-radius: var(--of-border-radius-s);
+  padding: var(--of-space-m);
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-top: var(--space-xs);
+  margin-top: var(--of-space-xs);
 }
 
 /* ==========================================================================
@@ -1454,124 +1459,124 @@ input[type="checkbox"]:not(.form-switch input):focus {
   justify-content: center;
 }
 
-.renderer-form-card {
-  background-color: var(--color-neutral-0);
-  border: 1px solid var(--color-neutral-4);
-  border-radius: var(--border-radius-soft);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-form-card {
+  background-color: var(--of-color-neutral-0);
+  border: 1px solid var(--of-color-neutral-4);
+  border-radius: var(--of-border-radius-soft);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
   width: 100%;
-  padding: var(--space-xl);
+  padding: var(--of-space-xl);
   display: flex;
   flex-direction: column;
-  gap: var(--space-l);
+  gap: var(--of-space-l);
   height: fit-content;
 }
 
-.renderer-form-header {
-  border-bottom: 2px solid var(--color-neutral-2);
-  padding-bottom: var(--space-base);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-form-header {
+  border-bottom: 2px solid var(--of-color-neutral-2);
+  padding-bottom: var(--of-space-base);
 }
 
-.renderer-form-title {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-form-title {
   font-size: 20px;
-  font-weight: var(--font-weight-bold);
-  color: var(--color-neutral-10);
-  margin-bottom: var(--space-xs);
+  font-weight: var(--of-font-weight-bold);
+  color: var(--of-color-neutral-10);
+  margin-bottom: var(--of-space-xs);
 }
 
-.renderer-form-desc {
-  font-size: var(--font-size-s);
-  color: var(--color-neutral-7);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-form-desc {
+  font-size: var(--of-font-size-s);
+  color: var(--of-color-neutral-7);
 }
 
-.renderer-form-body {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-form-body {
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
 
 /* Dynamic Rows and Columns inside Renderer */
-.renderer-row {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-row {
   display: grid;
   grid-template-columns: repeat(12, 1fr);
   gap: 20px;
 }
 
 /* Form inputs matching OpenForms reference */
-.form-input-wrapper {
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-input-wrapper {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-family: var(--font-family);
+  font-family: var(--of-font-family);
   width: 100%;
 }
 
-.form-label {
-  color: var(--color-neutral-10);
-  font-weight: var(--font-weight-semibold);
-  font-size: var(--font-size-s);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-label {
+  color: var(--of-color-neutral-10);
+  font-weight: var(--of-font-weight-semibold);
+  font-size: var(--of-font-size-s);
 }
 
-.form-label.required::after {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-label.required::after {
   content: " *";
-  color: var(--color-error);
+  color: var(--of-color-error);
 }
 
-.form-input-container {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-input-container {
   position: relative;
   display: flex;
   align-items: center;
 }
 
-.form-input-container.is-repeater-container {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-input-container.is-repeater-container {
   flex-direction: column;
-  gap: var(--space-base);
+  gap: var(--of-space-base);
 }
 
-.form-input-container.is-signature-container {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-input-container.is-signature-container {
   display: flex;
   flex-direction: column;
   align-items: stretch;
   width: 100%;
 }
 
-.form-input-icon {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-input-icon {
   position: absolute;
   left: 12px;
   width: 16px;
   height: 16px;
-  color: var(--color-neutral-7);
+  color: var(--of-color-neutral-7);
   pointer-events: none;
   display: none;
 }
 
-.form-input {
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-input {
   width: 100%;
-  padding: 10px var(--space-m);
-  border: 1px solid var(--color-neutral-4);
-  border-radius: var(--border-radius-soft);
-  background-color: var(--color-neutral-0);
-  color: var(--color-neutral-10);
-  font-size: var(--font-size-base);
+  padding: 10px var(--of-space-m);
+  border: 1px solid var(--of-color-neutral-4);
+  border-radius: var(--of-border-radius-soft);
+  background-color: var(--of-color-neutral-0);
+  color: var(--of-color-neutral-10);
+  font-size: var(--of-font-size-base);
   font-family: inherit;
   transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
   outline: none;
 }
 
 /* Customizar o ÃƒÂ­cone de calendÃƒÂ¡rio nativo do HTML5 */
-.form-input::-webkit-calendar-picker-indicator {
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-input::-webkit-calendar-picker-indicator {
   cursor: pointer;
   filter: invert(var(--theme-calendar-invert, 0)) brightness(var(--theme-calendar-brightness, 1));
 }
 
 /* Textarea override */
-textarea.form-input {
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) textarea.form-input {
   min-height: 100px;
   resize: vertical;
 }
 
 /* Select dropdown */
-select.form-input {
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) select.form-input {
   cursor: pointer;
   appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23666666' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7' /%3E%3C/svg%3E");
@@ -1582,7 +1587,7 @@ select.form-input {
 }
 
 /* Toggle / Switch styling */
-.form-switch-container {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-switch-container {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1591,32 +1596,32 @@ select.form-input {
   padding: 6px 0;
 }
 
-.form-switch {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-switch {
   position: relative;
   display: inline-block;
   width: 44px;
   height: 24px;
 }
 
-.form-switch input {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-switch input {
   opacity: 0;
   width: 0;
   height: 0;
 }
 
-.form-slider {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-slider {
   position: absolute;
   cursor: pointer;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: var(--color-neutral-4);
+  background-color: var(--of-color-neutral-4);
   transition: .2s;
   border-radius: 24px;
 }
 
-.form-slider:before {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-slider:before {
   position: absolute;
   content: "";
   height: 18px;
@@ -1629,302 +1634,302 @@ select.form-input {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
-.form-switch input:checked+.form-slider {
-  background-color: var(--color-primary);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-switch input:checked+.form-slider {
+  background-color: var(--of-color-primary);
 }
 
-.form-switch input:checked+.form-slider:before {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-switch input:checked+.form-slider:before {
   transform: translateX(20px);
 }
 
-.form-switch input:focus+.form-slider {
-  box-shadow: 0 0 0 3px var(--color-primary-selected);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-switch input:focus+.form-slider {
+  box-shadow: 0 0 0 3px var(--of-color-primary-selected);
 }
 
 /* File Upload drag area */
-.form-file-uploader {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-file-uploader {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--space-s);
+  gap: var(--of-space-s);
   min-height: 120px;
-  border: 2px dashed var(--color-neutral-4);
-  border-radius: var(--border-radius-soft);
-  padding: var(--space-l) 20px;
+  border: 2px dashed var(--of-color-neutral-4);
+  border-radius: var(--of-border-radius-soft);
+  padding: var(--of-space-l) 20px;
   text-align: center;
   cursor: pointer;
   transition: all 0.2s ease-in-out;
-  background-color: var(--color-neutral-1);
+  background-color: var(--of-color-neutral-1);
 }
 
-.form-file-uploader:hover {
-  border-color: var(--color-primary);
-  background-color: var(--color-primary-selected);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-file-uploader:hover {
+  border-color: var(--of-color-primary);
+  background-color: var(--of-color-primary-selected);
 }
 
-.form-file-uploader svg {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-file-uploader svg {
   width: 32px;
   height: 32px;
-  color: var(--color-neutral-5);
+  color: var(--of-color-neutral-5);
   transition: transform 0.2s ease-in-out, color 0.2s ease-in-out;
 }
 
-.form-file-uploader:hover svg {
-  color: var(--color-primary);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-file-uploader:hover svg {
+  color: var(--of-color-primary);
   transform: translateY(-4px);
 }
 
-.form-file-uploader.drag-over {
-  border-color: var(--color-primary);
-  background-color: var(--color-primary-selected);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-file-uploader.drag-over {
+  border-color: var(--of-color-primary);
+  background-color: var(--of-color-primary-selected);
 }
 
-.form-file-uploader.drag-over svg {
-  color: var(--color-primary);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-file-uploader.drag-over svg {
+  color: var(--of-color-primary);
   transform: scale(1.15);
 }
 
-.form-file-details {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-file-details {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background-color: var(--color-neutral-2);
-  border: 1px solid var(--color-neutral-4);
-  border-radius: var(--border-radius-soft);
-  padding: var(--space-s) var(--space-m);
-  margin-top: var(--space-s);
-  font-size: var(--font-size-s);
+  background-color: var(--of-color-neutral-2);
+  border: 1px solid var(--of-color-neutral-4);
+  border-radius: var(--of-border-radius-soft);
+  padding: var(--of-space-s) var(--of-space-m);
+  margin-top: var(--of-space-s);
+  font-size: var(--of-font-size-s);
   max-width: 100%;
 }
 
-.form-file-details-left {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-file-details-left {
   display: flex;
   align-items: center;
-  gap: var(--space-s);
-  color: var(--color-neutral-10);
-  font-weight: var(--font-weight-medium);
+  gap: var(--of-space-s);
+  color: var(--of-color-neutral-10);
+  font-weight: var(--of-font-weight-medium);
 }
 
-.form-file-details-left svg {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-file-details-left svg {
   width: 16px;
   height: 16px;
-  color: var(--color-primary);
+  color: var(--of-color-primary);
 }
 
-.form-file-delete-btn {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-file-delete-btn {
   background: none;
   border: none;
-  color: var(--color-neutral-7);
+  color: var(--of-color-neutral-7);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-xs);
-  border-radius: var(--border-radius-soft);
+  padding: var(--of-space-xs);
+  border-radius: var(--of-border-radius-soft);
   transition: all 0.2s ease-in-out;
 }
 
-.form-file-delete-btn svg {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-file-delete-btn svg {
   width: 16px;
   height: 16px;
   transition: transform 0.2s ease-in-out, color 0.2s ease-in-out;
 }
 
-.form-file-delete-btn:hover {
-  color: var(--color-error);
-  background-color: var(--color-neutral-3);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-file-delete-btn:hover {
+  color: var(--of-color-error);
+  background-color: var(--of-color-neutral-3);
 }
 
-.form-file-delete-btn:hover svg {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-file-delete-btn:hover svg {
   transform: scale(1.15);
 }
 
 /* Signature Drawing Canvas */
-.form-signature-box {
-  background-color: var(--color-neutral-2);
-  border: 1px solid var(--color-neutral-4);
-  border-radius: var(--border-radius-soft);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-signature-box {
+  background-color: var(--of-color-neutral-2);
+  border: 1px solid var(--of-color-neutral-4);
+  border-radius: var(--of-border-radius-soft);
   position: relative;
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
-.form-signature-canvas {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-signature-canvas {
   width: 100%;
   height: 150px;
-  background-color: var(--color-neutral-0);
+  background-color: var(--of-color-neutral-0);
   cursor: crosshair;
   display: block;
 }
 
-.form-signature-bar {
-  padding: var(--space-s) var(--space-m);
-  border-top: 1px solid var(--color-neutral-4);
-  background-color: var(--color-neutral-2);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-signature-bar {
+  padding: var(--of-space-s) var(--of-space-m);
+  border-top: 1px solid var(--of-color-neutral-4);
+  background-color: var(--of-color-neutral-2);
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-.form-signature-indicator {
-  font-size: var(--font-size-xs);
-  color: var(--color-neutral-7);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-signature-indicator {
+  font-size: var(--of-font-size-xs);
+  color: var(--of-color-neutral-7);
   display: flex;
   align-items: center;
-  gap: var(--space-xs);
+  gap: var(--of-space-xs);
 }
 
-.form-signature-indicator svg {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-signature-indicator svg {
   width: 12px;
   height: 12px;
 }
 
-.form-signature-clear {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-signature-clear {
   background: none;
   border: none;
-  color: var(--color-neutral-8);
-  font-size: var(--font-size-s);
+  color: var(--of-color-neutral-8);
+  font-size: var(--of-font-size-s);
   cursor: pointer;
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--of-font-weight-medium);
   display: flex;
   align-items: center;
-  gap: var(--space-xs);
+  gap: var(--of-space-xs);
 }
 
-.form-signature-clear:hover {
-  color: var(--color-error);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-signature-clear:hover {
+  color: var(--of-color-error);
 }
 
 /* Invalid state inputs styling */
-.form-input-wrapper.is-invalid .form-input,
-.form-input-wrapper.is-invalid input,
-.form-input-wrapper.is-invalid textarea,
-.form-input-wrapper.is-invalid select {
-  border-color: var(--color-error);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-input-wrapper.is-invalid .form-input,
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-input-wrapper.is-invalid input,
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-input-wrapper.is-invalid textarea,
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-input-wrapper.is-invalid select {
+  border-color: var(--of-color-error);
   background-color: rgba(219, 60, 60, 0.02);
   box-shadow: 0 0 0 3px rgba(219, 60, 60, 0.12);
 }
 
-.form-input-wrapper.is-invalid .form-label {
-  color: var(--color-error);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-input-wrapper.is-invalid .form-label {
+  color: var(--of-color-error);
 }
 
-.form-input-wrapper.is-invalid .form-input-icon {
-  color: var(--color-error);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-input-wrapper.is-invalid .form-input-icon {
+  color: var(--of-color-error);
 }
 
-.form-error-message {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-error-message {
   display: none;
   align-items: center;
-  gap: var(--space-xs);
-  color: var(--color-error);
-  font-size: var(--font-size-s);
-  margin-top: var(--space-xs);
+  gap: var(--of-space-xs);
+  color: var(--of-color-error);
+  font-size: var(--of-font-size-s);
+  margin-top: var(--of-space-xs);
 }
 
-.form-input-wrapper.is-invalid .form-error-message {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-input-wrapper.is-invalid .form-error-message {
   display: flex;
 }
 
-.form-error-message svg {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-error-message svg {
   width: 14px;
   height: 14px;
   flex-shrink: 0;
 }
 
 /* Submit Actions */
-.renderer-actions {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-actions {
   display: flex;
   justify-content: flex-end;
-  border-top: 1px solid var(--color-neutral-3);
-  padding-top: var(--space-base);
-  margin-top: var(--space-s);
+  border-top: 1px solid var(--of-color-neutral-3);
+  padding-top: var(--of-space-base);
+  margin-top: var(--of-space-s);
 }
 
 /* ==========================================================================
  Section Headers (Visual SubsecÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âµes)
  ========================================================================== */
-.form-section-header {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-section-header {
   display: flex;
   flex-direction: column;
   padding-top: 14px;
-  padding-bottom: var(--space-s);
-  border-bottom: 1.5px solid var(--color-neutral-3);
-  margin-bottom: var(--space-m);
-  margin-top: var(--space-base);
+  padding-bottom: var(--of-space-s);
+  border-bottom: 1.5px solid var(--of-color-neutral-3);
+  margin-bottom: var(--of-space-m);
+  margin-top: var(--of-space-base);
   width: 100%;
 }
 
-.form-section-title {
-  font-size: var(--font-size-m);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-neutral-10);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-section-title {
+  font-size: var(--of-font-size-m);
+  font-weight: var(--of-font-weight-bold);
+  color: var(--of-color-neutral-10);
   margin-bottom: 2px;
   text-transform: none;
 }
 
-.form-section-subtitle {
-  font-size: var(--font-size-s);
-  color: var(--color-neutral-7);
-  font-weight: var(--font-weight-normal);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-section-subtitle {
+  font-size: var(--of-font-size-s);
+  color: var(--of-color-neutral-7);
+  font-weight: var(--of-font-weight-normal);
   margin: 0;
 }
 
 /* Hide standard label for headers */
-.form-input-wrapper.is-header .form-label {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-input-wrapper.is-header .form-label {
   display: none;
 }
 
 /* ==========================================================================
  Designer Page Tabs System
  ========================================================================== */
-.canvas-pages-bar {
+:where(.builder-layout) .canvas-pages-bar {
   display: flex;
   align-items: center;
-  gap: var(--space-s);
-  border-bottom: 1px solid var(--color-neutral-4);
-  padding-bottom: var(--space-m);
-  margin-bottom: var(--space-base);
+  gap: var(--of-space-s);
+  border-bottom: 1px solid var(--of-color-neutral-4);
+  padding-bottom: var(--of-space-m);
+  margin-bottom: var(--of-space-base);
   flex-wrap: wrap;
   width: 100%;
 }
 
-.canvas-page-tab {
+:where(.builder-layout) .canvas-page-tab {
   display: flex;
   align-items: center;
-  gap: var(--space-s);
-  background-color: var(--color-neutral-0);
-  border: 1px solid var(--color-neutral-4);
-  border-radius: var(--border-radius-soft);
-  padding: 6px var(--space-m);
-  font-size: var(--font-size-s);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-neutral-8);
+  gap: var(--of-space-s);
+  background-color: var(--of-color-neutral-0);
+  border: 1px solid var(--of-color-neutral-4);
+  border-radius: var(--of-border-radius-soft);
+  padding: 6px var(--of-space-m);
+  font-size: var(--of-font-size-s);
+  font-weight: var(--of-font-weight-semibold);
+  color: var(--of-color-neutral-8);
   cursor: pointer;
   transition: all 0.2s ease-in-out;
   user-select: none;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
 }
 
-.canvas-page-tab:hover {
-  background-color: var(--color-neutral-2);
-  border-color: var(--color-neutral-5);
-  color: var(--color-neutral-10);
+:where(.builder-layout) .canvas-page-tab:hover {
+  background-color: var(--of-color-neutral-2);
+  border-color: var(--of-color-neutral-5);
+  color: var(--of-color-neutral-10);
 }
 
-.canvas-page-tab.active {
-  border-color: var(--color-primary);
-  background-color: var(--color-primary-selected);
-  color: var(--color-primary);
+:where(.builder-layout) .canvas-page-tab.active {
+  border-color: var(--of-color-primary);
+  background-color: var(--of-color-primary-selected);
+  color: var(--of-color-primary);
   box-shadow: 0 2px 6px rgba(16, 104, 235, 0.08);
 }
 
-.canvas-page-tab-delete {
+:where(.builder-layout) .canvas-page-tab-delete {
   background: none;
   border: none;
-  color: var(--color-neutral-5);
+  color: var(--of-color-neutral-5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1932,27 +1937,27 @@ select.form-input {
   padding: 2px;
   border-radius: 50%;
   transition: all 0.15s ease;
-  margin-left: var(--space-xs);
+  margin-left: var(--of-space-xs);
 }
 
-.canvas-page-tab-delete:hover {
+:where(.builder-layout) .canvas-page-tab-delete:hover {
   background-color: rgba(219, 60, 60, 0.1);
-  color: var(--color-error);
+  color: var(--of-color-error);
 }
 
-.canvas-page-tab-delete svg {
+:where(.builder-layout) .canvas-page-tab-delete svg {
   width: 10px;
   height: 10px;
 }
 
-.canvas-page-add-btn {
+:where(.builder-layout) .canvas-page-add-btn {
   background: none;
-  border: 1px dashed var(--color-neutral-5);
-  border-radius: var(--border-radius-soft);
-  color: var(--color-neutral-8);
-  padding: 6px var(--space-m);
-  font-size: var(--font-size-s);
-  font-weight: var(--font-weight-medium);
+  border: 1px dashed var(--of-color-neutral-5);
+  border-radius: var(--of-border-radius-soft);
+  color: var(--of-color-neutral-8);
+  padding: 6px var(--of-space-m);
+  font-size: var(--of-font-size-s);
+  font-weight: var(--of-font-weight-medium);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1960,25 +1965,25 @@ select.form-input {
   transition: all 0.2s ease;
 }
 
-.canvas-page-add-btn:hover {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-  background-color: var(--color-primary-selected);
+:where(.builder-layout) .canvas-page-add-btn:hover {
+  border-color: var(--of-color-primary);
+  color: var(--of-color-primary);
+  background-color: var(--of-color-primary-selected);
 }
 
-.canvas-page-add-btn.is-accent {
+:where(.builder-layout) .canvas-page-add-btn.is-accent {
   border-style: dashed;
-  border-color: var(--color-primary);
-  color: var(--color-primary);
+  border-color: var(--of-color-primary);
+  color: var(--of-color-primary);
 }
 
-.canvas-page-add-btn.is-accent:hover {
-  border-color: var(--color-primary-hover);
-  color: var(--color-primary-hover);
-  background-color: var(--color-primary-selected);
+:where(.builder-layout) .canvas-page-add-btn.is-accent:hover {
+  border-color: var(--of-color-primary-hover);
+  color: var(--of-color-primary-hover);
+  background-color: var(--of-color-primary-selected);
 }
 
-.canvas-page-add-btn svg {
+:where(.builder-layout) .canvas-page-add-btn svg {
   width: 12px;
   height: 12px;
 }
@@ -1986,13 +1991,13 @@ select.form-input {
 /* ==========================================================================
  Renderer Steps Progress Bar
  ========================================================================== */
-.renderer-steps-container {
-  padding-bottom: var(--space-m);
-  margin-bottom: var(--space-m);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-steps-container {
+  padding-bottom: var(--of-space-m);
+  margin-bottom: var(--of-space-m);
   width: 100%;
 }
 
-.renderer-steps-bar {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-steps-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2001,26 +2006,26 @@ select.form-input {
 }
 
 /* Connector Line behind bubbles */
-.renderer-steps-line-bg {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-steps-line-bg {
   position: absolute;
   top: 15px;
   left: 20px;
   right: 20px;
   height: 2px;
-  background-color: var(--color-neutral-3);
+  background-color: var(--of-color-neutral-3);
   z-index: 1;
 }
 
-.renderer-steps-line-progress {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-steps-line-progress {
   position: absolute;
   top: 15px;
   height: 2px;
-  background-color: var(--color-primary);
+  background-color: var(--of-color-primary);
   z-index: 2;
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.renderer-step {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-step {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2031,39 +2036,39 @@ select.form-input {
   flex: 1;
 }
 
-.renderer-step-bubble {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-step-bubble {
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  background-color: var(--color-neutral-0);
-  border: 2px solid var(--color-neutral-4);
-  color: var(--color-neutral-7);
+  background-color: var(--of-color-neutral-0);
+  border: 2px solid var(--of-color-neutral-4);
+  color: var(--of-color-neutral-7);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: var(--font-size-s);
-  font-weight: var(--font-weight-bold);
+  font-size: var(--of-font-size-s);
+  font-weight: var(--of-font-weight-bold);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   user-select: none;
 }
 
-.renderer-step.active .renderer-step-bubble {
-  border-color: var(--color-primary);
-  background-color: var(--color-primary);
-  color: var(--color-neutral-0);
-  box-shadow: 0 0 0 4px var(--color-primary-selected);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-step.active .renderer-step-bubble {
+  border-color: var(--of-color-primary);
+  background-color: var(--of-color-primary);
+  color: var(--of-color-neutral-0);
+  box-shadow: 0 0 0 4px var(--of-color-primary-selected);
 }
 
-.renderer-step.completed .renderer-step-bubble {
-  border-color: var(--color-primary);
-  background-color: var(--color-primary-selected);
-  color: var(--color-primary);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-step.completed .renderer-step-bubble {
+  border-color: var(--of-color-primary);
+  background-color: var(--of-color-primary-selected);
+  color: var(--of-color-primary);
 }
 
-.renderer-step-label {
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-neutral-7);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-step-label {
+  font-size: var(--of-font-size-xs);
+  font-weight: var(--of-font-weight-semibold);
+  color: var(--of-color-neutral-7);
   transition: color 0.2s ease;
   text-align: center;
   max-width: 120px;
@@ -2072,29 +2077,29 @@ select.form-input {
   text-overflow: ellipsis;
 }
 
-.renderer-step.active .renderer-step-label {
-  color: var(--color-primary);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-step.active .renderer-step-label {
+  color: var(--of-color-primary);
 }
 
-.renderer-step.completed .renderer-step-label {
-  color: var(--color-neutral-10);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-step.completed .renderer-step-label {
+  color: var(--of-color-neutral-10);
 }
 
 /* ==========================================================================
  Renderer Footer Navigation Bar
  ========================================================================== */
-.renderer-navigation-bar {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-navigation-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-top: 1.5px solid var(--color-neutral-2);
-  padding-top: var(--space-base);
-  margin-top: var(--space-s);
+  border-top: 1.5px solid var(--of-color-neutral-2);
+  padding-top: var(--of-space-base);
+  margin-top: var(--of-space-s);
   width: 100%;
 }
 
 /* Base style for the mobile dynamic step header (hidden by default in desktop) */
-.renderer-mobile-step-header {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-mobile-step-header {
   display: none;
 }
 
@@ -2104,67 +2109,67 @@ select.form-input {
 @media (max-width: 768px) {
 
   /* Reduced padding inside the renderer card */
-  .renderer-form-card {
-    padding: 20px var(--space-base);
-    border-radius: var(--border-radius-soft);
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-form-card {
+    padding: 20px var(--of-space-base);
+    border-radius: var(--of-border-radius-soft);
   }
 
   /* Grid collapse - Force columns to stacked full width */
-  .renderer-row {
-    gap: var(--space-base);
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-row {
+    gap: var(--of-space-base);
   }
 
-  .renderer-row .form-column {
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-row .form-column {
     grid-column: span 12;
     width: 100%;
   }
 
   /* Compact navigation steps bar for mobile */
-  .renderer-steps-container {
-    padding-bottom: var(--space-s);
-    margin-bottom: var(--space-s);
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-steps-container {
+    padding-bottom: var(--of-space-s);
+    margin-bottom: var(--of-space-s);
   }
 
-  .renderer-steps-line-bg,
-  .renderer-steps-line-progress {
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-steps-line-bg,
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-steps-line-progress {
     top: 14px;
   }
 
-  .renderer-step-bubble {
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-step-bubble {
     width: 28px;
     height: 28px;
-    font-size: var(--font-size-s);
+    font-size: var(--of-font-size-s);
   }
 
-  .renderer-step-label {
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-step-label {
     display: none;
     /* Hide individual labels below bubbles to prevent overlap */
   }
 
   /* Compact dynamic step title exclusive for mobile */
-  .renderer-mobile-step-header {
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-mobile-step-header {
     display: block;
-    font-size: var(--font-size-s);
-    font-weight: var(--font-weight-bold);
-    color: var(--color-primary);
+    font-size: var(--of-font-size-s);
+    font-weight: var(--of-font-weight-bold);
+    color: var(--of-color-primary);
     text-align: center;
-    margin: var(--space-s) auto var(--space-base) auto;
+    margin: var(--of-space-s) auto var(--of-space-base) auto;
     padding: 6px 14px;
-    background-color: var(--color-primary-selected);
+    background-color: var(--of-color-primary-selected);
     border-radius: 20px;
-    font-family: var(--font-family);
+    font-family: var(--of-font-family);
     width: fit-content;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
   }
 
   /* Touch-friendly full-width navigation bar */
-  .renderer-navigation-bar {
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-navigation-bar {
     flex-direction: column-reverse;
-    gap: var(--space-m);
-    padding-top: var(--space-base);
+    gap: var(--of-space-m);
+    padding-top: var(--of-space-base);
   }
 
-  .renderer-navigation-bar button {
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-navigation-bar button {
     width: 100%;
     margin: 0;
     height: 44px;
@@ -2172,16 +2177,16 @@ select.form-input {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: var(--font-size-base);
+    font-size: var(--of-font-size-base);
   }
 
   /* Touch signature box sizing */
-  .form-signature-container {
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-signature-container {
     height: 160px;
     /* slightly more compact height on mobile */
   }
 
-  .form-signature-container canvas {
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-signature-container canvas {
     width: 100%;
     height: 100%;
   }
@@ -2190,17 +2195,17 @@ select.form-input {
 /* ==========================================================================
  OpenForms-styled Radio Buttons and Checkbox Groups
  ========================================================================== */
-.form-radio-group,
-.form-checkbox-group {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-radio-group,
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-checkbox-group {
   display: flex;
   flex-direction: column;
-  gap: var(--space-m);
-  margin-top: var(--space-s);
-  padding: var(--space-xs) 0;
+  gap: var(--of-space-m);
+  margin-top: var(--of-space-s);
+  padding: var(--of-space-xs) 0;
 }
 
-.form-radio-item,
-.form-checkbox-item {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-radio-item,
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-checkbox-item {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -2209,35 +2214,35 @@ select.form-input {
   transition: transform 0.15s ease;
 }
 
-.form-radio-item:hover,
-.form-checkbox-item:hover {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-radio-item:hover,
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-checkbox-item:hover {
   transform: translateX(2px);
 }
 
-.form-radio-label,
-.form-checkbox-label {
-  font-size: var(--font-size-base);
-  color: var(--color-neutral-8);
-  font-weight: var(--font-weight-medium);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-radio-label,
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-checkbox-label {
+  font-size: var(--of-font-size-base);
+  color: var(--of-color-neutral-8);
+  font-weight: var(--of-font-weight-medium);
   cursor: pointer;
   transition: color 0.2s ease;
 }
 
-.form-radio-item:hover .form-radio-label,
-.form-checkbox-item:hover .form-checkbox-label {
-  color: var(--color-neutral-10);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-radio-item:hover .form-radio-label,
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-checkbox-item:hover .form-checkbox-label {
+  color: var(--of-color-neutral-10);
 }
 
 /* Custom OpenForms Radio Buttons */
-input[type="radio"].form-radio-input {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) input[type="radio"].form-radio-input {
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;
   width: 18px;
   height: 18px;
-  border: 1.5px solid var(--color-neutral-4);
+  border: 1.5px solid var(--of-color-neutral-4);
   border-radius: 50%;
-  background-color: var(--color-neutral-0);
+  background-color: var(--of-color-neutral-0);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2248,41 +2253,41 @@ input[type="radio"].form-radio-input {
   vertical-align: middle;
 }
 
-input[type="radio"].form-radio-input:hover {
-  border-color: var(--color-primary);
-  background-color: var(--color-primary-selected);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) input[type="radio"].form-radio-input:hover {
+  border-color: var(--of-color-primary);
+  background-color: var(--of-color-primary-selected);
 }
 
-input[type="radio"].form-radio-input:checked {
-  border-color: var(--color-primary);
-  background-color: var(--color-neutral-0);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) input[type="radio"].form-radio-input:checked {
+  border-color: var(--of-color-primary);
+  background-color: var(--of-color-neutral-0);
 }
 
-input[type="radio"].form-radio-input:checked::after {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) input[type="radio"].form-radio-input:checked::after {
   content: "";
   position: absolute;
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background-color: var(--color-primary);
+  background-color: var(--of-color-primary);
   display: block;
 }
 
-input[type="radio"].form-radio-input:focus {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) input[type="radio"].form-radio-input:focus {
   outline: none;
-  box-shadow: 0 0 0 3px var(--color-primary-selected);
+  box-shadow: 0 0 0 3px var(--of-color-primary-selected);
 }
 
 /* Checkbox group spacing override to match the Radio inputs */
-.form-checkbox-group input[type="checkbox"].form-checkbox-input {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-checkbox-group input[type="checkbox"].form-checkbox-input {
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;
   width: 18px;
   height: 18px;
-  border: 1.5px solid var(--color-neutral-4);
-  border-radius: var(--border-radius-xs);
-  background-color: var(--color-neutral-0);
+  border: 1.5px solid var(--of-color-neutral-4);
+  border-radius: var(--of-border-radius-xs);
+  background-color: var(--of-color-neutral-0);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2293,67 +2298,65 @@ input[type="radio"].form-radio-input:focus {
   vertical-align: middle;
 }
 
-.form-checkbox-group input[type="checkbox"].form-checkbox-input:hover {
-  border-color: var(--color-primary);
-  background-color: var(--color-primary-selected);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-checkbox-group input[type="checkbox"].form-checkbox-input:hover {
+  border-color: var(--of-color-primary);
+  background-color: var(--of-color-primary-selected);
 }
 
-.form-checkbox-group input[type="checkbox"].form-checkbox-input:checked {
-  background-color: var(--color-primary);
-  border-color: var(--color-primary);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-checkbox-group input[type="checkbox"].form-checkbox-input:checked {
+  background-color: var(--of-color-primary);
+  border-color: var(--of-color-primary);
 }
 
-.form-checkbox-group input[type="checkbox"].form-checkbox-input:checked::after {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-checkbox-group input[type="checkbox"].form-checkbox-input:checked::after {
   content: "";
   position: absolute;
   width: 5px;
   height: 9px;
-  border: solid var(--color-neutral-0);
+  border: solid var(--of-color-neutral-0);
   border-width: 0 2.5px 2.5px 0;
   transform: rotate(45deg);
   top: 1.5px;
   left: 5px;
 }
 
-.form-checkbox-group input[type="checkbox"].form-checkbox-input:focus {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-checkbox-group input[type="checkbox"].form-checkbox-input:focus {
   outline: none;
-  box-shadow: 0 0 0 3px var(--color-primary-selected);
+  box-shadow: 0 0 0 3px var(--of-color-primary-selected);
 }
 
 /* Empty or Loading Options indicators */
-.form-options-empty,
-.form-options-loading {
-  font-size: var(--font-size-s);
-  color: var(--color-neutral-7);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-options-empty,
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-options-loading {
+  font-size: var(--of-font-size-s);
+  color: var(--of-color-neutral-7);
   font-style: italic;
-  padding: var(--space-xs) 0;
+  padding: var(--of-space-xs) 0;
 }
 
-.form-options-error {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-options-error {
   display: block;
-  font-size: var(--font-size-s);
-  color: var(--color-error);
-  padding: var(--space-xs) 0;
+  font-size: var(--of-font-size-s);
+  color: var(--of-color-error);
+  padding: var(--of-space-xs) 0;
 }
 
 /* Accessibility outline focus styling */
-.form-input:focus,
-.pg-btn:focus,
-.pg-select:focus,
-.pg-tab:focus,
-.renderer-step:focus,
-.form-switch input:focus+.form-slider,
-input[type="checkbox"]:focus,
-input[type="radio"]:focus,
-.signature-mode-tab:focus,
-.form-signature-clear:focus {
-  outline: 2px solid var(--color-primary);
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-input:focus,
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .pg-btn:focus,
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .renderer-step:focus,
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-switch input:focus+.form-slider,
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) input[type="checkbox"]:focus,
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) input[type="radio"]:focus,
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .signature-mode-tab:focus,
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-signature-clear:focus {
+  outline: 2px solid var(--of-color-primary);
   outline-offset: 2px;
-  box-shadow: 0 0 0 3px var(--color-primary-selected);
+  box-shadow: 0 0 0 3px var(--of-color-primary-selected);
 }
 
-.form-input:focus {
-  border-color: var(--color-primary);
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-input:focus {
+  border-color: var(--of-color-primary);
 }
 
 /* ==========================================================================
@@ -2361,92 +2364,92 @@ input[type="radio"]:focus,
  ========================================================================== */
 
 /* Designer Canvas Preview Styles */
-.canvas-field-matrix-wrapper {
-  background-color: var(--color-neutral-0);
-  border: 1px solid var(--color-neutral-3);
-  border-radius: var(--border-radius-soft);
-  padding: var(--space-m);
+:where(.builder-layout) .canvas-field-matrix-wrapper {
+  background-color: var(--of-color-neutral-0);
+  border: 1px solid var(--of-color-neutral-3);
+  border-radius: var(--of-border-radius-soft);
+  padding: var(--of-space-m);
   width: 100%;
 }
 
-.canvas-matrix-rows-container {
+:where(.builder-layout) .canvas-matrix-rows-container {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   width: 100%;
-  padding-top: var(--space-xs);
+  padding-top: var(--of-space-xs);
 }
 
-.canvas-matrix-row-tag {
-  background: var(--color-neutral-2);
-  border: 1px solid var(--color-neutral-4);
-  border-radius: var(--border-radius-xs);
-  padding: var(--space-xs) var(--space-s);
+:where(.builder-layout) .canvas-matrix-row-tag {
+  background: var(--of-color-neutral-2);
+  border: 1px solid var(--of-color-neutral-4);
+  border-radius: var(--of-border-radius-xs);
+  padding: var(--of-space-xs) var(--of-space-s);
   display: flex;
   align-items: center;
-  gap: var(--space-xs);
-  font-size: var(--font-size-xs);
-  color: var(--color-neutral-8);
-  font-weight: var(--font-weight-medium);
+  gap: var(--of-space-xs);
+  font-size: var(--of-font-size-xs);
+  color: var(--of-color-neutral-8);
+  font-weight: var(--of-font-weight-medium);
 }
 
-.canvas-matrix-row-tag i,
-.canvas-matrix-row-tag svg {
-  width: var(--font-size-xs);
-  height: var(--font-size-xs);
-  color: var(--color-neutral-7);
+:where(.builder-layout) .canvas-matrix-row-tag i,
+:where(.builder-layout) .canvas-matrix-row-tag svg {
+  width: var(--of-font-size-xs);
+  height: var(--of-font-size-xs);
+  color: var(--of-color-neutral-7);
 }
 
-.canvas-matrix-empty-rows {
-  font-size: var(--font-size-xs);
-  color: var(--color-neutral-5);
+:where(.builder-layout) .canvas-matrix-empty-rows {
+  font-size: var(--of-font-size-xs);
+  color: var(--of-color-neutral-5);
   font-style: italic;
   padding: 6px;
   width: 100%;
 }
 
 /* Runtime Player Matrix Styles */
-.form-matrix-wrapper {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-matrix-wrapper {
   width: 100%;
   overflow-x: auto;
-  margin-top: var(--space-s);
-  border: 1px solid var(--color-neutral-4);
-  border-radius: var(--border-radius-s);
-  background: var(--color-neutral-0);
+  margin-top: var(--of-space-s);
+  border: 1px solid var(--of-color-neutral-4);
+  border-radius: var(--of-border-radius-s);
+  background: var(--of-color-neutral-0);
 }
 
-.form-matrix-table {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-matrix-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--font-size-s);
+  font-size: var(--of-font-size-s);
   line-height: 1.5;
 }
 
-.form-matrix-table th,
-.form-matrix-table td {
-  padding: var(--space-m);
-  border-bottom: 1px solid var(--color-neutral-3);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-matrix-table th,
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-matrix-table td {
+  padding: var(--of-space-m);
+  border-bottom: 1px solid var(--of-color-neutral-3);
   text-align: center;
 }
 
-.form-matrix-table th {
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-neutral-9);
-  background: var(--color-neutral-2);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-matrix-table th {
+  font-weight: var(--of-font-weight-semibold);
+  color: var(--of-color-neutral-9);
+  background: var(--of-color-neutral-2);
 }
 
-.form-matrix-table th.form-matrix-row-label {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-matrix-table th.form-matrix-row-label {
   text-align: left;
-  font-weight: var(--font-weight-medium);
-  color: var(--color-neutral-8);
+  font-weight: var(--of-font-weight-medium);
+  color: var(--of-color-neutral-8);
   min-width: 160px;
 }
 
-.form-matrix-cell {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-matrix-cell {
   vertical-align: middle;
 }
 
-.form-matrix-radio-label {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-matrix-radio-label {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2456,82 +2459,82 @@ input[type="radio"]:focus,
   min-height: 24px;
 }
 
-.matrix-cell-mobile-text {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .matrix-cell-mobile-text {
   display: none;
   /* Hidden on desktop viewports */
 }
 
 /* Responsive Matrix Card folding for Mobile (max-width: 768px) */
 @media (max-width: 768px) {
-  .form-matrix-wrapper {
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-matrix-wrapper {
     border: none;
     background: transparent;
   }
 
-  .form-matrix-table,
-  .form-matrix-table thead,
-  .form-matrix-table tbody,
-  .form-matrix-table th,
-  .form-matrix-table td,
-  .form-matrix-table tr {
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-matrix-table,
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-matrix-table thead,
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-matrix-table tbody,
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-matrix-table th,
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-matrix-table td,
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-matrix-table tr {
     display: block;
     width: 100%;
   }
 
-  .form-matrix-table thead {
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-matrix-table thead {
     display: none;
     /* Hide wide column headers */
   }
 
-  .form-matrix-table tr {
-    margin-bottom: var(--space-base);
-    border: 1px solid var(--color-neutral-4);
-    border-radius: var(--border-radius-m);
-    background: var(--color-neutral-0);
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-matrix-table tr {
+    margin-bottom: var(--of-space-base);
+    border: 1px solid var(--of-color-neutral-4);
+    border-radius: var(--of-border-radius-m);
+    background: var(--of-color-neutral-0);
     padding: 14px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
     box-sizing: border-box;
   }
 
-  .form-matrix-table td {
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-matrix-table td {
     border-bottom: none;
-    padding: var(--space-s) 0;
+    padding: var(--of-space-s) 0;
     text-align: left;
   }
 
-  .form-matrix-table th.form-matrix-row-label {
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-matrix-table th.form-matrix-row-label {
     text-align: left;
-    font-weight: var(--font-weight-bold);
-    font-size: var(--font-size-base);
-    color: var(--color-neutral-10);
+    font-weight: var(--of-font-weight-bold);
+    font-size: var(--of-font-size-base);
+    color: var(--of-color-neutral-10);
     padding-bottom: 10px;
-    border-bottom: 1px solid var(--color-neutral-3);
+    border-bottom: 1px solid var(--of-color-neutral-3);
     margin-bottom: 10px;
   }
 
-  .form-matrix-cell {
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-matrix-cell {
     display: flex;
     align-items: center;
   }
 
-  .form-matrix-radio-label {
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-matrix-radio-label {
     display: flex;
     align-items: center;
     justify-content: flex-start;
-    gap: var(--space-s);
+    gap: var(--of-space-s);
   }
 
-  .matrix-cell-mobile-text {
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .matrix-cell-mobile-text {
     display: inline;
     /* Visible option name on mobile */
-    font-size: var(--font-size-s);
-    color: var(--color-neutral-8);
+    font-size: var(--of-font-size-s);
+    color: var(--of-color-neutral-8);
   }
 }
 
 /* Layout insertion dividers */
-.row-insertion-divider,
-.section-insertion-divider {
+:where(.builder-layout) .row-insertion-divider,
+:where(.builder-layout) .section-insertion-divider {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2543,40 +2546,40 @@ input[type="radio"]:focus,
   transition: opacity 0.2s ease, height 0.2s ease, margin 0.2s ease;
 }
 
-.row-insertion-divider::before,
-.section-insertion-divider::before {
+:where(.builder-layout) .row-insertion-divider::before,
+:where(.builder-layout) .section-insertion-divider::before {
   content: "";
   position: absolute;
   left: 0;
   right: 0;
   height: 1px;
-  border-top: 1px dashed var(--color-neutral-5);
+  border-top: 1px dashed var(--of-color-neutral-5);
   pointer-events: none;
 }
 
-.row-insertion-divider:hover,
-.section-insertion-divider:hover {
+:where(.builder-layout) .row-insertion-divider:hover,
+:where(.builder-layout) .section-insertion-divider:hover {
   opacity: 1;
   height: 26px;
   margin: -7px 0;
 }
 
-.row-insertion-divider:hover::before,
-.section-insertion-divider:hover::before {
-  border-top-color: var(--color-primary);
+:where(.builder-layout) .row-insertion-divider:hover::before,
+:where(.builder-layout) .section-insertion-divider:hover::before {
+  border-top-color: var(--of-color-primary);
   border-top-style: solid;
 }
 
-.insertion-btn {
+:where(.builder-layout) .insertion-btn {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  border: 1px solid var(--color-neutral-4);
-  background-color: var(--color-neutral-0);
-  color: var(--color-neutral-7);
+  border: 1px solid var(--of-color-neutral-4);
+  background-color: var(--of-color-neutral-0);
+  color: var(--of-color-neutral-7);
   cursor: pointer;
   z-index: 11;
   padding: 0;
@@ -2584,18 +2587,18 @@ input[type="radio"]:focus,
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
-.insertion-btn:hover {
-  background-color: var(--color-primary);
-  border-color: var(--color-primary);
-  color: var(--color-neutral-0);
+:where(.builder-layout) .insertion-btn:hover {
+  background-color: var(--of-color-primary);
+  border-color: var(--of-color-primary);
+  color: var(--of-color-neutral-0);
   transform: scale(1.15);
 }
 
 /* Paragraph field text blocks */
-.form-paragraph-text {
-  font-size: var(--font-size-s);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-paragraph-text {
+  font-size: var(--of-font-size-s);
   line-height: 1.6;
-  color: var(--color-neutral-8);
+  color: var(--of-color-neutral-8);
   word-break: break-word;
   /* Paragraph content is plain text: keep the author's line breaks */
   white-space: pre-wrap;
@@ -2620,34 +2623,34 @@ input[type="radio"]:focus,
   animation: fadeIn 0.2s ease-out forwards;
 }
 
-.lightbox-container {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .lightbox-container {
   position: relative;
   max-width: 90%;
   max-height: 85%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-m);
+  gap: var(--of-space-m);
   animation: scaleUp 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
-.lightbox-img {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .lightbox-img {
   max-width: 100%;
   max-height: 80vh;
-  border-radius: var(--border-radius-m);
-  border: 1px solid var(--pg-border);
+  border-radius: var(--of-border-radius-m);
+  border: 1px solid var(--of-border);
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 30px rgba(16, 104, 235, 0.15);
   object-fit: contain;
   background-color: rgba(0, 0, 0, 0.4);
 }
 
-.lightbox-close-btn {
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .lightbox-close-btn {
   position: absolute;
   top: -45px;
   right: 0;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  color: var(--pg-text-primary);
+  color: var(--of-text-primary);
   font-size: 24px;
   cursor: pointer;
   width: 36px;
@@ -2660,21 +2663,21 @@ input[type="radio"]:focus,
   line-height: 1;
 }
 
-.lightbox-close-btn:hover {
-  background: var(--color-error);
-  border-color: var(--color-error);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .lightbox-close-btn:hover {
+  background: var(--of-color-error);
+  border-color: var(--of-color-error);
   color: #fff;
   transform: rotate(90deg);
 }
 
-.lightbox-caption {
-  color: var(--pg-text-secondary);
-  font-size: var(--font-size-s);
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .lightbox-caption {
+  color: var(--of-text-secondary);
+  font-size: var(--of-font-size-s);
   text-align: center;
   background: rgba(0, 0, 0, 0.5);
   padding: 6px 14px;
   border-radius: 20px;
-  border: 1px solid var(--pg-border);
+  border: 1px solid var(--of-border);
   max-width: 300px;
   white-space: nowrap;
   overflow: hidden;
@@ -2683,7 +2686,7 @@ input[type="radio"]:focus,
 
 /* Mobile Responsive Optimization for Lightbox Modal */
 @media (max-width: 768px) {
-  .lightbox-container {
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .lightbox-container {
     max-width: 95%;
     max-height: 90%;
     width: 100%;
@@ -2691,13 +2694,13 @@ input[type="radio"]:focus,
     box-sizing: border-box;
   }
 
-  .lightbox-img {
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .lightbox-img {
     max-height: 70vh;
-    border-radius: var(--border-radius-s);
+    border-radius: var(--of-border-radius-s);
   }
 
   /* Place close button inside the overlay space but easily clickable on mobile */
-  .lightbox-close-btn {
+  :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .lightbox-close-btn {
     top: 15px;
     right: 15px;
     position: fixed;
@@ -2706,7 +2709,7 @@ input[type="radio"]:focus,
     height: 44px;
     /* WCAG touch target */
     background: rgba(11, 15, 25, 0.8);
-    border: 1px solid var(--pg-border);
+    border: 1px solid var(--of-border);
     font-size: 28px;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
     z-index: 1001;
@@ -2725,135 +2728,34 @@ input[type="radio"]:focus,
   }
 }
 
-.pg-header {
-  background-color: #0b0f19d9;
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--pg-border);
-  padding: 14px var(--space-l);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  z-index: 100;
-  box-shadow: 0 4px 20px #0003
-}
 
-.pg-header-left {
-  display: flex;
-  align-items: center;
-  gap: var(--space-base)
-}
 
-.pg-logo-wrapper {
-  display: flex;
-  align-items: center;
-  gap: var(--space-s)
-}
 
-.pg-logo-icon {
-  background: linear-gradient(135deg, var(--color-primary), #3b82f6);
-  color: var(--color-neutral-0);
-  width: 32px;
-  height: 32px;
-  border-radius: var(--border-radius-s);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 0 15px var(--pg-glow)
-}
 
-.pg-logo-icon svg {
-  width: 18px;
-  height: 18px
-}
 
-.pg-logo-title {
-  font-size: 18px;
-  font-weight: var(--font-weight-bold);
-  letter-spacing: -.5px;
-  background: linear-gradient(to right, #fff, #cbd5e1);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent
-}
 
-.pg-tag {
-  background-color: var(--color-primary-selected);
-  color: var(--color-primary);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  padding: 2px var(--space-s);
-  border-radius: var(--border-radius-l);
-  letter-spacing: .5px;
-  text-transform: uppercase
-}
 
-.pg-header-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-m)
-}
 
-.pg-select-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center
-}
 
-.pg-select-icon {
-  position: absolute;
-  left: 12px;
-  width: 16px;
-  height: 16px;
-  color: var(--pg-text-secondary);
-  pointer-events: none
-}
 
-.pg-select {
-  background-color: #ffffff0d;
-  border: 1px solid var(--pg-border);
-  color: var(--pg-text-primary);
-  border-radius: var(--border-radius-soft);
-  padding: var(--space-s) var(--space-xl) var(--space-s) 36px;
-  font-size: var(--font-size-s);
-  font-family: inherit;
-  outline: none;
-  cursor: pointer;
-  transition: all .2s ease;
-  appearance: none
-}
 
-.pg-select:hover {
-  background-color: #ffffff14;
-  border-color: #fff3
-}
 
-.pg-select:focus {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px var(--pg-glow)
-}
 
-.pg-select-arrow {
-  position: absolute;
-  right: 12px;
-  width: 14px;
-  height: 14px;
-  color: var(--pg-text-secondary);
-  pointer-events: none
-}
 
-button:disabled {
+:where(.builder-layout, .renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
   pointer-events: none;
 }
 
-.btn-sec-delete {
-  padding: var(--space-xs) 10px;
-  font-size: var(--font-size-xs);
-  color: var(--color-error);
+:where(.builder-layout) .btn-sec-delete {
+  padding: var(--of-space-xs) 10px;
+  font-size: var(--of-font-size-xs);
+  color: var(--of-color-error);
   border-color: rgba(219, 60, 60, 0.4);
 }
 
-.btn-sec-delete:hover {
+:where(.builder-layout) .btn-sec-delete:hover {
   border-color: #fff3;
   background: rgba(219, 60, 60, 0.3);
 }
@@ -2896,7 +2798,7 @@ button:disabled {
     position: static !important;
     width: auto !important;
     color: #111 !important;
-    font-family: var(--font-family);
+    font-family: var(--of-font-family);
     font-size: 10.5pt;
     line-height: 1.4;
     -webkit-print-color-adjust: exact;
@@ -3324,3 +3226,42 @@ button:disabled {
     min-height: 0 !important;
   }
 }
+
+/* ==========================================================================
+   Builder toasts (B9) — minimal styles for the container the builder creates
+   itself when the host page has no #toast-container. That container is appended
+   to <body>, outside .builder-layout, so it is a component root of its own: it is
+   tagged .openforms-toast-container and carries the --of-* tokens (#toast-container
+   is in the token block). Nothing here touches a host-provided container.
+   Toast colours stay literal: white text on these fills keeps WCAG AA contrast
+   whatever palette the host's --color-* tokens use.
+   ========================================================================== */
+.openforms-toast-container {
+  position: fixed;
+  bottom: var(--of-space-l);
+  right: var(--of-space-l);
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: var(--of-space-s);
+  pointer-events: none;
+}
+
+.openforms-toast-container .toast {
+  display: flex;
+  align-items: center;
+  gap: var(--of-space-s);
+  max-width: 360px;
+  padding: 10px 14px;
+  border-radius: var(--of-border-radius-m);
+  font-family: var(--of-font-family);
+  font-size: var(--of-font-size-base);
+  line-height: 1.4;
+  color: #fff;
+  background: #1f2937;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  pointer-events: auto;
+}
+
+.openforms-toast-container .toast.toast-error { background: #b42318; }
+.openforms-toast-container .toast.toast-success { background: #15803d; }

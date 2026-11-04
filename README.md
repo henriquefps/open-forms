@@ -24,7 +24,7 @@ Many popular form suites require a paid commercial license if you want to embed 
 Other "vanilla" form libraries often bundle hidden third-party dependencies or framework runtimes under the hood.
 
 * **OpenForms** is written in **pure ES6 Vanilla JavaScript and Modern CSS**.
-* No package managers, no build step requirements, and no library overhead. This makes it ideal for environments like **OutSystems**, where importing npm modules directly into client scripts is restricted or complex.
+* No package managers, no build step requirements, and no library overhead. Icons are inline SVG and the components make no external request (no icon library, no font CDN); a handwriting webfont for typed signatures is an opt-in. This makes it ideal for environments like **OutSystems**, where importing npm modules directly into client scripts is restricted or complex.
 
 ### 🎨 Fully Customizable & Themeable
 

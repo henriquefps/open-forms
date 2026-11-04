@@ -1,120 +1,193 @@
 # Customization Guide
 
-This guide explains how to customize the styling of the **OpenForms** component using CSS Custom Properties (CSS variables).
+This guide explains how to style **OpenForms** with CSS custom properties (CSS variables), and what `openforms.css` does and doesn't touch on your page.
 
-## CSS Custom Properties (Variables)
+## What the stylesheet touches
 
-To override the default theme, define these variables in your own stylesheet under the `:root` selector or a specific theme class (e.g., `.dark`).
+`openforms.css` only styles OpenForms' own elements. Every rule sits under one of the component roots:
+
+| Root | Rendered by |
+| :--- | :--- |
+| `.builder-layout` | `OpenFormBuilder` (the designer) |
+| `.renderer-sandbox` | `OpenFormRenderer` (the form player) |
+| `.lightbox-overlay` | the renderer's image preview, appended to `<body>` |
+| `.openforms-action-sheet-backdrop` | the renderer's mobile "camera / file" picker, appended to `<body>` |
+| `#openforms-print-root` | the snapshot drawn by `renderer.print()` |
+
+So the stylesheet doesn't:
+
+- define or change any variable on `:root`. All of its tokens are named `--of-*` and live on the roots above.
+- style your page's own `input[type=checkbox]`, `input[type=radio]`, `button:disabled`, focus outlines, `.sr-only`, `.pg-btn` or `.is-disabled`.
+- apply any builder rule on a page that only loads the renderer. Builder rules all sit under `.builder-layout`.
+
+The one exception is printing. While `renderer.print()` is pending, `<html>` gets the class `openforms-printing` and `@media print` hides the rest of the page (see the Integration Guide).
+
+Rules are scoped with `:where(<root>) .selector`. `:where()` adds no specificity, so your overrides of OpenForms classes win exactly as they did before scoping.
+
+## Design tokens
+
+Every token is declared on the component roots. They fall into two groups.
+
+**Colours and border radii inherit from the host.** These read the **same-named OutSystems UI token** first, and the literal is used only when your page doesn't define it:
+
+```css
+--of-color-primary: var(--color-primary, #1068eb);
+--of-border-radius-soft: var(--border-radius-soft, 8px);
+```
+
+Colours and corner style are what make a form look like part of your app (brand colour, neutrals, light or dark theme, rounded or square). Following the app's tokens gives that without any setup:
+
+- **OutSystems UI apps** get the app theme's palette and radii automatically.
+- **Other hosts** that already define variables with those names (on `:root` or any ancestor of the container) theme OpenForms through them, as before.
+- **Hosts that define none of them** get the defaults below.
+
+**Spacing, typography and shadows use OpenForms' own values.** `--of-space-*`, `--of-font-family`, `--of-font-size-*`, `--of-font-weight-*` and `--of-shadow-*` are plain values and never read host tokens:
+
+```css
+--of-space-m: 12px;
+--of-font-size-base: 14px;
+```
+
+The builder and renderer layouts (field grid, card padding, label sizes, the builder's three panels) are tuned to this scale. A host whose `--space-m` or `--font-size-base` means something else would make forms looser, tighter or overflow, so these tokens stay fixed. To change them, set the `--of-*` tokens on the roots (see "Theming only OpenForms" below).
 
 ### Neutral Scale (Neutral 0 to 10)
 
 Used for backgrounds, borders, inputs, and text hierarchies.
 
-| CSS Variable | Description | Default (Light) |
-| :--- | :--- | :--- |
-| `--color-neutral-0` | Main canvas/farthest background | `#ffffff` |
-| `--color-neutral-1` | Light backgrounds / sidebar | `#fafafb` |
-| `--color-neutral-2` | Secondary surfaces / muted elements | `#f5f6f8` |
-| `--color-neutral-3` | Standard borders | `#eeeeee` |
-| `--color-neutral-4` | Focused/interacted borders & dividers | `#dedede` |
-| `--color-neutral-5` | Secondary borders / ring indicators | `#b0b0b0` |
-| `--color-neutral-6` | Placeholder & muted text | `#a0a0a0` |
-| `--color-neutral-7` | Muted/disabled labels and metadata | `#666666` |
-| `--color-neutral-8` | Secondary body text | `#4a4a4a` |
-| `--color-neutral-9` | Standard text / headers | `#333333` |
-| `--color-neutral-10` | Primary text / high-contrast titles | `#1a1a1a` |
+| OpenForms token | Reads first | Description | Default |
+| :--- | :--- | :--- | :--- |
+| `--of-color-neutral-0` | `--color-neutral-0` | Main canvas/farthest background | `#ffffff` |
+| `--of-color-neutral-1` | `--color-neutral-1` | Light backgrounds / sidebar | `#fafafb` |
+| `--of-color-neutral-2` | `--color-neutral-2` | Secondary surfaces / muted elements | `#f5f6f8` |
+| `--of-color-neutral-3` | `--color-neutral-3` | Standard borders | `#eeeeee` |
+| `--of-color-neutral-4` | `--color-neutral-4` | Focused/interacted borders & dividers | `#dedede` |
+| `--of-color-neutral-5` | `--color-neutral-5` | Secondary borders / ring indicators | `#b0b0b0` |
+| `--of-color-neutral-6` | `--color-neutral-6` | Placeholder & muted text | `#a0a0a0` |
+| `--of-color-neutral-7` | `--color-neutral-7` | Muted/disabled labels and metadata | `#666666` |
+| `--of-color-neutral-8` | `--color-neutral-8` | Secondary body text | `#4a4a4a` |
+| `--of-color-neutral-9` | `--color-neutral-9` | Standard text / headers | `#333333` |
+| `--of-color-neutral-10` | `--color-neutral-10` | Primary text / high-contrast titles | `#1a1a1a` |
 
 ### Brand & Semantic Colors
 
-Used for actions, status indicators, and selected states.
-
-| CSS Variable | Description | Default (Light) |
-| :--- | :--- | :--- |
-| `--color-primary` | Primary action color / active state indicator | `#1068eb` |
-| `--color-primary-selected` | Background for selected elements | `#e7f0fd` |
-| `--color-primary-hover` | Hover state for primary actions | `#0d52ba` |
-| `--color-secondary` | Secondary action text & icons | `#4a5673` |
-| `--color-error` | Destructive actions, validation errors | `#db3c3c` |
-| `--color-success` | Success confirmations & valid states | `#2e7d32` |
-| `--color-warning` | Warning state alerts | `#f9a825` |
+| OpenForms token | Reads first | Description | Default |
+| :--- | :--- | :--- | :--- |
+| `--of-color-primary` | `--color-primary` | Primary action color / active state indicator | `#1068eb` |
+| `--of-color-primary-selected` | `--color-primary-selected` | Background for selected elements | `#e7f0fd` |
+| `--of-color-primary-hover` | `--color-primary-hover` | Hover state for primary actions | `#0d52ba` |
+| `--of-color-secondary` | `--color-secondary` | Secondary action text & icons | `#4a5673` |
+| `--of-color-error` | `--color-error` | Destructive actions, validation errors | `#db3c3c` |
+| `--of-color-success` | `--color-success` | Success confirmations & valid states | `#2e7d32` |
+| `--of-color-warning` | `--color-warning` | Warning state alerts | `#f9a825` |
 
 ### Typography
 
-| CSS Variable | Description | Default |
+Own values: these don't read `--font-*` from the host.
+
+| OpenForms token | Description | Default |
 | :--- | :--- | :--- |
-| `--font-family` | Base font family | `'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif` |
-
-#### Font Size Scale
-
-| CSS Variable | Description | Default |
-| :--- | :--- | :--- |
-| `--font-size-xs` | Micro text — chips, badges, helper hints | `11px` |
-| `--font-size-s` | Small text — labels, secondary UI copy | `13px` |
-| `--font-size-base` | Default body/input text size | `14px` |
-| `--font-size-m` | Section/subsection titles | `16px` |
-
-#### Font Weight Scale
-
-| CSS Variable | Description | Default |
-| :--- | :--- | :--- |
-| `--font-weight-normal` | Body text | `400` |
-| `--font-weight-medium` | Buttons, emphasized labels | `500` |
-| `--font-weight-semibold` | Field labels, card titles | `600` |
-| `--font-weight-bold` | Section titles, headings | `700` |
+| `--of-font-family` | Base font family | `'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif` |
+| `--of-font-size-xs` | Micro text: chips, badges, helper hints | `11px` |
+| `--of-font-size-s` | Small text: labels, secondary UI copy | `13px` |
+| `--of-font-size-base` | Default body/input text size | `14px` |
+| `--of-font-size-m` | Section/subsection titles | `16px` |
+| `--of-font-weight-normal` | Body text | `400` |
+| `--of-font-weight-medium` | Buttons, emphasized labels | `500` |
+| `--of-font-weight-semibold` | Field labels, card titles | `600` |
+| `--of-font-weight-bold` | Section titles, headings | `700` |
 
 ### Spacing Scale
 
-Used across the builder and renderer for padding, gaps, and margins — override these to tighten or loosen the overall density of the UI without touching individual components.
+Used across the builder and renderer for padding, gaps and margins. Own values: these don't read `--space-*` from the host.
 
-| CSS Variable | Description | Default |
+| OpenForms token | Description | Default |
 | :--- | :--- | :--- |
-| `--space-xs` | Tightest spacing — icon gaps, chip padding | `4px` |
-| `--space-s` | Compact spacing — form control internal padding | `8px` |
-| `--space-m` | Standard spacing — card padding, list gaps | `12px` |
-| `--space-base` | Default spacing — section padding, button padding | `16px` |
-| `--space-l` | Loose spacing — panel margins | `24px` |
-| `--space-xl` | Widest spacing — page/card outer padding | `32px` |
+| `--of-space-xs` | Tightest spacing: icon gaps, chip padding | `4px` |
+| `--of-space-s` | Compact spacing: form control internal padding | `8px` |
+| `--of-space-m` | Standard spacing: card padding, list gaps | `12px` |
+| `--of-space-base` | Default spacing: section padding, button padding | `16px` |
+| `--of-space-l` | Loose spacing: panel margins | `24px` |
+| `--of-space-xl` | Widest spacing: page/card outer padding | `32px` |
 
 ### Border Radius
 
-| CSS Variable | Description | Default |
-| :--- | :--- | :--- |
-| `--border-radius-xs` | Chips, small badges | `4px` |
-| `--border-radius-s` | Inputs, buttons | `6px` |
-| `--border-radius-m` | Standard rounding | `8px` |
-| `--border-radius-soft` | Cards, panels (same as `-m`, kept as a distinct semantic token) | `8px` |
-| `--border-radius-l` | Larger cards *(legacy alias, kept for backwards compatibility)* | `12px` |
-| `--border-radius-pill` | Fully rounded pill buttons/badges | `50px` |
+| OpenForms token | Reads first | Description | Default |
+| :--- | :--- | :--- | :--- |
+| `--of-border-radius-xs` | `--border-radius-xs` | Chips, small badges | `4px` |
+| `--of-border-radius-s` | `--border-radius-s` | Inputs, buttons | `6px` |
+| `--of-border-radius-m` | `--border-radius-m` | Standard rounding | `8px` |
+| `--of-border-radius-soft` | `--border-radius-soft` | Cards, panels | `8px` |
+| `--of-border-radius-l` | `--border-radius-l` | Larger cards | `12px` |
+| `--of-border-radius-pill` | `--border-radius-pill` | Fully rounded pill buttons/badges | `50px` |
 
 ### Shadows
 
-| CSS Variable | Description | Default |
-| :--- | :--- | :--- |
-| `--shadow-sm` | Subtle elevation — inputs, small cards | `0 1px 3px rgba(0, 0, 0, 0.1)` |
-| `--shadow-md` | Standard elevation — panels, dropdowns | `0 4px 6px rgba(0, 0, 0, 0.1)` |
-| `--shadow-lg` | Prominent elevation — modals, the renderer form card | `0 10px 15px rgba(0, 0, 0, 0.15)` |
+Own values: these don't read `--shadow-*` from the host.
 
-> **Note:** All of the tables above reflect the tokens actually declared under `:root` in `src/openforms.css`. Every hardcoded pixel value in the component's own styles has been migrated to reference one of these tokens — overriding a single variable now consistently reshapes every place that value is used, instead of only some of them.
+| OpenForms token | Description | Default |
+| :--- | :--- | :--- |
+| `--of-shadow-sm` | Subtle elevation: inputs, small cards | `0 1px 3px rgba(0, 0, 0, 0.1)` |
+| `--of-shadow-md` | Standard elevation: panels, dropdowns | `0 4px 6px rgba(0, 0, 0, 0.1)` |
+| `--of-shadow-lg` | Prominent elevation: modals, the renderer form card | `0 10px 15px rgba(0, 0, 0, 0.15)` |
+
+### OpenForms-only tokens
+
+These have no OutSystems UI equivalent, so they don't read a host variable either. To change them, set them on the roots (see "Theming only OpenForms" below).
+
+| OpenForms token | Description | Default |
+| :--- | :--- | :--- |
+| `--of-border` | Hairline borders on the image lightbox and a few dashed drop zones | `rgba(255, 255, 255, 0.08)` |
+| `--of-text-primary` | Lightbox close button | `#f3f4f6` |
+| `--of-text-secondary` | Lightbox caption | `#9ca3af` |
 
 ---
 
-## Example Implementations
+## Theming
 
-### 1. Simple Brand Accent Override
+### 1. Through your existing (OutSystems UI) tokens
 
-If you want to keep the clean grey/zinc UI but change only the primary accent color to a custom brand color (e.g., Purple):
+You don't need to do anything. If your page sets `--color-primary`, `--color-neutral-*`, `--border-radius-soft` and so on, OpenForms follows them. Spacing and typography tokens on your page are ignored (see above).
 
 ```css
 :root {
   --color-primary: oklch(0.584 0.235 292.8);          /* Royal Purple */
-  --color-primary-hover: oklch(0.485 0.221 292.8);    /* Darker Purple */
-  --color-primary-selected: oklch(0.94 0.02 292.8);   /* Soft Tint */
+  --color-primary-hover: oklch(0.485 0.221 292.8);
+  --color-primary-selected: oklch(0.94 0.02 292.8);
 }
 ```
 
-### 2. Creating a Custom Dark Mode Theme
+### 2. Theming only OpenForms
 
-Apply this block under a `.dark` class or `[data-theme="dark"]` attribute wrapper:
+Each `--of-*` token is declared on the component roots themselves, so setting an `--of-*` variable on `:root` has **no effect**: the root's own declaration wins over the inherited value. Pick one of these instead.
+
+For colours and radii, set the OutSystems UI-named tokens on **the container you pass to the builder/renderer**. They only reach OpenForms, not the rest of your page:
+
+```css
+#my-form-container {
+  --color-primary: #c2185b;
+  --border-radius-soft: 4px;
+}
+```
+
+Or target the roots directly. This is the only way to change spacing, typography, shadows and the OpenForms-only tokens, and also how to give OpenForms colours that differ from your app's tokens of the same name:
+
+```css
+.builder-layout,
+.renderer-sandbox,
+.lightbox-overlay,
+.openforms-action-sheet-backdrop {
+  --of-color-primary: #c2185b;
+  --of-space-m: 10px;
+  --of-font-size-base: 15px;
+  --of-border: #e4e4e7;
+}
+```
+
+The lightbox and the mobile picker are appended to `<body>`, outside your container. If you theme through the container, also include `.lightbox-overlay` and `.openforms-action-sheet-backdrop` when you want those to match.
+
+### 3. A dark theme
+
+Apply the OutSystems UI-named tokens under a class or attribute on any ancestor of the container (e.g. `<html class="dark">`):
 
 ```css
 .dark {
@@ -134,27 +207,41 @@ Apply this block under a `.dark` class or `[data-theme="dark"]` attribute wrappe
   --color-primary-selected: oklch(0.286 0.016 107.4);
   --color-primary-hover: oklch(0.988 0.003 106.5);
   --color-secondary: oklch(0.737 0.021 106.9);
-  
+
   --color-error: oklch(0.704 0.191 22.216);
 }
 ```
 
-### 3. Adjusting Density (Spacing & Radius)
+### 4. Adjusting density (spacing & radius)
 
-If you want a more compact UI (e.g., embedding inside a dense admin dashboard), scale down the spacing and radius tokens instead of overriding individual component styles:
+For a more compact UI (e.g. inside a dense admin dashboard), set the `--of-*` spacing and radius tokens on the roots. Spacing has to be set as `--of-*`, because OpenForms ignores the host's `--space-*`:
 
 ```css
-:root {
-  --space-xs: 3px;
-  --space-s: 6px;
-  --space-m: 10px;
-  --space-base: 12px;
-  --space-l: 18px;
-  --space-xl: 24px;
+.builder-layout,
+.renderer-sandbox {
+  --of-space-xs: 3px;
+  --of-space-s: 6px;
+  --of-space-m: 10px;
+  --of-space-base: 12px;
+  --of-space-l: 18px;
+  --of-space-xl: 24px;
 
-  --border-radius-xs: 3px;
-  --border-radius-s: 4px;
-  --border-radius-m: 6px;
-  --border-radius-soft: 6px;
+  --of-border-radius-xs: 3px;
+  --of-border-radius-s: 4px;
+  --of-border-radius-m: 6px;
+  --of-border-radius-soft: 6px;
 }
 ```
+
+---
+
+## Migrating from 1.1.x and earlier
+
+Before this change, `openforms.css` declared the tokens on `:root` with the unprefixed names (`--color-primary`, `--space-m`, …) and styled some elements globally.
+
+- **You themed OpenForms by setting `--color-*` or `--border-radius-*` on `:root` or a wrapper.** Nothing to change: OpenForms still reads those names.
+- **You changed OpenForms' spacing or type through `--space-*`, `--font-size-*`, `--font-weight-*`, `--font-family` or `--shadow-*`.** These are no longer read. Set the `--of-*` equivalents on the roots instead (see "Adjusting density").
+- **Your own CSS used `var(--color-primary)`, `var(--space-m)` and so on, and relied on `openforms.css` to define them.** Those variables are no longer defined on your page. Define them yourself (OutSystems UI apps already do).
+- **Your page relied on OpenForms' global rules**: custom-drawn checkboxes and radios, `button:disabled` dimming, the focus ring, `.sr-only`, `.pg-btn` or `.is-disabled` outside the components. Copy the rules you want into your own stylesheet; they now only apply inside OpenForms.
+- **You overrode a token for OpenForms only by declaring `--of-*`-style values on `:root`.** That doesn't work, because the roots declare their own value. Use the container or the roots instead (see "Theming only OpenForms").
+- **OutSystems apps.** Previously, when `openforms.css` was pasted into the Theme style sheet, its `:root` block could override the app theme's tokens, both in OpenForms and in the rest of the app. Now the app keeps its own tokens, and OpenForms follows the app's colours and border radii while keeping its own spacing and type scale. To keep OpenForms' old colours instead, set the `--of-color-*` tokens on the roots.

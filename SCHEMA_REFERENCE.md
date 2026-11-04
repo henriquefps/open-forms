@@ -8,6 +8,7 @@ This is the complete reference for `FormSchemaJSON`, the plain JSON object that 
 
 ```json
 {
+  "schemaVersion": 2,
   "formTitle": "Employee Onboarding Form",
   "formDescription": "Please fill in all fields before your first day.",
   "pages": [ /* Page[] */ ],
@@ -18,6 +19,7 @@ This is the complete reference for `FormSchemaJSON`, the plain JSON object that 
 
 | Property | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
+| `schemaVersion` | `integer` | written by the builder | Format version of the schema (currently `2`). A schema without it is version 1 (the older forms). See "Schema version and migrations" below |
 | `formTitle` | `string` | recommended | The form's heading |
 | `formDescription` | `string` | optional | Subtitle displayed below the title |
 | `pages` | `Page[]` | recommended | Array of pages. A single page renders without a step/progress bar; 2+ pages get one automatically |
@@ -25,6 +27,40 @@ This is the complete reference for `FormSchemaJSON`, the plain JSON object that 
 | `translations` | `object` | optional | Locale-keyed dictionary for multi-language forms (see section 7) |
 
 > You don't have to hand-build this structure — `OpenFormBuilder.normalizeSchema()` fills in every missing/legacy piece (default page, default section, generated IDs, etc.) the moment you call `loadSchema()`. Passing `{}` or `null` is valid and produces a single empty page.
+
+### Schema version and migrations
+
+- `OpenFormBuilder` writes `schemaVersion` (currently `2`) on every schema it outputs (`builder.schema`, `getSchema()`, `onSchemaChange`). You never need to set it by hand.
+- A schema **without** `schemaVersion` is treated as version 1: the older shapes (flat top-level `rows`, page-level `rows`, `visibilityCondition`, repeater `fields`). When loaded by the builder or rendered by the renderer, `normalizeSchema()` detects the version, runs the ordered, named migration steps from that version up to the current one (today only `1 → 2`, `legacy-shapes`), fills in missing defaults and stamps the current version. Migrated copies are in memory only; your stored JSON is never rewritten until you save what the builder gives you.
+- **Migration policy:** a change that breaks the shape of existing schemas bumps `schemaVersion` and ships a new step; steps are never edited after release, and old versions keep loading. Purely additive properties do not bump the version.
+- A schema with a **newer** `schemaVersion` than the build supports is rendered best-effort (no migrations run, its version is kept). The renderer logs a single `console.warn` (no UI), and `validateSchema()` reports a `newer-schema-version` warning.
+
+### Validating a schema: `validateSchema(schema)`
+
+`OpenFormBuilder.validateSchema(schema)` and `OpenFormRenderer.validateSchema(schema)` are static, identical and side-effect free. They accept raw stored schemas (including legacy shapes) and return:
+
+```js
+{
+  valid: boolean,                                   // true when `errors` is empty
+  errors:   [{ path: 'pages[0].sections[0].rows[1].columns[0].field.key', code: 'duplicate-key', message: '...' }],
+  warnings: [{ path, code, message }]               // never make `valid` false
+}
+```
+
+| Code | Level | Meaning |
+| :--- | :--- | :--- |
+| `invalid-schema` | error | Not a JSON object |
+| `unknown-field-type` | error | Missing or unknown `type`. The renderer shows a translated "Unsupported field type" placeholder and leaves the field out of the answers |
+| `missing-key` | error | A data field (anything except `header`/`paragraph`) has no `key` |
+| `duplicate-key` | error | Two fields share a key in the same scope. Top-level fields share one scope; a repeater's sub-fields have their own (a sub-field may reuse a top-level key) |
+| `unknown-operator` | error | A condition's `operator` is not one of those in section 5. The renderer treats it as **not satisfied** |
+| `unknown-field-reference` | error | A rule condition (`dependentFieldKey`, `compareToFieldKey`), a cross-field `targetFields` entry or a `{key}` in a formula/expression names a key that no field has |
+| `invalid-width` | error | A column `width` that is not an integer from 1 to 12 |
+| `invalid-pages` / `invalid-rows` / `invalid-rules` | error | `pages`, `rows` or `conditionalRules`/`crossFieldRules` is not an array |
+| `missing-options-url` | warning | `optionsType: "api"` without `optionsUrl` |
+| `newer-schema-version` / `invalid-schema-version` | warning | `schemaVersion` is newer than supported / not a positive integer |
+
+`OpenFormBuilder.loadSchema()` runs it and, if there are errors, shows a toast summarizing them; the schema still loads so it can be fixed in the editor.
 
 ---
 
@@ -93,7 +129,7 @@ There is no `colId` property on Column — that was a documentation error carrie
 | `paragraph` | Static text block — no answer key, nothing submitted. Plain text only: HTML is shown literally, line breaks are kept | — |
 | `text` | Single-line text input | `string` |
 | `textarea` | Multi-line text area | `string` |
-| `number` | Numeric input (can be calculated — see section 6) | `number` |
+| `number` | Numeric input (can be calculated — see section 6) | `number`, or `null` when empty (also inside repeater items; pre-filled strings such as `"42"` are converted on `render()`) |
 | `date` | Native date picker | `string` (`YYYY-MM-DD`) |
 | `boolean` | Toggle switch | `boolean` |
 | `dropdown` | Single-select dropdown | `string` (selected value) |
@@ -255,7 +291,13 @@ A `number` field can be `isCalculated: true` with a `formulaExpression`, and opt
 }
 ```
 
-`formulaExpression` supports: arithmetic (`+ - * / %`), parentheses, comparisons (`> < >= <= == !=`), the ternary operator (`condition ? a : b`), and `Math.min`, `Math.max`, `Math.round`, `Math.abs`, `Math.floor`, `Math.ceil`. Anything outside that character set is rejected and the expression evaluates to `0` — this is a hard allow-list, not a best-effort filter.
+`formulaExpression` supports: arithmetic (`+ - * / %`, and `**`), unary `-`/`+`/`!`, parentheses, comparisons (`> < >= <= == != === !==`), the ternary operator (`condition ? a : b`), and `Math.min`, `Math.max`, `Math.round`, `Math.abs`, `Math.floor`, `Math.ceil` (comma-separated arguments). Operator precedence and results are the same as in JavaScript. Anything outside that character set is rejected and the expression evaluates to `0` — this is a hard allow-list, not a best-effort filter. The result is rounded to 2 decimal places; division by zero, `NaN`, invalid syntax and any other error also give `0`.
+
+Legacy cross-field `expression` rules use the same grammar plus `&&`, `||` (and the bitwise `&`, `|`). Each `{fieldKey}` is replaced by the field's number (booleans become `1`/`0`, `YYYY-MM-DD` dates become milliseconds, empty values and text that isn't a number become `0`). An expression that is invalid or errors counts as **failed**, so the rule shows its error.
+
+**Content-Security-Policy:** formulas and expression rules are parsed and evaluated by the renderer itself, with no `eval` or `new Function`. They work under a strict CSP such as `script-src 'self'` (no `'unsafe-eval'` needed). The renderer never looks up properties on arbitrary objects; it can only call the six `Math` functions listed above.
+
+> **Changed in the CSP-safe evaluator:** a few JavaScript constructs the allow-listed characters could spell by accident are now rejected instead of run: arrow functions (`()=>1`), regex literals (`/1/`), spread (`...`), HTML-style comments (`<!--`, `-->`) and assignments (`Math.max = 5`, which used to overwrite the page's global `Math.max`). A formula using one of these gives `0`, and a rule using one fails. Nothing in the documented grammar is affected.
 
 ---
 
@@ -290,23 +332,34 @@ Translations are keyed by locale, then by category (`form`, `pages`, `sections`,
 ```js
 const renderer = new OpenFormRenderer({
   containerEl,          // required, HTMLElement
-  onSubmit,             // (answers) => void, fired on successful validated submit
-  onFieldChange,        // (answers) => void, fired on every real-time field edit
+  onSubmit,             // (answers) => void | Promise, fired on successful validated submit
+  onFieldChange,        // optional, (answers, changedKey) => void, fired on every answer change
+  onPageChange,         // optional, (index, page) => void, fired after the visible page changes
+  onValidationError,    // optional, (errors) => void, fired when validation blocks an action
   translations,         // optional, overrides the built-in UI string dictionary (not form content)
   locale,               // optional, initial locale, default 'default'
-  optionsProvider       // optional, (field, { locale, readOnly }) => Promise<Array<{label, value}>>
+  optionsProvider,      // optional, (field, { locale, readOnly }) => Promise<Array<{label, value}>>
+  idPrefix              // optional, prefix for every generated DOM id (default: unique 'ofr<N>-')
 });
 
 renderer.render(schemaJSON, answers, readOnly);
-// schemaJSON: FormSchemaJSON — required
-// answers:    object | null  — pre-fill existing answers (e.g. viewing a past submission)
+// schemaJSON: FormSchemaJSON — required (copied, never modified)
+// answers:    object | null  — pre-fill existing answers (copied, never modified)
 // readOnly:   boolean        — locks all fields, hides the submit button
 
+renderer.validate({ showErrors }); // { valid, errors: [{ key, message, pageIndex, type }] }, no toasts
+renderer.submit();             // same as the submit button; Promise<{ submitted, answers?, errors, error? }>
+renderer.getAnswers();         // deep copy of what a submit would send (visible + enabled fields)
+renderer.setValue(key, value); // sets an answer as if typed: DOM, formulas, rules, onFieldChange
+renderer.goToPage(index);      // true if shown; forward moves need the pages in between to be valid
 renderer.setLocale('pt-BR');   // switches locale reactively, keeps current answers
-renderer.answers;              // current answers object, readable anytime
+renderer.answers;              // the live internal answers object (prefer getAnswers())
+OpenFormRenderer.validateSchema(schema); // static: { valid, errors: [{ path, code, message }], warnings } (section 1)
 renderer.destroy();            // unmounts; removes window listeners, observers, timers, shared nodes
 OpenFormRenderer.escapeHtml(s); // static helper used for every string the renderer puts in HTML
 ```
+
+All callbacks receive copies. `onSubmit` may return a promise: the submit button stays disabled until it settles, the success toast waits for it, and a rejection shows the translated `submitErrorToast` and keeps the form editable. See the Integration Guide, section 2, for details on each method and callback.
 
 There is no separate `loadSchema()`/`setAnswers()`/`setReadOnly()` on the renderer — all three are parameters of the single `render()` call. Calling `render()` again with a new schema/answers/readOnly combination re-renders in place. Each call drops per-record state from the previous one (attachments, signature pads, loaded API options); passing `answers` also returns to the first page, while `render(schema)` with no answers keeps the current answers and page (useful for live preview refreshes).
 
@@ -342,6 +395,7 @@ builder.loadSchema(existingSchema); // pass null/{} for a blank canvas
 builder.schema;                     // current schema, readable anytime (also passed into onSchemaChange)
 builder.undo();
 builder.redo();
+OpenFormBuilder.validateSchema(schema); // static, same result as the renderer's (section 1)
 ```
 
 There is no `getSchema()` method — read `builder.schema` directly, or capture it from the `onSchemaChange` callback.

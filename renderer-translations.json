@@ -10,6 +10,7 @@
   "patternValidationBubble": "Incorrect value for the required pattern.",
   "validationToastError": "Please correctly fill in all required fields in this step.",
   "validationToastSuccess": "Form successfully validated and submitted!",
+  "submitErrorToast": "Could not submit the form. Please try again.",
 
   "selectOptionPlaceholder": "Select an option...",
   "dropdownLoading": "Loading options from API...",
