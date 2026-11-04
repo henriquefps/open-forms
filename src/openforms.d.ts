@@ -171,6 +171,21 @@ export interface FileAnswer {
   content: string;
 }
 
+/**
+ * What a file field holds when the renderer has an `uploadProvider`: the reference the host
+ * returned, never the file's content. Extra host-defined keys are kept as they are.
+ */
+export interface FileReference {
+  name: string;
+  size: number;
+  type: string;
+  /** Where the file can be previewed/downloaded. Only `https:`, `http:`, `blob:` and `data:` URLs are used. */
+  url?: string;
+  /** Host-side identifier (record id, storage key, local queue id, ...). */
+  id?: string | number;
+  [extra: string]: unknown;
+}
+
 // ---------------------------------------------------------------------------
 // Validation results
 // ---------------------------------------------------------------------------
@@ -191,7 +206,7 @@ export interface ValidationError {
   key: string;
   message: string;
   pageIndex: number;
-  /** `"required"`, `"pattern"` or `"crossField"`. */
+  /** `"required"`, `"pattern"`, `"crossField"` or `"uploadPending"` (a file is still uploading). */
   type: string;
   /** Set for errors inside a repeater item. */
   itemIndex?: number;
@@ -225,6 +240,32 @@ export type OptionsProvider = (
   context: OptionsProviderContext
 ) => Promise<FieldOption[]> | FieldOption[];
 
+/**
+ * Why a reference left the form: `removed` (the user deleted it), `replaced` (a new upload took its
+ * place), `hidden` (a rule hid the field and its answer was reset), `itemRemoved` (its repeater item
+ * was deleted) or `discarded` (an upload resolved after it was aborted; it was never an answer).
+ */
+export type FileRemovedReason = 'removed' | 'replaced' | 'hidden' | 'itemRemoved' | 'discarded';
+
+export interface FileRemovedContext {
+  /** The schema field (for a repeater sub-field: its own key, plus `repeater: { key, itemIndex }`). */
+  field: Field & { repeater?: { key: string; itemIndex: number } };
+  reason: FileRemovedReason;
+}
+
+export interface UploadProviderContext {
+  /** The schema field (for a repeater sub-field: its own key, plus `repeater: { key, itemIndex }`). */
+  field: Field & { repeater?: { key: string; itemIndex: number } };
+  locale: string;
+  /** Aborted when the user cancels, the form is re-rendered or `destroy()` runs. */
+  signal: AbortSignal;
+  /** Optional: report progress as a fraction between 0 and 1. */
+  onProgress: (fraction: number) => void;
+}
+
+/** Uploads one file outside the form's memory; resolves to the reference to store as the answer. */
+export type UploadProvider = (file: File | Blob, context: UploadProviderContext) => Promise<FileReference>;
+
 export interface OpenFormRendererOptions {
   containerEl: HTMLElement;
   /** Fired on a successful validated submit. May return a promise. */
@@ -240,6 +281,16 @@ export interface OpenFormRendererOptions {
   /** Initial locale, default `"default"`. */
   locale?: string;
   optionsProvider?: OptionsProvider;
+  /**
+   * Uploads `file` fields' files through the host instead of reading them into Base64 in memory.
+   * The answer then holds only the resolved `FileReference`.
+   */
+  uploadProvider?: UploadProvider;
+  /**
+   * Fired when an uploaded file leaves the form, so the host can delete it server-side. Errors are logged.
+   * Never fired for Base64 (no `uploadProvider`) answers.
+   */
+  onFileRemoved?: (reference: FileReference, context: FileRemovedContext) => void | Promise<unknown>;
   /** Prefix for every generated DOM id (default: unique `ofr<N>-`). */
   idPrefix?: string;
   /** Stylesheet URL for the handwriting font used by typed signatures (e.g. Caveat). */

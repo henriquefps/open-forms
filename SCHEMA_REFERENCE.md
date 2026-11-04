@@ -138,7 +138,7 @@ There is no `colId` property on Column — that was a documentation error carrie
 | `matrix` | Question grid (one selection per row) | `{ [rowKey]: string }` |
 | `repeater` | Repeatable list of sub-fields | `Array<{ [subFieldKey]: any }>` — one object per item |
 | `signature` | Canvas signature pad | `string` — base64 PNG data URL |
-| `file` | File upload | `{ name: string, size: number, type: string, content: string }` — `content` is a base64 data URL. **Not** a raw browser `File` object |
+| `file` | File upload | Without an `uploadProvider`: `{ name: string, size: number, type: string, content: string }` — `content` is a base64 data URL (kept in memory and in the submit payload). With an `uploadProvider`: the **FileReference** the host returned, `{ name, size, type, url?, id?, ...extra }`, with no `content`. Never a raw browser `File` object. Empty: `""` |
 
 ### Type-specific properties
 

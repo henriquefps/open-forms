@@ -1700,7 +1700,9 @@
   padding: var(--of-space-s) var(--of-space-m);
   margin-top: var(--of-space-s);
   font-size: var(--of-font-size-s);
+  width: 100%;
   max-width: 100%;
+  box-sizing: border-box;
 }
 
 :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-file-details-left {
@@ -1743,6 +1745,68 @@
 
 :where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-file-delete-btn:hover svg {
   transform: scale(1.15);
+}
+
+/* uploadProvider: upload in flight / failed */
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-file-upload-info {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-file-upload-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--of-space-xs);
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+}
+
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-file-upload-name {
+  font-weight: var(--of-font-weight-semibold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--of-color-neutral-10);
+}
+
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-file-progress {
+  height: 6px;
+  width: 100%;
+  background-color: var(--of-color-neutral-4);
+  border-radius: var(--of-border-radius-soft);
+  overflow: hidden;
+}
+
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-file-progress-bar {
+  height: 100%;
+  width: 0;
+  background-color: var(--of-color-primary);
+  border-radius: var(--of-border-radius-soft);
+  transition: width 0.2s ease-out;
+}
+
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-file-upload-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--of-space-s);
+  font-size: var(--of-font-size-xs);
+  color: var(--of-color-neutral-7);
+}
+
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-file-upload-error {
+  font-size: var(--of-font-size-xs);
+  color: var(--of-color-error);
+}
+
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-file-details.is-uploading .form-file-details-actions,
+:where(.renderer-sandbox, .lightbox-overlay, .openforms-action-sheet-backdrop) .form-file-details.is-upload-error .form-file-details-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--of-space-s);
+  flex-shrink: 0;
+  margin-left: var(--of-space-m);
 }
 
 /* Signature Drawing Canvas */

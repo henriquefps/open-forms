@@ -58,6 +58,11 @@ const BUILT_IN_TRANSLATIONS = {
     fileDeleteTitle: "Delete file",
     fileDownloadTitle: "Download attachment",
     fileNoneUploaded: "No file uploaded",
+    uploadProgressLabel: "Uploading {name}",
+    uploadCancelLabel: "Cancel",
+    uploadRetryLabel: "Retry",
+    uploadFailedDefault: "Upload failed. Try again.",
+    uploadInProgressError: "Wait for the upload to finish.",
     fileSizeUnits: "Bytes|KB|MB|GB|TB",
     lightboxCloseLabel: "Close Preview",
     lightboxImageAlt: "Attachment Preview",
@@ -113,6 +118,11 @@ const BUILT_IN_TRANSLATIONS = {
     fileDeleteTitle: "Excluir arquivo",
     fileDownloadTitle: "Baixar anexo",
     fileNoneUploaded: "Nenhum arquivo enviado",
+    uploadProgressLabel: "Enviando {name}",
+    uploadCancelLabel: "Cancelar",
+    uploadRetryLabel: "Tentar novamente",
+    uploadFailedDefault: "Falha no envio. Tente novamente.",
+    uploadInProgressError: "Aguarde o envio terminar.",
     lightboxCloseLabel: "Fechar visualização",
     lightboxImageAlt: "Visualização do anexo",
     actionSheetTitle: "Selecione a origem do anexo",
@@ -167,6 +177,11 @@ const BUILT_IN_TRANSLATIONS = {
     fileDeleteTitle: "Eliminar archivo",
     fileDownloadTitle: "Descargar archivo adjunto",
     fileNoneUploaded: "Ningún archivo subido",
+    uploadProgressLabel: "Subiendo {name}",
+    uploadCancelLabel: "Cancelar",
+    uploadRetryLabel: "Reintentar",
+    uploadFailedDefault: "Error al subir. Inténtalo de nuevo.",
+    uploadInProgressError: "Espera a que termine la subida.",
     lightboxCloseLabel: "Cerrar vista previa",
     lightboxImageAlt: "Vista previa del adjunto",
     actionSheetTitle: "Seleccione el origen del adjunto",
@@ -182,7 +197,7 @@ const BUILT_IN_TRANSLATIONS = {
 };
 
 class OpenFormRenderer {
-  static VERSION = '1.3.0';
+  static VERSION = '1.4.0';
 
   /** Current schema format version written by the builder (schemas without it are version 1). */
   static SCHEMA_VERSION = 2;
@@ -267,12 +282,21 @@ class OpenFormRenderer {
    *   context is `{ locale, readOnly }`. The renderer never fetches `optionsUrl` itself —
    *   the host owns transport, auth and caching. Without a provider, such fields show a
    *   "not configured" message and offer no options.
+   * @param {Function} [options.uploadProvider] Host-supplied upload for `file` fields (also camera
+   *   captures and file fields inside repeaters): `(file, { field, locale, signal, onProgress }) =>
+   *   Promise<FileReference>`. `file` is a File/Blob, `signal` an AbortSignal (aborted on Cancel,
+   *   re-render and destroy()), `onProgress(fraction 0..1)` is optional to call. The answer then holds
+   *   only the resolved reference `{ name, size, type, url?, id?, ...extra }` — never the file's
+   *   content. Without a provider, files are read into Base64 data URLs and kept in the answers.
+   * @param {Function} [options.onFileRemoved] `(reference, { field })` fired when the user deletes a
+   *   file that was uploaded through `uploadProvider` (or a stored reference), so the host can delete
+   *   it server-side. Errors thrown here are logged, never shown.
    * @param {string} [options.handwritingFontUrl] Opt-in stylesheet URL (e.g. a Google Fonts
    *   Caveat URL) injected as a <link> the first time a signature field is shown. Without it
    *   the renderer makes no external request; typed signatures use the font stack
    *   'Caveat', 'Segoe Script', 'Bradley Hand', cursive.
    */
-  constructor({ containerEl, onSubmit, onFieldChange, onPageChange, onValidationError, translations, locale, optionsProvider, idPrefix, handwritingFontUrl }) {
+  constructor({ containerEl, onSubmit, onFieldChange, onPageChange, onValidationError, translations, locale, optionsProvider, uploadProvider, onFileRemoved, idPrefix, handwritingFontUrl }) {
     this.containerEl = containerEl;
     this.onSubmit = onSubmit;
     this.onFieldChange = onFieldChange;
@@ -286,6 +310,8 @@ class OpenFormRenderer {
       : `ofr${OpenFormRenderer._instanceSeq}-`;
     this.handwritingFontUrl = typeof handwritingFontUrl === 'string' && handwritingFontUrl.trim() !== '' ? handwritingFontUrl.trim() : null;
     this.optionsProvider = typeof optionsProvider === 'function' ? optionsProvider : null;
+    this.uploadProvider = typeof uploadProvider === 'function' ? uploadProvider : null;
+    this.onFileRemoved = typeof onFileRemoved === 'function' ? onFileRemoved : null;
     this.locale = locale || 'default';
     this.customTranslationsOverride = translations || {};
 
@@ -300,6 +326,11 @@ class OpenFormRenderer {
     // Uploaded files and signature tracks
     this.signaturePads = {};
     this.uploadedFiles = {};
+    // uploadProvider bookkeeping, keyed by field id: uploads in flight or failed (never part of
+    // the answers) and the object URLs used to preview completed images during the session.
+    this._uploads = {};
+    this._objectUrls = {};
+    this._borrowedPreviewUrls = null;
 
     // Lifecycle bookkeeping (see destroy()): pending timers/frames, toasts this instance
     // created, in-flight optionsProvider loads, and a draw counter used to discard
@@ -383,6 +414,25 @@ class OpenFormRenderer {
    */
   static isSafeDataUrl(value) {
     return typeof value === 'string' && /^data:/i.test(value.trim());
+  }
+
+  /**
+   * Link/preview targets for a stored file reference (`url`): `https:`, `http:`, `blob:` or
+   * `data:` only — never `javascript:` or anything else the host or a stored answer could smuggle in.
+   */
+  static isSafeFileUrl(value) {
+    return typeof value === 'string' && /^(?:https?|blob|data):/i.test(value.trim());
+  }
+
+  /**
+   * The safe URL a stored file can be previewed/downloaded from: Base64 `content` (data: only)
+   * or a reference's `url`. Empty string when there is none (the file is then shown by name).
+   */
+  static fileSourceUrl(file) {
+    if (!file || typeof file !== 'object') return '';
+    if (OpenFormRenderer.isSafeDataUrl(file.content)) return file.content.trim();
+    if (OpenFormRenderer.isSafeFileUrl(file.url)) return file.url.trim();
+    return '';
   }
 
   /** setTimeout tracked so destroy() can cancel it. */
@@ -515,6 +565,9 @@ class OpenFormRenderer {
     });
     // Reuse the live form's already-loaded API options instead of calling the provider again
     printRenderer._optionsCache = this._optionsCache;
+    // Images uploaded in this session are previewed from the live form's object URLs (the
+    // snapshot never owns or revokes them)
+    printRenderer._borrowedPreviewUrls = this._objectUrls;
     printRenderer.render(flatSchema, this.answers, true);
 
     // The print CSS only hides the host page while a snapshot is pending, so the host's own
@@ -1170,6 +1223,8 @@ class OpenFormRenderer {
 
     this._cleanupPrint();
     this.teardownSignaturePads();
+    this._abortUploads();
+    this._revokePreviewUrls();
 
     this._timers.forEach(id => clearTimeout(id));
     this._timers.clear();
@@ -1299,6 +1354,8 @@ class OpenFormRenderer {
    */
   resetRecordState() {
     this.teardownSignaturePads();
+    this._abortUploads();
+    this._revokePreviewUrls();
     this.uploadedFiles = {};
     this._optionsCache = new Map();
     this._pendingOptionLoads = new Set();
@@ -2515,6 +2572,8 @@ class OpenFormRenderer {
    * Helper that checks if a field has a non-default/non-empty value in answers
    */
   hasNonDefaultValue(field) {
+    // An upload still running (or failed) counts: hiding the field must abort it
+    if (field.type === 'file' && this._uploads[field.id]) return true;
     const val = this.answers[field.key];
     if (val === undefined || val === null) return false;
 
@@ -2553,6 +2612,8 @@ class OpenFormRenderer {
     });
 
     const scopedIdPrefix = `${field.id}-`;
+    this._abortUploads(scopedIdPrefix);
+    this._revokePreviewUrls(scopedIdPrefix);
     Object.keys(this.uploadedFiles).forEach(k => {
       if (k.startsWith(scopedIdPrefix)) delete this.uploadedFiles[k];
     });
@@ -2565,6 +2626,12 @@ class OpenFormRenderer {
    * Resets the value of a hidden field in answers and synchronized its DOM inputs
    */
   clearFieldState(field) {
+    // Uploaded references are dropped with the answer: tell the host so it can delete them
+    if (field.type === 'file') {
+      this._notifyFileRemoved(this.answers[field.key], field, 'hidden');
+    } else if (field.type === 'repeater' && Array.isArray(this.answers[field.key])) {
+      this.answers[field.key].forEach((item, itemIndex) => this._notifyRepeaterFiles(field, item, itemIndex, 'hidden'));
+    }
     // 1. Reset value in answers
     if (field.type === 'boolean') {
       this.answers[field.key] = field.defaultValue !== undefined ? field.defaultValue : false;
@@ -2617,6 +2684,8 @@ class OpenFormRenderer {
       const typeInput = this._byId('type-input', field.id, wrapper);
       if (typeInput) typeInput.value = '';
     } else if (field.type === 'file') {
+      this._abortUploads(field.id, true);
+      this._revokePreviewUrls(field.id, true);
       delete this.uploadedFiles[field.id];
       const details = this._byId('filedetails', field.id, wrapper);
       const uploader = this._byId('uploader', field.id, wrapper);
@@ -2764,7 +2833,8 @@ class OpenFormRenderer {
   _scopedSubField(repeaterField, itemIndex, subField) {
     return Object.assign({}, subField, {
       id: `${repeaterField.id}-${itemIndex}-${subField.id}`,
-      key: `sub-${repeaterField.id}-${itemIndex}-${subField.key}`
+      key: `sub-${repeaterField.id}-${itemIndex}-${subField.key}`,
+      _repeater: { key: repeaterField.key, itemIndex, subKey: subField.key, subId: subField.id }
     });
   }
 
@@ -3222,7 +3292,7 @@ class OpenFormRenderer {
         uploader.style.display = 'none';
         details.style.display = 'flex';
         details.className = 'form-file-details is-readonly';
-        details.innerHTML = this.renderFileDetailsHTML(file, true);
+        details.innerHTML = this.renderFileDetailsHTML(file, true, field.id);
         hiddenInput.value = file.name;
         this.bindFileEvents(details, file, field, hiddenInput, uploader, true);
       } else {
@@ -3236,13 +3306,16 @@ class OpenFormRenderer {
       return;
     }
 
-    // Restore uploaded file states in multi-page jumps
-    if (this.uploadedFiles[field.id]) {
+    // Restore uploaded file states in multi-page jumps (an upload still in flight, or one that
+    // failed, is shown again from its state: it survives page changes and repeater redraws)
+    if (this._uploads[field.id]) {
+      this._paintUploadState(field, searchRoot);
+    } else if (this.uploadedFiles[field.id]) {
       const file = this.uploadedFiles[field.id];
       uploader.style.display = 'none';
       details.style.display = 'flex';
       details.className = 'form-file-details';
-      details.innerHTML = this.renderFileDetailsHTML(file, false);
+      details.innerHTML = this.renderFileDetailsHTML(file, false, field.id);
       hiddenInput.value = file.name;
       this.bindFileEvents(details, file, field, hiddenInput, uploader, false);
     }
@@ -3328,6 +3401,14 @@ class OpenFormRenderer {
       return;
     }
 
+    // With an uploadProvider the file goes to the host and only the returned reference is kept
+    if (this.uploadProvider) {
+      // Lets the same file be picked again after Cancel or a dismissed failure
+      if (picker) picker.value = '';
+      this._startUpload(field, file);
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (e) => {
       // The form may have been redrawn, re-rendered or destroyed while the file was read
@@ -3348,7 +3429,7 @@ class OpenFormRenderer {
       uploader.style.display = 'none';
       details.style.display = 'flex';
       details.className = 'form-file-details';
-      details.innerHTML = this.renderFileDetailsHTML(fileObj, false);
+      details.innerHTML = this.renderFileDetailsHTML(fileObj, false, field.id);
 
       const wrapper = this._byId('wrapper', field.id);
       if (wrapper) wrapper.classList.remove('is-invalid');
@@ -3360,20 +3441,265 @@ class OpenFormRenderer {
     reader.readAsDataURL(file);
   }
 
+  // ---- uploadProvider ------------------------------------------------------------------
+
+  /** The schema field as the host should see it (a repeater sub-field gets its own key, not the scoped one). */
+  _publicField(field) {
+    const copy = JSON.parse(JSON.stringify(field));
+    if (copy._repeater) {
+      const info = copy._repeater;
+      copy.key = info.subKey;
+      copy.id = info.subId;
+      copy.repeater = { key: info.key, itemIndex: info.itemIndex };
+      delete copy._repeater;
+    }
+    return copy;
+  }
+
+  /** True while an upload for this field id is in flight (a failed one no longer blocks). */
+  _isUploadPending(fieldId) {
+    const state = this._uploads[fieldId];
+    return !!state && state.status === 'uploading';
+  }
+
+  /**
+   * Aborts in-flight uploads (their `signal`) and forgets uploads that failed. `target` is a
+   * field id (with `exact`) or an id prefix (repeater items); no target means all of them.
+   */
+  _abortUploads(target, exact = false) {
+    Object.keys(this._uploads).forEach(id => {
+      if (target !== undefined && !(exact ? id === target : id.startsWith(target))) return;
+      const state = this._uploads[id];
+      delete this._uploads[id];
+      if (state && state.controller && !state.controller.signal.aborted) {
+        try { state.controller.abort(); } catch (e) { /* nothing to do */ }
+      }
+    });
+  }
+
+  /** Revokes session preview object URLs (same targeting as _abortUploads). */
+  _revokePreviewUrls(target, exact = false) {
+    Object.keys(this._objectUrls).forEach(id => {
+      if (target !== undefined && !(exact ? id === target : id.startsWith(target))) return;
+      const url = this._objectUrls[id];
+      delete this._objectUrls[id];
+      try {
+        if (typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(url);
+      } catch (e) { /* nothing to do */ }
+    });
+  }
+
+  /** Object URL used to preview an image uploaded in this session (own or borrowed by print()). */
+  _previewUrlFor(fieldId) {
+    if (fieldId === undefined || fieldId === null) return '';
+    return this._objectUrls[fieldId] || (this._borrowedPreviewUrls && this._borrowedPreviewUrls[fieldId]) || '';
+  }
+
+  /** Converts a data URL (camera plugins hand these over) to a Blob, so it can go to the uploadProvider. */
+  static _dataUrlToBlob(dataUrl) {
+    const comma = dataUrl.indexOf(',');
+    const meta = dataUrl.slice(5, comma < 0 ? undefined : comma);
+    const type = meta.split(';')[0] || 'application/octet-stream';
+    const body = comma < 0 ? '' : dataUrl.slice(comma + 1);
+    const binary = /;base64$/i.test(meta) ? atob(body) : decodeURIComponent(body);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return new Blob([bytes], { type });
+  }
+
+  /** Starts (or restarts, on Retry) the upload of `file` for a file field. Nothing here touches the answers until it succeeds. */
+  _startUpload(field, file) {
+    if (this._destroyed || !this.uploadProvider) return;
+    this._abortUploads(field.id, true);
+
+    const controller = typeof AbortController === 'function' ? new AbortController() : { signal: { aborted: false }, abort() { this.signal.aborted = true; } };
+    const state = { file, controller, status: 'uploading', progress: 0, error: '' };
+    this._uploads[field.id] = state;
+
+    const context = {
+      field: this._publicField(field),
+      locale: this.locale,
+      signal: controller.signal,
+      onProgress: (fraction) => {
+        if (this._uploads[field.id] !== state || state.status !== 'uploading') return;
+        const value = Number(fraction);
+        if (!isFinite(value)) return;
+        state.progress = Math.min(1, Math.max(0, value));
+        this._updateUploadProgress(field, state);
+      }
+    };
+
+    this._paintUploadState(field);
+
+    let request;
+    try {
+      request = Promise.resolve(this.uploadProvider(file, context));
+    } catch (err) {
+      request = Promise.reject(err);
+    }
+    // A cancelled, replaced or destroyed upload is ignored, however the provider settles
+    const isCurrent = () => !this._destroyed && this._uploads[field.id] === state && !controller.signal.aborted;
+    const fail = (err) => {
+      if (!isCurrent()) return;
+      console.warn(`OpenFormRenderer: uploadProvider failed for "${file && file.name}":`, err);
+      state.status = 'error';
+      state.error = (err && typeof err.message === 'string' && err.message.trim()) || (typeof err === 'string' && err.trim()) || this.translations.uploadFailedDefault;
+      this._paintUploadState(field);
+    };
+    request.then(
+      (reference) => {
+        if (!isCurrent()) {
+          // Cancelled, replaced, re-rendered, hidden or destroyed meanwhile: the host may have stored it
+          this._notifyFileRemoved(reference, field, 'discarded');
+          return;
+        }
+        if (!reference || typeof reference !== 'object' || Array.isArray(reference)) {
+          fail(new Error(this.translations.uploadFailedDefault));
+          return;
+        }
+        this._completeUpload(field, state, reference);
+      },
+      fail
+    );
+  }
+
+  /** The provider resolved: keep only its reference in the answers, preview the image from an object URL. */
+  _completeUpload(field, state, reference) {
+    delete this._uploads[field.id];
+    const file = state.file;
+    const stored = Object.assign({ name: file.name, size: file.size, type: file.type }, reference);
+
+    const previous = this.uploadedFiles[field.id];
+    if (previous && previous !== stored) this._notifyFileRemoved(previous, field, 'replaced');
+
+    this._revokePreviewUrls(field.id, true);
+    if (String(file.type || '').startsWith('image/') && typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+      try { this._objectUrls[field.id] = URL.createObjectURL(file); } catch (e) { /* the preview is optional */ }
+    }
+
+    this.uploadedFiles[field.id] = stored;
+    this.answers[field.key] = stored;
+    this._showStoredFile(field, stored);
+
+    const wrapper = this._byId('wrapper', field.id);
+    if (wrapper) wrapper.classList.remove('is-invalid');
+    this.handleFieldChanged(field.key);
+  }
+
+  /** Shows a completed file (name, size, preview, delete) if its field is on screen. */
+  _showStoredFile(field, fileObj, root = this.formEl) {
+    const uploader = this._byId('uploader', field.id, root);
+    const details = this._byId('filedetails', field.id, root);
+    const hiddenInput = this._byId('input', field.id, root);
+    if (!details) return;
+    if (hiddenInput) hiddenInput.value = fileObj.name;
+    if (uploader) uploader.style.display = 'none';
+    details.style.display = 'flex';
+    details.className = 'form-file-details';
+    details.innerHTML = this.renderFileDetailsHTML(fileObj, false, field.id);
+    this.bindFileEvents(details, fileObj, field, hiddenInput, uploader, false);
+  }
+
+  /** Puts a field back to its empty drop zone. */
+  _showEmptyUploader(field) {
+    const uploader = this._byId('uploader', field.id);
+    const details = this._byId('filedetails', field.id);
+    const hiddenInput = this._byId('input', field.id);
+    const picker = this._byId('filepicker', field.id);
+    if (details) { details.style.display = 'none'; details.innerHTML = ''; }
+    if (uploader) uploader.style.display = 'flex';
+    if (hiddenInput) hiddenInput.value = '';
+    if (picker) picker.value = '';
+  }
+
+  /** Paints the in-flight / failed state of a field's upload, with its Cancel / Retry controls. */
+  _paintUploadState(field, root = this.formEl) {
+    const state = this._uploads[field.id];
+    const uploader = this._byId('uploader', field.id, root);
+    const details = this._byId('filedetails', field.id, root);
+    if (!state || !details) return;
+    const esc = OpenFormRenderer.escapeHtml;
+    const t = this.translations;
+    const isError = state.status === 'error';
+    const name = state.file && state.file.name ? state.file.name : '';
+    const percent = Math.round(state.progress * 100);
+    const label = t.uploadProgressLabel.replace('{name}', name);
+
+    if (uploader) uploader.style.display = 'none';
+    details.style.display = 'flex';
+    details.className = `form-file-details ${isError ? 'is-upload-error' : 'is-uploading'}`;
+    details.innerHTML = `
+      <div class="form-file-details-left form-file-upload-info">
+        <div class="form-file-upload-text">
+          <div class="form-file-upload-name" title="${esc(name)}">${esc(name)}</div>
+          ${isError ? `
+          <div class="form-file-upload-error" role="alert">${esc(state.error)}</div>
+          ` : `
+          <div class="form-file-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}" aria-label="${esc(label)}">
+            <div class="form-file-progress-bar" style="width: ${percent}%;"></div>
+          </div>
+          <div class="form-file-upload-meta"><span class="form-file-upload-size">${esc(this.formatFileSize(state.file && state.file.size))}</span> <span class="form-file-upload-percent">${percent}%</span></div>
+          `}
+        </div>
+      </div>
+      <div class="form-file-details-actions">
+        ${isError ? `
+        <button type="button" class="pg-btn pg-btn-secondary form-file-retry-btn">${esc(t.uploadRetryLabel)}</button>
+        <button type="button" class="form-file-delete-btn form-file-dismiss-btn" title="${esc(t.fileDeleteTitle)}" aria-label="${esc(t.fileDeleteTitle)}">
+          ${OpenFormRenderer.icon('trash-2', '', 'width: 14px; height: 14px;')}
+        </button>
+        ` : `
+        <button type="button" class="pg-btn pg-btn-secondary form-file-cancel-btn">${esc(t.uploadCancelLabel)}</button>
+        `}
+      </div>
+    `;
+
+    const cancelBtn = details.querySelector('.form-file-cancel-btn');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', () => {
+        this._abortUploads(field.id, true);
+        this._showEmptyUploader(field);
+      });
+    }
+    const retryBtn = details.querySelector('.form-file-retry-btn');
+    if (retryBtn) retryBtn.addEventListener('click', () => this._startUpload(field, state.file));
+    const dismissBtn = details.querySelector('.form-file-dismiss-btn');
+    if (dismissBtn) {
+      dismissBtn.addEventListener('click', () => {
+        this._abortUploads(field.id, true);
+        this._showEmptyUploader(field);
+      });
+    }
+  }
+
+  /** Progress ticks only touch the bar: no re-render and no onFieldChange. */
+  _updateUploadProgress(field, state) {
+    const details = this._byId('filedetails', field.id);
+    if (!details) return;
+    const percent = Math.round(state.progress * 100);
+    const bar = details.querySelector('.form-file-progress');
+    if (bar) bar.setAttribute('aria-valuenow', String(percent));
+    const fill = details.querySelector('.form-file-progress-bar');
+    if (fill) fill.style.width = `${percent}%`;
+    const text = details.querySelector('.form-file-upload-percent');
+    if (text) text.textContent = `${percent}%`;
+  }
+
   /**
    * Triggers beautiful fullscreen image lightboxes for images, and native direct downloads for documents
    */
-  handleAttachmentClick(file) {
-    const isImg = file.type?.startsWith('image/') || (typeof file.content === 'string' && file.content.startsWith('data:image'));
+  handleAttachmentClick(file, previewUrl = '') {
+    const src = previewUrl || OpenFormRenderer.fileSourceUrl(file);
+    const isImg = file.type?.startsWith('image/') || /^data:image/i.test(src);
     if (isImg) {
-      if (!OpenFormRenderer.isSafeDataUrl(file.content)) return;
+      if (!src) return;
       this.ensureLightbox();
       const lightbox = document.getElementById('lightbox-modal');
       const img = document.getElementById('lightbox-image');
       const caption = document.getElementById('lightbox-caption');
 
       if (lightbox && img && caption) {
-        img.src = file.content;
+        img.src = src;
         img.alt = this.translations.lightboxImageAlt;
         const closeBtn = document.getElementById('lightbox-close');
         if (closeBtn) closeBtn.setAttribute('aria-label', this.translations.lightboxCloseLabel);
@@ -3389,7 +3715,8 @@ class OpenFormRenderer {
    * Triggers native OS share sheet if plugins are available, otherwise falls back to browser download
    */
   downloadFile(file) {
-    if (!file || !OpenFormRenderer.isSafeDataUrl(file.content)) return;
+    const src = OpenFormRenderer.fileSourceUrl(file);
+    if (!src) return;
     const isCordovaShare = !!(window.plugins && window.plugins.socialsharing);
     const isCapacitorShare = !!(window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Share);
 
@@ -3397,16 +3724,17 @@ class OpenFormRenderer {
       window.plugins.socialsharing.share(
         null,
         file.name,
-        file.content,
+        src,
         null,
         () => { },
         (err) => console.warn("Cordova sharing error:", err)
       );
     } else if (isCapacitorShare) {
-      const hasFilesystem = !!(window.Capacitor.Plugins.Filesystem);
+      // Writing to the cache needs the Base64 payload; a remote reference opens as a normal download
+      const hasFilesystem = !!(window.Capacitor.Plugins.Filesystem) && OpenFormRenderer.isSafeDataUrl(src);
       if (hasFilesystem) {
         const fs = window.Capacitor.Plugins.Filesystem;
-        const base64Parts = file.content.split(',');
+        const base64Parts = src.split(',');
         const base64Data = base64Parts.length > 1 ? base64Parts[1] : base64Parts[0];
 
         fs.writeFile({
@@ -3432,7 +3760,7 @@ class OpenFormRenderer {
 
   triggerWebDownload(file) {
     const tempLink = document.createElement('a');
-    tempLink.href = file.content;
+    tempLink.href = OpenFormRenderer.fileSourceUrl(file);
     tempLink.download = file.name;
     document.body.appendChild(tempLink);
     tempLink.click();
@@ -3449,7 +3777,7 @@ class OpenFormRenderer {
     if (leftEl) {
       leftEl.style.cursor = 'pointer';
       leftEl.addEventListener('click', () => {
-        this.handleAttachmentClick(file);
+        this.handleAttachmentClick(file, this._previewUrlFor(field && field.id));
       });
     }
 
@@ -3470,6 +3798,8 @@ class OpenFormRenderer {
         deleteBtn.addEventListener('click', () => {
           delete this.uploadedFiles[field.id];
           this.answers[field.key] = '';
+          this._revokePreviewUrls(field.id, true);
+          this._notifyFileRemoved(file, field, 'removed');
           if (hiddenInput) hiddenInput.value = '';
           const picker = this._byId('filepicker', field.id);
           if (picker) picker.value = '';
@@ -3479,6 +3809,36 @@ class OpenFormRenderer {
         });
       }
     }
+  }
+
+  /**
+   * Tells the host an uploaded file left the form, so it can delete it server-side.
+   * `reason`: 'removed' (user deleted it), 'replaced' (a new upload took its place),
+   * 'hidden' (a rule hid the field and its answer was reset), 'itemRemoved' (its repeater item
+   * was deleted) or 'discarded' (an upload resolved after it had been aborted; never an answer).
+   * Only references are reported: Base64 content lives in the answers and goes with them.
+   */
+  _notifyFileRemoved(file, field, reason) {
+    if (!this.onFileRemoved || !file || typeof file !== 'object' || typeof file.content === 'string') return;
+    try {
+      const outcome = this.onFileRemoved(OpenFormRenderer._deepClone(file), { field: this._publicField(field), reason });
+      if (outcome && typeof outcome.then === 'function') {
+        outcome.then(undefined, (err) => console.warn('OpenFormRenderer: onFileRemoved failed:', err));
+      }
+    } catch (err) {
+      console.warn('OpenFormRenderer: onFileRemoved failed:', err);
+    }
+  }
+
+  /** onFileRemoved for every file sub-field of one repeater item that holds a reference. */
+  _notifyRepeaterFiles(field, item, itemIndex, reason) {
+    if (!this.onFileRemoved || !item || typeof item !== 'object') return;
+    (field.rows || []).forEach(row => (row.columns || []).forEach(col => {
+      const subField = col && col.field;
+      if (subField && subField.type === 'file') {
+        this._notifyFileRemoved(item[subField.key], this._scopedSubField(field, itemIndex, subField), reason);
+      }
+    }));
   }
 
   /**
@@ -3517,30 +3877,33 @@ class OpenFormRenderer {
   /**
    * Helper to render premium file attachment details with image thumbnails and download triggers
    */
-  renderFileDetailsHTML(file, isReadOnly) {
+  renderFileDetailsHTML(file, isReadOnly, fieldId) {
     const esc = OpenFormRenderer.escapeHtml;
-    // File name/content come from the end-user (or stored answers): escape the name
-    // everywhere and only link/preview `data:` content — anything else gets no href/src.
-    const hasSafeContent = OpenFormRenderer.isSafeDataUrl(file.content);
-    const isImg = hasSafeContent && (String(file.type || '').startsWith('image/') || /^data:image\//i.test(file.content));
+    // File name/content come from the end-user (or stored answers) and a reference's `url` from
+    // the host: escape the name everywhere and only link/preview data:, http(s): and blob: URLs
+    // — anything else gets no href/src, just the name and size.
+    const sourceUrl = OpenFormRenderer.fileSourceUrl(file);
+    const hasSafeContent = !!sourceUrl;
+    const previewUrl = this._previewUrlFor(fieldId) || sourceUrl;
+    const isImg = !!previewUrl && (String(file.type || '').startsWith('image/') || /^data:image\//i.test(previewUrl));
     const previewHtml = isImg ? `
       <div class="form-file-preview-thumbnail" style="margin-right: var(--of-space-m); width: 44px; height: 44px; border-radius: var(--of-border-radius-xs); overflow: hidden; border: 1px solid var(--of-color-neutral-4); flex-shrink: 0; background: var(--of-color-neutral-2);">
-        <img src="${esc(file.content)}" alt="" style="width: 100%; height: 100%; object-fit: cover;" />
+        <img src="${esc(previewUrl)}" alt="" style="width: 100%; height: 100%; object-fit: cover;" />
       </div>
     ` : '';
 
     return `
-      <div class="form-file-details-left" style="display: flex; align-items: center; flex: 1; overflow: hidden;">
+      <div class="form-file-details-left" style="display: flex; align-items: center; flex: 1; min-width: 0; overflow: hidden;">
         ${previewHtml}
-        <div style="display: flex; flex-direction: column; overflow: hidden; text-align: left;">
-          <div style="font-weight: var(--of-font-weight-semibold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px; color: var(--of-color-neutral-10);" title="${esc(file.name)}">${esc(file.name)}</div>
+        <div style="display: flex; flex-direction: column; flex: 1; min-width: 0; overflow: hidden; text-align: left;">
+          <div style="font-weight: var(--of-font-weight-semibold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; color: var(--of-color-neutral-10);" title="${esc(file.name)}">${esc(file.name)}</div>
           <div style="font-size: var(--of-font-size-xs); color: var(--of-color-neutral-7);">${esc(this.formatFileSize(file.size))}</div>
         </div>
       </div>
-      <div class="form-file-details-actions" style="display: flex; align-items: center; gap: var(--of-space-s); flex-shrink: 0;">
+      <div class="form-file-details-actions" style="display: flex; align-items: center; gap: var(--of-space-s); flex-shrink: 0; margin-left: var(--of-space-m);">
         ${hasSafeContent ? `
         <!-- Download Button -->
-        <a href="${esc(file.content)}" download="${esc(file.name)}" class="pg-btn pg-btn-secondary form-file-download-btn" title="${esc(this.translations.fileDownloadTitle)}" style="padding: 6px var(--of-space-s); display: flex; align-items: center; justify-content: center; height: auto;">
+        <a href="${esc(sourceUrl)}" download="${esc(file.name)}" class="pg-btn pg-btn-secondary form-file-download-btn" title="${esc(this.translations.fileDownloadTitle)}" style="padding: 6px var(--of-space-s); display: flex; align-items: center; justify-content: center; height: auto;">
           ${OpenFormRenderer.icon('download', '', 'width: 14px; height: 14px;')}
         </a>
         ` : ''}
@@ -3641,6 +4004,12 @@ class OpenFormRenderer {
                         if (isFieldInvalid) errorMessage = this.translations.requiredFieldBubble;
                       }
 
+                      if (subField.type === 'file' && this._isUploadPending(scopedId)) {
+                        isFieldInvalid = true;
+                        errorType = 'uploadPending';
+                        errorMessage = this.translations.uploadInProgressError;
+                      }
+
                       // Regex validation inside repeater fields
                       if (!isFieldInvalid && subField.type === 'text' && subField.validationRegex && val) {
                         try {
@@ -3728,6 +4097,13 @@ class OpenFormRenderer {
                 }
               }
               if (isFieldInvalid) errorMessage = this.translations.requiredFieldBubble;
+            }
+
+            // An upload still in flight blocks validation/submit, whether or not the field is required
+            if (field.type === 'file' && this._isUploadPending(field.id)) {
+              isFieldInvalid = true;
+              errorType = 'uploadPending';
+              errorMessage = this.translations.uploadInProgressError;
             }
 
             // 2. Validate Regex rules
@@ -3938,7 +4314,7 @@ class OpenFormRenderer {
    * Sets a top-level field's answer from code, as if the user had entered it: updates the
    * answers, the field's DOM (when its page is shown), formulas and rules, then fires
    * onFieldChange(answers, key). `number` values are stored as numbers (empty -> null); a
-   * repeater takes an array of item objects; a file takes `{ name, size, type, content }`.
+   * repeater takes an array of item objects; a file takes `{ name, size, type, content }` (or, with an uploadProvider, a FileReference).
    * A field hidden by a rule is cleared again by that rule, as a user edit would be.
    *
    * @returns {boolean} false when no field has that key (or it holds no answer).
@@ -3959,6 +4335,8 @@ class OpenFormRenderer {
       next = (Array.isArray(next) ? next : []).map(item => (item && typeof item === 'object' && !Array.isArray(item) ? item : {}));
       this.clearRepeaterScopedKeys(field);
     } else if (field.type === 'file') {
+      this._abortUploads(field.id, true);
+      this._revokePreviewUrls(field.id, true);
       delete this.uploadedFiles[field.id];
     }
     this.answers[field.key] = next;
@@ -4190,6 +4568,7 @@ class OpenFormRenderer {
           delBtn.innerHTML = `${OpenFormRenderer.icon('trash-2', '', 'width: 12px; height: 12px;')}`;
           delBtn.addEventListener('click', (e) => {
             e.stopPropagation();
+            this._notifyRepeaterFiles(field, item, itemIndex, 'itemRemoved');
             items.splice(itemIndex, 1);
             this.clearRepeaterScopedKeys(field);
             this.notifyFieldChange(field.key);
@@ -4254,6 +4633,7 @@ class OpenFormRenderer {
               const scopedField = JSON.parse(JSON.stringify(subField));
               scopedField.id = `${field.id}-${itemIndex}-${subField.id}`;
               scopedField.key = scopedKey;
+              scopedField._repeater = { key: field.key, itemIndex, subKey: subField.key, subId: subField.id };
 
               // 4. Create widget wrapper using standard renderer engine
               const widgetWrapper = this.createWidgetWrapper(scopedField);
@@ -4919,6 +5299,27 @@ class OpenFormRenderer {
     const details = this._byId('filedetails', field.id);
     const hiddenInput = this._byId('input', field.id);
 
+    if (this.uploadProvider) {
+      // Hand the capture to the host as a Blob/File; only the returned reference is kept
+      let blob;
+      try {
+        blob = OpenFormRenderer._dataUrlToBlob(dataUrl);
+      } catch (err) {
+        console.warn('OpenFormRenderer: could not read the captured photo:', err);
+        return;
+      }
+      const name = `camera_photo_${Date.now()}.jpg`;
+      const type = blob.type || 'image/jpeg';
+      let file = blob;
+      if (typeof File === 'function') {
+        file = new File([blob], name, { type });
+      } else {
+        try { Object.defineProperty(blob, 'name', { value: name }); } catch (e) { /* name stays unset */ }
+      }
+      this._startUpload(field, file);
+      return;
+    }
+
     // Estimate file size from base64
     const head = dataUrl.indexOf(",") + 1;
     const base64Data = dataUrl.substring(head);
@@ -4939,7 +5340,7 @@ class OpenFormRenderer {
     if (details) {
       details.style.display = 'flex';
       details.className = 'form-file-details';
-      details.innerHTML = this.renderFileDetailsHTML(fileObj, false);
+      details.innerHTML = this.renderFileDetailsHTML(fileObj, false, field.id);
 
       this.bindFileEvents(details, fileObj, field, hiddenInput, uploader, false);
     }

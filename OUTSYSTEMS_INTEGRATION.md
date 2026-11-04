@@ -1,7 +1,7 @@
 # OpenForms — OutSystems Integration Guide
 
 > **Compatible with:** OutSystems 11 (Reactive Web) and OutSystems Developer Cloud (ODC)  
-> **Component version:** the examples pin `open-forms@1.3.0` on jsDelivr; use the version you are deploying.  
+> **Component version:** the examples pin `open-forms@1.4.0` on jsDelivr; use the version you are deploying.  
 > **Author:** Henrique Silva (contact@hfps.dev) — [hfps.dev](https://hfps.dev)
 
 This guide shows how to run the OpenForms **renderer** (and, optionally, the **builder**) inside an OutSystems Reactive app, in both O11 and ODC. For the generic API see [INTEGRATION_GUIDE.md](./INTEGRATION_GUIDE.md); for the schema see [SCHEMA_REFERENCE.md](./SCHEMA_REFERENCE.md); for theming see [customization.md](./customization.md).
@@ -24,7 +24,8 @@ This guide shows how to run the OpenForms **renderer** (and, optionally, the **b
 12. [Persisting and loading schemas](#persisting-and-loading-schemas)
 13. [Storing answers](#storing-answers)
 14. [Files and signatures in the answers](#files-and-signatures-in-the-answers)
-15. [Troubleshooting](#troubleshooting)
+15. [Uploading files (`uploadProvider`)](#uploading-files-uploadprovider)
+16. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -76,9 +77,9 @@ Every action used in this guide lists its input parameters in call order.
 **Option A — Scripts resource (recommended, works offline).**
 
 1. Download the files pinned to the version you use:
-   - `https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.3.0/src/renderer.js`
-   - `https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.3.0/src/builder.js` (only for designer screens)
-   - `https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.3.0/src/openforms.css`
+   - `https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.4.0/src/renderer.js`
+   - `https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.4.0/src/builder.js` (only for designer screens)
+   - `https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.4.0/src/openforms.css`
 2. O11 Reactive: **Interface → Scripts → Import Script…**. ODC: **Interface → Scripts → Import script**. Import `renderer.js` (and `builder.js`).
 3. Select your Block (or Screen) and add the script to its **Required Scripts**.
    Adding the same script to both a Block and a Screen is safe: loading it twice keeps the first definition and only logs a warning if the versions differ.
@@ -91,10 +92,10 @@ Every action used in this guide lists its input parameters in call order.
 - CSS: first line of the Theme style sheet:
 
   ```css
-  @import url("https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.3.0/src/openforms.css");
+  @import url("https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.4.0/src/openforms.css");
   ```
 
-- JS: in the Block's `OnInitialize`, use the OutSystems UI **RequireScript** action with `URL = "https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.3.0/src/renderer.js"`. Make sure the script has finished loading before the `OnReady` JavaScript node runs.
+- JS: in the Block's `OnInitialize`, use the OutSystems UI **RequireScript** action with `URL = "https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.4.0/src/renderer.js"`. Make sure the script has finished loading before the `OnReady` JavaScript node runs.
 
 > Use the CDN only if your environment allows external scripts (CSP, offline use). Pin the version (`@1.1.0`), never `@latest`.
 
@@ -560,8 +561,86 @@ The `IsMapped` boolean + `MappingExpression` column on `DynamicForm` keeps your 
 
 The answers object is plain JSON-serializable data, so `JSON.stringify(answers)` is enough, including files and signatures:
 
-- **`file` fields** are objects `{ name, size, type, content }`, where `content` is a base64 **data URL**. They are **not** browser `File` objects. Store them inside `AnswersJSON`, or, for large files, split them out in the Client Action and send them to a Binary Data attribute or a REST API (convert `content` with `fetch(dataUrl).then(r => r.blob())`). Mind OutSystems request size limits and the field's `maxFileSizeMB` (default 5).
+- **`file` fields** are objects `{ name, size, type, content }`, where `content` is a base64 **data URL** (with an [`uploadProvider`](#uploading-files-uploadprovider) they hold only the reference `{ name, size, type, id, url?, ... }` instead, which is the better choice on mobile). They are **not** browser `File` objects. Store them inside `AnswersJSON`, or, for large files, split them out in the Client Action and send them to a Binary Data attribute or a REST API (convert `content` with `fetch(dataUrl).then(r => r.blob())`). Mind OutSystems request size limits and the field's `maxFileSizeMB` (default 5).
 - **`signature` fields** are a PNG data URL string (`data:image/png;base64,...`). Store it as a `Text` (Length = 0) attribute and show it back with an `<img src="...">`, or render the form in [read-only](#read-only-view) mode.
+
+---
+
+## Uploading files (`uploadProvider`)
+
+By default a file chosen in a `file` field is read into a Base64 data URL and sits in the answers, then in your `AnswersJSON`. A handful of phone photos can exhaust the memory of a mobile app (and of the webview's JSON serialisation). With an `uploadProvider` the file goes to your backend or upload queue as soon as it is picked, and the answer keeps **only a reference** (`{ name, size, type, id, url? }`), so `AnswersJSON` stays small. Positional `$actions` only.
+
+The provider is `(file, { field, locale, signal, onProgress }) => Promise<FileReference>`. `file` is a browser `File`/`Blob` (camera photos from Cordova/Capacitor are converted to a Blob first).
+
+**Reactive Web / O11 and ODC — POST to a REST endpoint.** Expose an endpoint that takes multipart form data, stores the file (Binary Data attribute, or an external store) and returns the record id. Send the user's token. `XMLHttpRequest` gives a real progress bar:
+
+```javascript
+uploadProvider: function (file, context) {
+  return new Promise(function (resolve, reject) {
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", $parameters.UploadUrl);   // e.g. https://myenv/MyModule/rest/Files/Upload
+    xhr.setRequestHeader("Authorization", "Bearer " + $parameters.AccessToken);
+    xhr.upload.onprogress = function (e) { if (e.lengthComputable) context.onProgress(e.loaded / e.total); };
+    xhr.onload = function () {
+      if (xhr.status < 200 || xhr.status >= 300) { reject(new Error("HTTP " + xhr.status)); return; }
+      var saved = JSON.parse(xhr.responseText);          // { "Id": 123 }
+      resolve({ name: file.name, size: file.size, type: file.type, id: saved.Id });
+    };
+    xhr.onerror = function () { reject(new Error("Network error")); };
+    xhr.onabort = function () { reject(new Error("Cancelled")); };
+    context.signal.addEventListener("abort", function () { xhr.abort(); });
+    var body = new FormData();
+    body.append("file", file, file.name);
+    body.append("fieldKey", context.field.key);
+    xhr.send(body);
+  });
+}
+```
+
+Alternatively, a **Client Action** can do the upload through an ODC service action or an aggregate-backed Server Action. Convert the Blob to what the action accepts first (for a Binary Data input, `file.arrayBuffer()`), and pass the result positionally:
+
+```javascript
+uploadProvider: function (file, context) {
+  return file.arrayBuffer().then(function (buffer) {
+    // SaveAttachment inputs, in order: FileName, MimeType, FieldKey, Content
+    return $actions.SaveAttachment(file.name, file.type, context.field.key, new Uint8Array(buffer));
+  }).then(function (result) {
+    return { name: file.name, size: file.size, type: file.type, id: result.AttachmentId };
+  });
+}
+```
+
+(An action call cannot report progress or be aborted: the bar stays at 0% until it completes and Cancel only discards the result. Use the REST/XHR variant for large files.)
+
+**Mobile apps — background upload queue.** In an offline-capable audit app, don't make the user wait for the network: hand the Blob to your native/background-sync queue and resolve straight away with a **local id**:
+
+```javascript
+uploadProvider: function (file, context) {
+  // EnqueueUpload inputs, in order: LocalFileName, MimeType, Content; it writes the file to local storage
+  // and the sync timer sends it later. It returns the local id of the queue entry.
+  return file.arrayBuffer().then(function (buffer) {
+    return $actions.EnqueueUpload(file.name, file.type, new Uint8Array(buffer));
+  }).then(function (result) {
+    return { name: file.name, size: file.size, type: file.type, id: result.LocalId };
+  });
+}
+```
+
+The answer keeps only `{ name, size, type, id }`; your sync logic replaces the local id by the server id when the upload finishes, and `AnswersJSON` never carries the image.
+
+**Cleaning up.** Add `onFileRemoved: function (reference, context) { return $actions.DeleteAttachment(reference.id); }` so files that leave the form don't stay orphaned in your database. It is called with `context.reason`:
+
+| `reason` | When |
+| :--- | :--- |
+| `removed` | The user deleted the file. |
+| `replaced` | A new upload took the place of an existing reference. |
+| `hidden` | A rule hid the field (or the repeater holding it) and its answer was reset. |
+| `itemRemoved` | The user deleted the repeater item that held the file. |
+| `discarded` | An upload finished after it was cancelled / re-rendered / destroyed / hidden. It was never in the answers, delete what you stored. |
+
+It is never called for Base64 answers. With the mobile queue pattern, `reference.id` is the local id: cancel or delete the queue entry (and the server record, if it already synced).
+
+**Submitting.** While an upload runs, `submit()` reports an error on that field ("Wait for the upload to finish.", `type: "uploadPending"`) instead of waiting; a required file field is satisfied only by a completed upload. Show references back with `reference.url` (only `https:`, `http:`, `blob:` or `data:` URLs are linked or previewed; without one the file is listed by name).
 
 ---
 

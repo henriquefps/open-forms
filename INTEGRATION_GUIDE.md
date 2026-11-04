@@ -12,13 +12,13 @@ You can load OpenForms assets directly using **jsDelivr**:
 
 ```html
 <!-- Stylesheet -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.3.0/src/openforms.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.4.0/src/openforms.css">
 
 <!-- Visual Builder (OpenFormBuilder) -->
-<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.3.0/src/builder.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.4.0/src/builder.js"></script>
 
 <!-- Form Player / Renderer (OpenFormRenderer) -->
-<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.3.0/src/renderer.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.4.0/src/renderer.js"></script>
 ```
 
 Both scripts are plain classic `<script>` tags — no bundler, no ES module imports required. Each one is fully self-contained; load only `renderer.js` if you just need to play back forms, without ever loading `builder.js`.
@@ -36,7 +36,7 @@ Importing never touches `window` or `document`, so it is safe in Node or during 
 **TypeScript.** `src/openforms.d.ts` declares both classes, their options and callbacks, and the schema and answer types (`FormSchema`, `Field`, `FormAnswers`, …). Reference it from your project, for example by copying it next to your sources, or straight from the CDN:
 
 ```ts
-/// <reference path="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.3.0/src/openforms.d.ts" />
+/// <reference path="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.4.0/src/openforms.d.ts" />
 ```
 
 and `import type { FormSchema } from './openforms'` when you use a local copy.
@@ -132,7 +132,7 @@ renderer.goToPage(2);                      // true if page 2 is now shown
 await renderer.submit();                   // same as clicking the submit button
 ```
 
-- **`validate({ showErrors = false })`** checks every page (including pages not opened yet) without toasts or callbacks. Each error is `{ key, message, pageIndex, type }`, where `type` is `"required"`, `"pattern"` or `"crossField"`; an error inside a repeater item also has `itemIndex` and `subKey` (and `key` is the repeater's key). `showErrors: true` marks the invalid fields that are on screen; it does not change page. To show another page's errors, call `goToPage(errors[0].pageIndex)` and then `validate({ showErrors: true })`.
+- **`validate({ showErrors = false })`** checks every page (including pages not opened yet) without toasts or callbacks. Each error is `{ key, message, pageIndex, type }`, where `type` is `"required"`, `"pattern"`, `"crossField"` or `"uploadPending"` (a file is still uploading); an error inside a repeater item also has `itemIndex` and `subKey` (and `key` is the repeater's key). `showErrors: true` marks the invalid fields that are on screen; it does not change page. To show another page's errors, call `goToPage(errors[0].pageIndex)` and then `validate({ showErrors: true })`.
 - **`getAnswers()`** returns `{ fieldKey: value }` for the fields that are visible and enabled according to the rules, the same filtering as a submit. Headers and paragraphs are left out. It is a copy and never contains internal keys.
 - **`setValue(key, value)`** sets a top-level field's answer as if the user had entered it: the field on screen updates, formulas and rules run, and `onFieldChange(answers, key)` fires. It works for fields on other pages too. A repeater takes an array of item objects, a file takes `{ name, size, type, content }`. It returns `false` (and logs a warning) when no field has that key. If a rule hides the field, the rule clears the value again, just as it would after a user edit.
 - **`goToPage(index)`** follows the same rules as the step tabs: going back is always allowed; going forward requires every page from the current one up to the page before `index` to be valid. If one isn't, the form stays on the current page, marks its invalid fields, shows the validation toast, fires `onValidationError` and returns `false`.
@@ -219,6 +219,71 @@ const renderer = new OpenFormRenderer({
 - While it is pending, the field shows its loading text. If the promise rejects, or no provider is configured, the field shows a translated message (`optionsLoadError` / `optionsSourceUnavailable`, overridable via `translations`) and offers no options. The renderer never invents placeholder options.
 - A previously saved answer is re-selected once the options arrive.
 
+### Uploading files (`uploadProvider`)
+
+By default a `file` field reads the file into a Base64 data URL and keeps it in the answers (and in your submit payload). That is fine for small documents, but a few large photos can exhaust the memory of a phone or a webview. Pass an `uploadProvider` to keep the content **out** of the form: the renderer hands the file to you, you upload it wherever you like, and the answer holds only the **reference** you return.
+
+```javascript
+const renderer = new OpenFormRenderer({
+  containerEl: document.getElementById('form-renderer-container'),
+  onSubmit: (answers) => { /* answers.photo = { name, size, type, url, id } — no Base64 */ },
+
+  // (file, { field, locale, signal, onProgress }) => Promise<FileReference>
+  uploadProvider: (file, { field, signal, onProgress }) => new Promise((resolve, reject) => {
+    // XMLHttpRequest, because fetch() cannot report upload progress
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/uploads');
+    xhr.setRequestHeader('Authorization', `Bearer ${getAccessToken()}`);
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(e.loaded / e.total); };
+    xhr.onload = () => {
+      if (xhr.status < 200 || xhr.status >= 300) return reject(new Error(`Upload failed (HTTP ${xhr.status})`));
+      const saved = JSON.parse(xhr.responseText);          // e.g. { "id": "9f2c", "url": "https://files.example.com/9f2c" }
+      resolve({ name: file.name, size: file.size, type: file.type, id: saved.id, url: saved.url });
+    };
+    xhr.onerror = () => reject(new Error('Network error'));
+    xhr.onabort = () => reject(new DOMException('Upload cancelled', 'AbortError'));
+    signal.addEventListener('abort', () => xhr.abort());   // Cancel, re-render and destroy() all abort the signal
+    const body = new FormData();
+    body.append('file', file, file.name);
+    body.append('fieldKey', field.key);
+    xhr.send(body);
+  }),
+
+  // Optional: the user deleted an uploaded file, so remove it on the server too
+  onFileRemoved: (reference, { field }) => fetch(`/api/uploads/${reference.id}`, {
+    method: 'DELETE', headers: { Authorization: `Bearer ${getAccessToken()}` }
+  })
+});
+```
+
+With `fetch` the same provider is shorter but has no progress bar (the bar stays at 0% until it completes): `const res = await fetch('/api/uploads', { method: 'POST', body, signal })`.
+
+**What the provider receives:** `file` is a `File`/`Blob` (a Cordova/Capacitor camera capture is converted from its data URL to a Blob first); `field` is the schema field (for a repeater sub-field its own `key`/`id`, plus `repeater: { key, itemIndex }`); `signal` is an `AbortSignal`; `onProgress(fraction)` takes a number from 0 to 1 and is optional to call.
+
+**What it resolves to:** a `FileReference` — `{ name, size, type, url?, id?, ...anything else }`. Missing `name`/`size`/`type` are filled in from the file, and extra keys of your own are kept as they are. This object is the field's answer, and what `getAnswers()`, `onFieldChange` and `onSubmit` receive. Store it as is, or keep just the `id`.
+
+**Behaviour:**
+
+- The upload starts as soon as the user picks, drops or captures a file, after the usual `maxFileSizeMB` and `acceptedTypes` checks. The field shows the name, size and a progress bar (`role="progressbar"` with `aria-valuenow`), a **Cancel** button while uploading, and **Retry** (plus a remove button) with your error message if the promise rejects (an error without a message shows the translated `uploadFailedDefault`).
+- Cancel, `render()` and `destroy()` abort the `signal`. Ignore the rejection that follows; a result that arrives after an abort is never stored in the answers; it is reported through `onFileRemoved` with `reason: "discarded"` so you can clean up.
+- A required file field is satisfied only by a completed upload. While any upload is still running, `validate()` and `submit()` report an error of `type: "uploadPending"` on that field ("Wait for the upload to finish."); submit never waits silently. A failed upload counts as no file. `getAnswers()` never includes an upload in progress.
+- `onFieldChange` fires when an upload completes and when a file is removed, not on progress ticks.
+- `onFileRemoved(reference, { field, reason })` tells you a reference left the form, so you can delete the file on your server. It is called for references only (also ones you pre-filled through `render(schema, answers)`), never for Base64 answers. A throw or rejection in it is logged, never shown. `reason` says why:
+
+  | `reason` | When |
+  | :--- | :--- |
+  | `"removed"` | The user deleted the uploaded file. |
+  | `"replaced"` | A new upload completed in a field that already held a reference (the old one is reported). |
+  | `"hidden"` | A conditional rule hid the field (top-level, or a repeater sub-field, or a whole repeater) and its answer was reset. |
+  | `"itemRemoved"` | The user deleted the repeater item that held the file. |
+  | `"discarded"` | An upload resolved **after** it was aborted (Cancel, a retry, `render()`, `destroy()`, or the field being hidden). The reference was never an answer: delete what you stored. |
+
+  Dismissing a failed upload does not call it (there is no reference). `field` is as described above (repeater sub-fields carry `repeater: { key, itemIndex }`).
+- Works for file fields inside repeaters (each item uploads on its own; deleting a repeater item aborts the uploads still running in that repeater).
+- Images uploaded in the session are previewed from an object URL, revoked when the file is deleted, the form re-rendered or `destroy()` is called. A stored reference is previewed and linked from its `url` only if it starts with `https:`, `http:`, `blob:` or `data:`; anything else (`javascript:`, ...) is ignored and the file is shown by name and size. `print()` shows images from safe URLs and lists the other files by name.
+- Pre-filled answers can be references too: `render(schema, { photo: { name: 'a.jpg', size: 1234, type: 'image/jpeg', id: '9f2c' } })`.
+- Without an `uploadProvider` nothing changes: Base64 in the answers, with the memory cost described above.
+
 ### Unmounting (`destroy()`)
 
 In single-page apps, call `renderer.destroy()` before removing the form's container or navigating away:
@@ -227,7 +292,7 @@ In single-page apps, call `renderer.destroy()` before removing the form's contai
 renderer.destroy();
 ```
 
-It removes the `window` listeners and ResizeObservers used by signature pads, cancels pending timers, removes this instance's toasts and print snapshot, ignores `optionsProvider` results that arrive later, and empties the container. The image lightbox, a `#toast-container` the renderer created itself, and the opt-in handwriting font `<link>` are shared by every renderer on the page, so they are removed only when no other renderer is still mounted. A `#toast-container` that your page provides is never removed. `destroy()` can be called more than once, and other methods do nothing after it.
+It aborts uploads in flight (their `signal`), revokes preview object URLs, removes the `window` listeners and ResizeObservers used by signature pads, cancels pending timers, removes this instance's toasts and print snapshot, ignores `optionsProvider` results that arrive later, and empties the container. The image lightbox, a `#toast-container` the renderer created itself, and the opt-in handwriting font `<link>` are shared by every renderer on the page, so they are removed only when no other renderer is still mounted. A `#toast-container` that your page provides is never removed. `destroy()` can be called more than once, and other methods do nothing after it.
 
 ## 3. Implementing the Visual Builder (Designer)
 
