@@ -9,17 +9,26 @@
  * License: Apache-2.0
  */
 class OpenFormRenderer {
+  static VERSION = '1.1.0';
+
   /**
    * @param {Object} options
    * @param {HTMLElement} options.containerEl Container element of the widget
    * @param {Function} options.onSubmit Callback fired upon successful form submission
    * @param {Function} [options.onFieldChange] Optional callback triggered on real-time field edits
    * @param {Object} [options.translations] Custom translation overrides
+   * @param {string} [options.locale] Active locale ('default', 'pt-BR', 'es-ES', ...)
+   * @param {Function} [options.optionsProvider] Host-supplied source for fields with
+   *   `optionsType: 'api'`: `(field, context) => Promise<Array<{label, value}>>`, where
+   *   context is `{ locale, readOnly }`. The renderer never fetches `optionsUrl` itself —
+   *   the host owns transport, auth and caching. Without a provider, such fields show a
+   *   "not configured" message and offer no options.
    */
-  constructor({ containerEl, onSubmit, onFieldChange, translations, locale }) {
+  constructor({ containerEl, onSubmit, onFieldChange, translations, locale, optionsProvider }) {
     this.containerEl = containerEl;
     this.onSubmit = onSubmit;
     this.onFieldChange = onFieldChange;
+    this.optionsProvider = typeof optionsProvider === 'function' ? optionsProvider : null;
     this.locale = locale || 'default';
     this.customTranslationsOverride = translations || {};
 
@@ -42,6 +51,8 @@ class OpenFormRenderer {
         radioLoading: "Carregando opções...",
         checkboxNoOptions: "Nenhuma opção disponível",
         checkboxLoading: "Carregando opções...",
+        optionsLoadError: "Não foi possível carregar as opções.",
+        optionsSourceUnavailable: "Fonte de opções não configurada.",
         signatureInstruction: "Assine no quadro acima",
         signatureClearButton: "Limpar",
         signatureAriaLabel: "Assinatura Digital",
@@ -54,6 +65,8 @@ class OpenFormRenderer {
         fileTypeRequirements: "PDF, Word, Excel ou Imagens (Máx 5MB)",
         fileTooLargeError: "O arquivo é muito grande. Tamanho máximo permitido: 5MB.",
         fileDeleteTitle: "Excluir arquivo",
+        fileDownloadTitle: "Baixar anexo",
+        fileNoneUploaded: "Nenhum arquivo enviado",
         repeaterDeleteItemTitle: "Excluir item",
         normalizeFormUntitled: "Formulário sem Título",
         normalizePageDefault: "Página"
@@ -76,6 +89,8 @@ class OpenFormRenderer {
         radioLoading: "Cargando opciones...",
         checkboxNoOptions: "No hay opciones disponibles",
         checkboxLoading: "Cargando opciones...",
+        optionsLoadError: "No se pudieron cargar las opciones.",
+        optionsSourceUnavailable: "Fuente de opciones no configurada.",
         signatureInstruction: "Firme en el cuadro de arriba",
         signatureClearButton: "Limpiar",
         signatureAriaLabel: "Firma Digital",
@@ -88,6 +103,8 @@ class OpenFormRenderer {
         fileTypeRequirements: "PDF, Word, Excel o Imágenes (Máx 5MB)",
         fileTooLargeError: "El archivo es demasiado grande. Tamaño máximo permitido: 5MB.",
         fileDeleteTitle: "Eliminar archivo",
+        fileDownloadTitle: "Descargar archivo adjunto",
+        fileNoneUploaded: "Ningún archivo subido",
         repeaterDeleteItemTitle: "Eliminar elemento",
         normalizeFormUntitled: "Formulario sin Título",
         normalizePageDefault: "Página"
@@ -118,6 +135,8 @@ class OpenFormRenderer {
       radioLoading: "Loading options...",
       checkboxNoOptions: "No options available",
       checkboxLoading: "Loading options...",
+      optionsLoadError: "Could not load options.",
+      optionsSourceUnavailable: "Options source not configured.",
 
       // Signature Pad
       signatureInstruction: "Sign in the box above",
@@ -135,6 +154,8 @@ class OpenFormRenderer {
       fileTooLargeError: "The file is too large. Maximum allowed size: 5MB.",
       fileUploaderActiveIcon: "file-check",
       fileDeleteTitle: "Delete file",
+      fileDownloadTitle: "Download attachment",
+      fileNoneUploaded: "No file uploaded",
       repeaterDeleteItemTitle: "Delete item",
 
       // Normalize schema defaults
@@ -152,7 +173,62 @@ class OpenFormRenderer {
     this.signaturePads = {};
     this.uploadedFiles = {};
 
+    // Lifecycle bookkeeping (see destroy()): pending timers/frames, toasts this instance
+    // created, in-flight optionsProvider loads, and a draw counter used to discard
+    // provider results that resolve after the DOM they targeted was redrawn.
+    this._destroyed = false;
+    this._timers = new Set();
+    this._frames = new Set();
+    this._toasts = new Set();
+    this._optionsCache = new Map();
+    this._pendingOptionLoads = new Set();
+    this._drawGeneration = 0;
+
     this.buildHTMLShell();
+  }
+
+  /**
+   * Escapes a value for safe interpolation into HTML text or a quoted attribute.
+   * Kept byte-identical to OpenFormBuilder.escapeHtml (the two files ship independently,
+   * a parity test compares them).
+   */
+  static escapeHtml(value) {
+    if (value === null || value === undefined) return '';
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  /**
+   * Only `data:` URLs are allowed as file preview/download targets: file content comes
+   * from the end-user or stored answers, so anything else (javascript:, remote URLs) is
+   * dropped rather than linked.
+   */
+  static isSafeDataUrl(value) {
+    return typeof value === 'string' && /^data:/i.test(value.trim());
+  }
+
+  /** setTimeout tracked so destroy() can cancel it. */
+  _setTimeout(fn, ms) {
+    const id = setTimeout(() => {
+      this._timers.delete(id);
+      fn();
+    }, ms);
+    this._timers.add(id);
+    return id;
+  }
+
+  /** requestAnimationFrame tracked so destroy() can cancel it. */
+  _requestFrame(fn) {
+    const id = requestAnimationFrame(() => {
+      this._frames.delete(id);
+      fn();
+    });
+    this._frames.add(id);
+    return id;
   }
 
   /**
@@ -200,6 +276,7 @@ class OpenFormRenderer {
    * Sets localized translations locale dynamically and redraws player UI reactively
    */
   setLocale(newLocale) {
+    if (this._destroyed) return;
     this.locale = newLocale || 'default';
 
     const systemLocales = {
@@ -221,6 +298,8 @@ class OpenFormRenderer {
         radioLoading: "Carregando opções...",
         checkboxNoOptions: "Nenhuma opção disponível",
         checkboxLoading: "Carregando opções...",
+        optionsLoadError: "Não foi possível carregar as opções.",
+        optionsSourceUnavailable: "Fonte de opções não configurada.",
         signatureInstruction: "Assine no quadro acima",
         signatureClearButton: "Limpar",
         signatureAriaLabel: "Assinatura Digital",
@@ -233,6 +312,8 @@ class OpenFormRenderer {
         fileTypeRequirements: "PDF, Word, Excel ou Imagens (Máx 5MB)",
         fileTooLargeError: "O arquivo é muito grande. Tamanho máximo permitido: 5MB.",
         fileDeleteTitle: "Excluir arquivo",
+        fileDownloadTitle: "Baixar anexo",
+        fileNoneUploaded: "Nenhum arquivo enviado",
         repeaterDeleteItemTitle: "Excluir item",
         normalizeFormUntitled: "Formulário sem Título",
         normalizePageDefault: "Página"
@@ -255,6 +336,8 @@ class OpenFormRenderer {
         radioLoading: "Cargando opciones...",
         checkboxNoOptions: "No hay opciones disponibles",
         checkboxLoading: "Cargando opciones...",
+        optionsLoadError: "No se pudieron cargar las opciones.",
+        optionsSourceUnavailable: "Fuente de opciones no configurada.",
         signatureInstruction: "Firme en el cuadro de arriba",
         signatureClearButton: "Limpiar",
         signatureAriaLabel: "Firma Digital",
@@ -267,6 +350,8 @@ class OpenFormRenderer {
         fileTypeRequirements: "PDF, Word, Excel o Imágenes (Máx 5MB)",
         fileTooLargeError: "El archivo es demasiado grande. Tamaño máximo permitido: 5MB.",
         fileDeleteTitle: "Eliminar archivo",
+        fileDownloadTitle: "Descargar archivo adjunto",
+        fileNoneUploaded: "Ningún archivo subido",
         repeaterDeleteItemTitle: "Eliminar elemento",
         normalizeFormUntitled: "Formulario sin Título",
         normalizePageDefault: "Página"
@@ -292,6 +377,8 @@ class OpenFormRenderer {
       radioLoading: "Loading options...",
       checkboxNoOptions: "No options available",
       checkboxLoading: "Loading options...",
+      optionsLoadError: "Could not load options.",
+      optionsSourceUnavailable: "Options source not configured.",
       signatureInstruction: "Sign in the box above",
       signatureClearButton: "Clear",
       signatureAriaLabel: "Digital Signature",
@@ -305,6 +392,8 @@ class OpenFormRenderer {
       fileTooLargeError: "The file is too large. Maximum allowed size: 5MB.",
       fileUploaderActiveIcon: "file-check",
       fileDeleteTitle: "Delete file",
+      fileDownloadTitle: "Download attachment",
+      fileNoneUploaded: "No file uploaded",
       repeaterDeleteItemTitle: "Delete item",
       normalizeFormUntitled: "Untitled Form",
       normalizePageDefault: "Page"
@@ -314,6 +403,288 @@ class OpenFormRenderer {
     this.drawActivePage();
   }
 
+  /**
+   * Lets an end-user save/print their filled form as a PDF using only the
+   * browser's native Print dialog — no backend, no third-party library.
+   * Flattens every page into one continuous read-only view (each wizard page's
+   * title is kept as a heading), renders it via a throwaway OpenFormRenderer
+   * instance so the live, in-progress form is never disturbed, turns its controls
+   * into static text (so long answers aren't clipped by input boxes and nothing
+   * depends on "Background graphics" being on), then triggers window.print().
+   *
+   * @param {Object} [options]
+   * @param {string} [options.title] Document title while the dialog is open: browsers use
+   *   it as the default "Save as PDF" file name and in their page header. Defaults to the
+   *   (translated) form title.
+   */
+  print(options = {}) {
+    if (this._destroyed) return;
+    if (!this.schema || !this.schema.pages || this.schema.pages.length === 0) return;
+
+    const flatSchema = JSON.parse(JSON.stringify(this.schema));
+    // Wizard page titles survive the flattening as headings before each page's first section
+    const pageHeadings = flatSchema.pages.length < 2 ? [] : flatSchema.pages
+      .map(page => ({
+        sectionIds: (page.sections || []).map(section => String(section.sectionId)),
+        title: this.getTranslatedValue('pages', page.pageId, null, null, page.title)
+      }))
+      .filter(heading => heading.sectionIds.length > 0 && heading.title);
+    const flattenedSections = flatSchema.pages.reduce((acc, page) => acc.concat(page.sections || []), []);
+    flatSchema.pages = [{ ...flatSchema.pages[0], sections: flattenedSections }];
+
+    // A previous print() that never got its afterprint event: tear it down first
+    this._cleanupPrint();
+    const existingRoot = document.getElementById('openforms-print-root');
+    if (existingRoot) existingRoot.remove();
+
+    const printRoot = document.createElement('div');
+    printRoot.id = 'openforms-print-root';
+    document.body.appendChild(printRoot);
+
+    const printRenderer = new OpenFormRenderer({
+      containerEl: printRoot,
+      locale: this.locale,
+      translations: this.customTranslationsOverride,
+      optionsProvider: this.optionsProvider,
+      onSubmit: () => {},
+      onFieldChange: () => {}
+    });
+    // Reuse the live form's already-loaded API options instead of calling the provider again
+    printRenderer._optionsCache = this._optionsCache;
+    printRenderer.render(flatSchema, this.answers, true);
+
+    // The print CSS only hides the host page while a snapshot is pending, so the host's own
+    // window.print() keeps working when no OpenForms print is in progress.
+    const htmlEl = document.documentElement;
+    htmlEl.classList.add('openforms-printing');
+    // Page margins only for this printout (an @page rule in openforms.css would also change
+    // the host page's own printing). Paper size stays whatever the user picks (A4/Letter).
+    const pageStyle = document.createElement('style');
+    pageStyle.id = 'openforms-print-page-style';
+    pageStyle.textContent = '@page { margin: 14mm 12mm; }';
+    document.head.appendChild(pageStyle);
+    const previousTitle = document.title;
+    const customTitle = options && typeof options.title === 'string' ? options.title.trim() : '';
+    const printTitle = customTitle || this.getTranslatedValue('form', 'formTitle', null, null, this.schema.formTitle || this.translations.normalizeFormUntitled);
+    if (printTitle) document.title = printTitle;
+
+    const cleanup = () => {
+      if (this._printHandler) {
+        window.removeEventListener('afterprint', this._printHandler);
+        this._printHandler = null;
+      }
+      printRenderer.destroy();
+      if (printRoot.parentNode) printRoot.remove();
+      htmlEl.classList.remove('openforms-printing');
+      if (pageStyle.parentNode) pageStyle.remove();
+      // Only restore the title if the host didn't change it in the meantime
+      if (printTitle && document.title === printTitle) document.title = previousTitle;
+      if (this._printCleanup === cleanup) this._printCleanup = null;
+    };
+    this._printCleanup = cleanup;
+
+    if (typeof window.print === 'function') {
+      this._printHandler = cleanup;
+      window.addEventListener('afterprint', cleanup, { once: true });
+      const openDialog = () => {
+        if (this._printCleanup === cleanup) window.print();
+      };
+      const prepareAndOpen = () => {
+        if (this._printCleanup !== cleanup) return;
+        printRenderer._staticizeForPrint(pageHeadings);
+        // Signature/attachment images are data: URLs: make sure they're decoded before the
+        // browser lays out the printout, or they can come out blank.
+        const images = Array.from(printRoot.querySelectorAll('img'))
+          .filter(img => img.complete === false && typeof img.decode === 'function');
+        if (images.length === 0) {
+          openDialog();
+          return;
+        }
+        let opened = false;
+        const openOnce = () => {
+          if (opened) return;
+          opened = true;
+          openDialog();
+        };
+        Promise.allSettled(images.map(img => img.decode())).then(openOnce);
+        this._setTimeout(openOnce, 2000);
+      };
+      // API-sourced options may still be loading: wait for them so the printout has them
+      const pending = Array.from(printRenderer._pendingOptionLoads);
+      if (pending.length === 0) {
+        prepareAndOpen();
+      } else {
+        Promise.allSettled(pending).then(prepareAndOpen);
+      }
+    } else {
+      cleanup();
+    }
+  }
+
+  /** Tears down a print snapshot left by print() (no-op if none is pending). */
+  _cleanupPrint() {
+    if (this._printCleanup) this._printCleanup();
+  }
+
+  /** Print-only strings; hosts can override them through the `translations` option. */
+  _printStrings() {
+    const english = { printYes: 'Yes', printNo: 'No', printGeneratedOn: 'Generated on {date}' };
+    const builtIn = {
+      'pt-BR': { printYes: 'Sim', printNo: 'Não', printGeneratedOn: 'Gerado em {date}' },
+      'es-ES': { printYes: 'Sí', printNo: 'No', printGeneratedOn: 'Generado el {date}' }
+    };
+    const strings = Object.assign({}, english, builtIn[this.locale] || {});
+    const overrides = this.customTranslationsOverride || {};
+    Object.keys(english).forEach(key => {
+      if (typeof overrides[key] === 'string') strings[key] = overrides[key];
+    });
+    return strings;
+  }
+
+  /**
+   * Maps each signature canvas id (top-level and inside repeater items) to its stored
+   * value, so the print snapshot can show it as an image.
+   */
+  _collectPrintSignatures() {
+    const signatures = new Map();
+    const answers = this.answers || {};
+    const eachField = (rows, fn) => (rows || []).forEach(row => (row.columns || []).forEach(col => {
+      if (col && col.field) fn(col.field);
+    }));
+    (this.schema.pages || []).forEach(page => (page.sections || []).forEach(section => eachField(section.rows, field => {
+      if (field.type === 'signature') {
+        signatures.set(String(field.id), answers[field.key]);
+      } else if (field.type === 'repeater' && Array.isArray(answers[field.key])) {
+        answers[field.key].forEach((item, index) => eachField(field.rows, subField => {
+          if (subField.type === 'signature' && item) {
+            signatures.set(`${field.id}-${index}-${subField.id}`, item[subField.key]);
+          }
+        }));
+      }
+    })));
+    return signatures;
+  }
+
+  /**
+   * Turns this (read-only, print-snapshot) renderer's DOM into a static document:
+   * text/number/date/dropdown controls become plain text blocks that grow with their
+   * content, switches become Yes/No, signature canvases become images, wizard page
+   * titles become headings and a "Generated on" line is added under the form title.
+   * Radios, checkboxes and matrix cells stay as they are and are styled by the print CSS.
+   */
+  _staticizeForPrint(pageHeadings = []) {
+    const root = this.formEl;
+    if (!root) return;
+    const strings = this._printStrings();
+    const intlLocale = this.locale && this.locale !== 'default' ? this.locale : undefined;
+
+    const makeValue = (text, extraClass) => {
+      const el = document.createElement('div');
+      el.className = `openforms-print-value${extraClass ? ` ${extraClass}` : ''}`;
+      const str = text === null || text === undefined ? '' : String(text);
+      if (str.trim() === '') el.classList.add('is-empty');
+      el.textContent = str;
+      return el;
+    };
+
+    // Signature canvases were never painted (the snapshot is display:none until printed):
+    // show the stored image instead, scaled without distortion.
+    const signatures = this._collectPrintSignatures();
+    root.querySelectorAll('canvas.form-signature-canvas').forEach(canvas => {
+      const value = signatures.get(canvas.id.replace(/^canvas-/, ''));
+      let replacement;
+      if (typeof value === 'string' && /^data:image\//i.test(value.trim())) {
+        replacement = document.createElement('img');
+        replacement.alt = canvas.getAttribute('aria-label') || '';
+        replacement.src = value.trim();
+        replacement.className = 'openforms-print-signature';
+      } else {
+        replacement = document.createElement('div');
+        replacement.className = 'openforms-print-signature is-empty';
+      }
+      canvas.replaceWith(replacement);
+    });
+    this.teardownSignaturePads();
+
+    root.querySelectorAll('.form-switch-container').forEach(label => {
+      const input = label.querySelector('input[type="checkbox"]');
+      label.replaceWith(makeValue(input && input.checked ? strings.printYes : strings.printNo, 'is-boolean'));
+    });
+
+    root.querySelectorAll('input.form-input, textarea.form-input, select.form-input').forEach(control => {
+      if (control.type === 'hidden') return;
+      let text;
+      if (control.tagName === 'SELECT') {
+        const option = control.options[control.selectedIndex];
+        text = control.value !== '' && option ? option.textContent.trim() : '';
+      } else if (control.type === 'date') {
+        text = OpenFormRenderer._formatPrintDate(control.value, intlLocale);
+      } else if (control.type === 'number') {
+        text = OpenFormRenderer._formatPrintNumber(control.value, intlLocale);
+      } else {
+        text = control.value;
+      }
+      control.replaceWith(makeValue(text, control.tagName === 'TEXTAREA' ? 'is-multiline' : ''));
+    });
+    root.querySelectorAll('.form-input-icon').forEach(icon => icon.remove());
+
+    // Fields are kept whole on one page, except repeaters and matrices, which can be taller
+    // than a page: those may break between their items/rows instead.
+    root.querySelectorAll('.is-repeater-container, .form-matrix-wrapper').forEach(el => {
+      [el.closest('.form-input-wrapper'), el.closest('.form-column')].forEach(ancestor => {
+        if (ancestor) ancestor.classList.add('openforms-print-breakable');
+      });
+    });
+
+    if (pageHeadings.length) {
+      const sections = Array.from(root.querySelectorAll('[data-renderer-section-id]'));
+      pageHeadings.forEach(({ sectionIds, title }) => {
+        const pageSections = sections.filter(el => sectionIds.includes(el.getAttribute('data-renderer-section-id')));
+        if (pageSections.length === 0 || pageSections.every(el => el.style.display === 'none')) return;
+        const heading = document.createElement('h3');
+        heading.className = 'openforms-print-page-title';
+        heading.textContent = title;
+        pageSections[0].parentNode.insertBefore(heading, pageSections[0]);
+      });
+    }
+
+    const header = root.querySelector('.renderer-form-header');
+    if (header && strings.printGeneratedOn) {
+      let stamp;
+      try {
+        stamp = new Intl.DateTimeFormat(intlLocale, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date());
+      } catch (e) {
+        stamp = new Date().toLocaleString();
+      }
+      const meta = document.createElement('p');
+      meta.className = 'openforms-print-meta';
+      meta.textContent = strings.printGeneratedOn.replace('{date}', stamp);
+      header.appendChild(meta);
+    }
+  }
+
+  /** "2026-11-03" -> a localized, unambiguous date ("Nov 3, 2026" / "3 de nov. de 2026"). */
+  static _formatPrintDate(value, locale) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || '').trim());
+    if (!match) return value || '';
+    const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    try {
+      return new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(date);
+    } catch (e) {
+      return value;
+    }
+  }
+
+  /** Numbers in the reader's decimal format, without thousands grouping (ids, years...). */
+  static _formatPrintNumber(value, locale) {
+    const str = String(value === null || value === undefined ? '' : value).trim();
+    if (str === '' || !isFinite(Number(str))) return str;
+    try {
+      return new Intl.NumberFormat(locale, { useGrouping: false, maximumFractionDigits: 20 }).format(Number(str));
+    } catch (e) {
+      return str;
+    }
+  }
 
   /**
    * Normalizes schema parameters for pagination safety
@@ -485,7 +856,15 @@ class OpenFormRenderer {
       }
     });
 
-    // Dynamically inject image lightbox overlay if it doesn't already exist in body
+    this.ensureLightbox();
+  }
+
+  /**
+   * Injects the shared image lightbox overlay into <body> if it isn't there yet. Shared by
+   * every renderer on the page; destroy() removes it once no other renderer is mounted,
+   * and handleAttachmentClick() re-creates it lazily if needed.
+   */
+  ensureLightbox() {
     if (!document.getElementById('lightbox-modal')) {
       const lightboxHtml = `
         <div id="lightbox-modal" class="lightbox-overlay" style="display: none;">
@@ -518,40 +897,142 @@ class OpenFormRenderer {
   }
 
   /**
+   * Unmounts this renderer and removes everything it added outside its container:
+   * window mouseup/touchend listeners, ResizeObservers, pending timers/animation frames,
+   * its toasts, an open upload action sheet and a pending print snapshot. In-flight
+   * optionsProvider results are ignored once they resolve. The container is emptied.
+   *
+   * Nodes shared by every renderer on the page (the #lightbox-modal overlay, a
+   * #toast-container this script created, and the Caveat <link id="form-handwriting-font">)
+   * are removed only when no other renderer is still mounted in the document; a
+   * #toast-container supplied by the host page is never removed.
+   *
+   * Idempotent; every public method becomes a no-op afterwards.
+   */
+  destroy() {
+    if (this._destroyed) return;
+    this._destroyed = true;
+
+    this._cleanupPrint();
+    this.teardownSignaturePads();
+
+    this._timers.forEach(id => clearTimeout(id));
+    this._timers.clear();
+    this._frames.forEach(id => cancelAnimationFrame(id));
+    this._frames.clear();
+    this._optionsCache = new Map();
+    this._pendingOptionLoads = new Set();
+
+    this._toasts.forEach(toast => toast.remove());
+    this._toasts.clear();
+    if (this._actionSheetEl) {
+      this._actionSheetEl.remove();
+      this._actionSheetEl = null;
+    }
+
+    if (this.formEl) this.formEl.innerHTML = '';
+    if (this.containerEl) this.containerEl.innerHTML = '';
+    this.uploadedFiles = {};
+
+    // Shared page-level nodes: only the last mounted renderer cleans them up
+    const otherRendererMounted = !!document.querySelector('.renderer-form-card');
+    if (!otherRendererMounted) {
+      const lightbox = document.getElementById('lightbox-modal');
+      if (lightbox) lightbox.remove();
+      const toastContainer = document.getElementById('toast-container');
+      if (toastContainer && toastContainer.getAttribute('data-openforms-renderer') === 'true' && toastContainer.children.length === 0) {
+        toastContainer.remove();
+      }
+      const fontLink = document.getElementById('form-handwriting-font');
+      if (fontLink) fontLink.remove();
+    }
+  }
+
+  /**
    * Triggers re-rendering of the dynamic form player
    */
   render(schemaJSON, answers = null, readOnly = false) {
+    if (this._destroyed) return;
     this.readOnly = readOnly;
 
-    // Preserve previously compiled options and uploads across reactive reloads
-    const prevAnswers = answers || this.answers || {};
-    const prevFiles = this.uploadedFiles || {};
-    const prevSignatures = this.signaturePads || {};
+    // Per-record state never carries over from a previous render(): attachments and
+    // signature pads are rebuilt from `answers` by initFileUploader/initSignatureCanvas,
+    // and API options are re-requested for the new schema.
+    this.resetRecordState();
+
+    const isNewRecord = answers !== null && answers !== undefined;
+    this.answers = isNewRecord ? answers : (this.answers || {});
 
     this.schema = this.normalizeSchema(schemaJSON);
 
-    if (typeof this.activePageIndex === 'undefined' || this.activePageIndex >= this.schema.pages.length) {
+    // A record passed in explicitly always opens on its first page. A bare render(schema)
+    // (live preview refresh of the same in-progress record) keeps the current page if it
+    // still exists.
+    if (isNewRecord || typeof this.activePageIndex !== 'number' || this.activePageIndex >= this.schema.pages.length) {
       this.activePageIndex = 0;
     }
-
-    this.answers = prevAnswers;
-    this.uploadedFiles = prevFiles;
 
     this.recalculateFormulas();
     this.drawActivePage();
   }
 
   /**
+   * Drops every piece of state derived from the previous schema/answers: uploaded file
+   * cache, signature pads (with their window listeners and ResizeObservers), rule-state
+   * caches and the API options cache. In-flight provider results become stale.
+   */
+  resetRecordState() {
+    this.teardownSignaturePads();
+    this.uploadedFiles = {};
+    this._optionsCache = new Map();
+    this._pendingOptionLoads = new Set();
+    this.fieldVisibilityStates = {};
+    this.fieldRequiredStates = {};
+    this.fieldDisabledStates = {};
+    this.sectionVisibilityStates = {};
+    this._drawGeneration++;
+  }
+
+  /**
+   * Removes the window-level mouseup/touchend listeners and ResizeObservers of every
+   * signature pad and forgets the pads. Pads are recreated by initSignatureCanvas on draw.
+   */
+  teardownSignaturePads() {
+    Object.keys(this.signaturePads || {}).forEach(id => this.teardownSignaturePad(id));
+    this.signaturePads = {};
+  }
+
+  teardownSignaturePad(id) {
+    const padState = this.signaturePads[id];
+    if (!padState) return;
+    if (padState.stopDraw) {
+      window.removeEventListener('mouseup', padState.stopDraw);
+      window.removeEventListener('touchend', padState.stopDraw);
+    }
+    if (padState.resizeObserver) {
+      padState.resizeObserver.disconnect();
+      padState.resizeObserver = null;
+    }
+    delete this.signaturePads[id];
+  }
+
+  /**
    * Draw selected page contents
    */
   drawActivePage() {
+    if (this._destroyed) return;
+    // The previous page's DOM is about to be discarded: drop its signature pads (window
+    // listeners + ResizeObservers) and invalidate pending option loads that target it.
+    this.teardownSignaturePads();
+    this._drawGeneration++;
     this.formEl.innerHTML = '';
+    const esc = OpenFormRenderer.escapeHtml;
 
     if (!this.schema || this.schema.pages.length === 0) {
       this.formEl.innerHTML = `
         <div style="text-align: center; color: var(--color-neutral-7); padding: var(--space-xl) 0;">
           <i data-lucide="info" style="width: 32px; height: 32px; color: var(--color-neutral-5); margin-bottom: var(--space-s);"></i>
-          <p style="font-size: var(--font-size-base);">${this.translations.formEmptyStructure}</p>
+          <p style="font-size: var(--font-size-base);">${esc(this.translations.formEmptyStructure)}</p>
         </div>
       `;
       if (window.lucide) window.lucide.createIcons();
@@ -566,8 +1047,8 @@ class OpenFormRenderer {
     const displayFormDesc = this.getTranslatedValue('form', 'formDescription', null, null, this.schema.formDescription || '');
 
     headerEl.innerHTML = `
-      <h2 class="renderer-form-title" id="renderer-form-title">${displayFormTitle}</h2>
-      ${displayFormDesc ? `<p class="renderer-form-desc">${displayFormDesc}</p>` : ''}
+      <h2 class="renderer-form-title" id="renderer-form-title">${esc(displayFormTitle)}</h2>
+      ${displayFormDesc ? `<p class="renderer-form-desc">${esc(displayFormDesc)}</p>` : ''}
     `;
     this.formEl.appendChild(headerEl);
 
@@ -593,7 +1074,9 @@ class OpenFormRenderer {
       if (displaySecTitle && displaySecTitle !== "Default Section") {
         const secHeader = document.createElement('div');
         secHeader.className = 'renderer-section-header';
-        secHeader.innerHTML = `<h3>${displaySecTitle}</h3>`;
+        const secTitleEl = document.createElement('h3');
+        secTitleEl.textContent = displaySecTitle;
+        secHeader.appendChild(secTitleEl);
         sectionEl.appendChild(secHeader);
       }
 
@@ -668,7 +1151,7 @@ class OpenFormRenderer {
         <div></div>
         ${this.readOnly ? '' : `
         <button type="submit" class="pg-btn" style="padding: 10px var(--space-l); font-size: var(--font-size-base);">
-          <i data-lucide="check"></i> ${this.translations.formSubmitButton}
+          <i data-lucide="check"></i> ${esc(this.translations.formSubmitButton)}
         </button>
         `}
       `;
@@ -679,16 +1162,16 @@ class OpenFormRenderer {
 
       navigationEl.innerHTML = `
         <button type="button" id="btn-prev-page" class="pg-btn pg-btn-secondary" style="padding: 10px 20px; font-size: var(--font-size-base); visibility: ${isFirst ? 'hidden' : 'visible'}">
-          <i data-lucide="arrow-left"></i> ${this.translations.formPrevPageButton}
+          <i data-lucide="arrow-left"></i> ${esc(this.translations.formPrevPageButton)}
         </button>
         
         ${isLast ? (this.readOnly ? '<div></div>' : `
         <button type="submit" class="pg-btn" style="padding: 10px var(--space-l); font-size: var(--font-size-base);">
-          <i data-lucide="check"></i> ${this.translations.formSubmitButton}
+          <i data-lucide="check"></i> ${esc(this.translations.formSubmitButton)}
         </button>
         `) : `
         <button type="button" id="btn-next-page" class="pg-btn" style="padding: 10px 20px; font-size: var(--font-size-base);">
-          ${this.translations.formNextPageButton} <i data-lucide="arrow-right"></i>
+          ${esc(this.translations.formNextPageButton)} <i data-lucide="arrow-right"></i>
         </button>
         `}
       `;
@@ -872,6 +1355,11 @@ class OpenFormRenderer {
     container.className = 'form-input-container';
     wrapper.appendChild(container);
 
+    // Everything interpolated into the templates below is escaped: labels, placeholders,
+    // translations and even field ids come from the schema / host and are untrusted.
+    const esc = OpenFormRenderer.escapeHtml;
+    const fid = esc(field.id);
+
     // Widget layouts based on type
     switch (field.type) {
       case 'header':
@@ -880,8 +1368,8 @@ class OpenFormRenderer {
         const headerSub = this.getTranslatedValue('fields', field.key || field.id, 'subtitle', null, field.subtitle || '');
         container.innerHTML = `
           <div class="form-section-header">
-            <h3 class="form-section-title">${headerLabel}</h3>
-            ${headerSub ? `<p class="form-section-subtitle">${headerSub}</p>` : ''}
+            <h3 class="form-section-title">${esc(headerLabel)}</h3>
+            ${headerSub ? `<p class="form-section-subtitle">${esc(headerSub)}</p>` : ''}
           </div>
         `;
         break;
@@ -889,29 +1377,29 @@ class OpenFormRenderer {
       case 'paragraph':
         wrapper.classList.add('is-paragraph');
         const displayPara = this.getTranslatedValue('fields', field.key || field.id, 'label', null, field.label);
-        container.innerHTML = `
-          <div class="form-paragraph-text">
-            ${displayPara}
-          </div>
-        `;
+        // Plain text only, never HTML: line breaks are kept by `white-space: pre-wrap`
+        const paraEl = document.createElement('div');
+        paraEl.className = 'form-paragraph-text';
+        paraEl.textContent = displayPara === null || displayPara === undefined ? '' : String(displayPara);
+        container.appendChild(paraEl);
         break;
 
       case 'text':
         const txtPlaceholder = this.getTranslatedValue('fields', field.key, 'placeholder', null, field.placeholder || '');
         container.innerHTML = `
           <i data-lucide="text-cursor-input" class="form-input-icon"></i>
-          <input type="text" id="input-${field.id}" class="form-input" 
-                 placeholder="${txtPlaceholder}" ${field.required ? 'required aria-required="true"' : ''}
-                 aria-describedby="error-${field.id}" />
+          <input type="text" id="input-${fid}" class="form-input" 
+                 placeholder="${esc(txtPlaceholder)}" ${field.required ? 'required aria-required="true"' : ''}
+                 aria-describedby="error-${fid}" />
         `;
         break;
 
       case 'textarea':
         const taPlaceholder = this.getTranslatedValue('fields', field.key, 'placeholder', null, field.placeholder || '');
         container.innerHTML = `
-          <textarea id="input-${field.id}" class="form-input" rows="4"
-                    placeholder="${taPlaceholder}" ${field.required ? 'required aria-required="true"' : ''}
-                    aria-describedby="error-${field.id}"></textarea>
+          <textarea id="input-${fid}" class="form-input" rows="4"
+                    placeholder="${esc(taPlaceholder)}" ${field.required ? 'required aria-required="true"' : ''}
+                    aria-describedby="error-${fid}"></textarea>
         `;
         break;
 
@@ -921,17 +1409,17 @@ class OpenFormRenderer {
         const readonlyAttr = (field.isCalculated || this.readOnly) ? 'readonly style="background: var(--color-neutral-2); cursor: not-allowed;"' : '';
         container.innerHTML = `
           <i data-lucide="${iconName}" class="form-input-icon"></i>
-          <input type="number" id="input-${field.id}" class="form-input" 
-                 placeholder="${numPlaceholder}" ${field.required ? 'required aria-required="true"' : ''} ${readonlyAttr}
-                 aria-describedby="error-${field.id}" />
+          <input type="number" id="input-${fid}" class="form-input" 
+                 placeholder="${esc(numPlaceholder)}" ${field.required ? 'required aria-required="true"' : ''} ${readonlyAttr}
+                 aria-describedby="error-${fid}" />
         `;
         break;
 
       case 'date':
         container.innerHTML = `
           <i data-lucide="calendar" class="form-input-icon"></i>
-          <input type="date" id="input-${field.id}" class="form-input" ${field.required ? 'required aria-required="true"' : ''}
-                 aria-describedby="error-${field.id}" />
+          <input type="date" id="input-${fid}" class="form-input" ${field.required ? 'required aria-required="true"' : ''}
+                 aria-describedby="error-${fid}" />
         `;
         break;
 
@@ -939,8 +1427,8 @@ class OpenFormRenderer {
         container.innerHTML = `
           <label class="form-switch-container">
             <span class="form-switch">
-              <input type="checkbox" id="input-${field.id}" ${this.answers[field.key] ? 'checked' : ''}
-                     aria-describedby="error-${field.id}" />
+              <input type="checkbox" id="input-${fid}" ${this.answers[field.key] ? 'checked' : ''}
+                     aria-describedby="error-${fid}" />
               <span class="form-slider"></span>
             </span>
             <span class="form-switch-label" aria-hidden="true" style="font-size: var(--font-size-s); color: var(--color-neutral-8);">Yes / No</span>
@@ -951,9 +1439,9 @@ class OpenFormRenderer {
       case 'dropdown':
         container.innerHTML = `
           <i data-lucide="list-collapse" class="form-input-icon"></i>
-          <select id="input-${field.id}" class="form-input" ${field.required ? 'required aria-required="true"' : ''}
-                  aria-describedby="error-${field.id}">
-            <option value="">${this.translations.selectOptionPlaceholder}</option>
+          <select id="input-${fid}" class="form-input" ${field.required ? 'required aria-required="true"' : ''}
+                  aria-describedby="error-${fid}">
+            <option value="">${esc(this.translations.selectOptionPlaceholder)}</option>
           </select>
         `;
         this.loadDropdownOptions(field, container.querySelector('select'));
@@ -961,16 +1449,16 @@ class OpenFormRenderer {
 
       case 'radio':
         container.innerHTML = `
-          <div id="group-${field.id}" class="form-radio-group" role="radiogroup" aria-labelledby="label-${field.id}"></div>
+          <div id="group-${fid}" class="form-radio-group" role="radiogroup" aria-labelledby="label-${fid}"></div>
         `;
-        this.loadRadioOptions(field, container.querySelector(`#group-${field.id}`));
+        this.loadRadioOptions(field, container.querySelector('.form-radio-group'));
         break;
 
       case 'checkbox':
         container.innerHTML = `
-          <div id="group-${field.id}" class="form-checkbox-group" role="group" aria-labelledby="label-${field.id}"></div>
+          <div id="group-${fid}" class="form-checkbox-group" role="group" aria-labelledby="label-${fid}"></div>
         `;
-        this.loadCheckboxOptions(field, container.querySelector(`#group-${field.id}`));
+        this.loadCheckboxOptions(field, container.querySelector('.form-checkbox-group'));
         break;
 
       case 'signature':
@@ -980,44 +1468,44 @@ class OpenFormRenderer {
         const signatureFieldLabel = this.getTranslatedValue('fields', field.key, 'label', null, field.label);
         container.innerHTML = `
           <div class="form-signature-box ${this.readOnly ? 'is-readonly' : ''}">
-            <canvas id="canvas-${field.id}" class="form-signature-canvas" width="500" height="150" role="img" aria-label="${signatureFieldLabel}: ${this.translations.signatureAriaLabel}" style="display: block;"></canvas>
+            <canvas id="canvas-${fid}" class="form-signature-canvas" width="500" height="150" role="img" aria-label="${esc(signatureFieldLabel)}: ${esc(this.translations.signatureAriaLabel)}" style="display: block;"></canvas>
 
             ${this.readOnly ? '' : `
-            <div id="type-container-${field.id}" style="display: none; padding: var(--space-m); border-top: 1px solid var(--pg-border); background: var(--color-neutral-2);">
-              <label for="type-input-${field.id}" style="font-size: var(--font-size-xs); font-weight: var(--font-weight-semibold); color: var(--color-neutral-7); display: block; margin-bottom: 6px;">${this.translations.signatureTypeLabel}</label>
-              <input type="text" id="type-input-${field.id}" class="form-input" placeholder="${this.translations.signatureTypePlaceholder}" aria-describedby="error-${field.id}" style="font-family: 'Caveat', cursive; font-size: 20px; font-weight: var(--font-weight-medium);" />
+            <div id="type-container-${fid}" style="display: none; padding: var(--space-m); border-top: 1px solid var(--pg-border); background: var(--color-neutral-2);">
+              <label for="type-input-${fid}" style="font-size: var(--font-size-xs); font-weight: var(--font-weight-semibold); color: var(--color-neutral-7); display: block; margin-bottom: 6px;">${esc(this.translations.signatureTypeLabel)}</label>
+              <input type="text" id="type-input-${fid}" class="form-input" placeholder="${esc(this.translations.signatureTypePlaceholder)}" aria-describedby="error-${fid}" style="font-family: 'Caveat', cursive; font-size: 20px; font-weight: var(--font-weight-medium);" />
             </div>
 
             <div class="form-signature-bar">
-              <span class="form-signature-indicator" id="indicator-${field.id}">
-                <i data-lucide="pen-tool"></i> ${this.translations.signatureInstruction}
+              <span class="form-signature-indicator" id="indicator-${fid}">
+                <i data-lucide="pen-tool"></i> ${esc(this.translations.signatureInstruction)}
               </span>
-              <button type="button" id="clear-${field.id}" class="form-signature-clear">
-                <i data-lucide="rotate-ccw" style="width: 12px; height: 12px;"></i> ${this.translations.signatureClearButton}
+              <button type="button" id="clear-${fid}" class="form-signature-clear">
+                <i data-lucide="rotate-ccw" style="width: 12px; height: 12px;"></i> ${esc(this.translations.signatureClearButton)}
               </button>
             </div>
             `}
           </div>
           ${this.readOnly ? '' : `
           <div class="signature-mode-bar" style="display: flex; gap: var(--space-s); margin-top: var(--space-s);">
-            <button type="button" id="mode-draw-${field.id}" class="signature-mode-tab active" aria-pressed="true" style="font-size: var(--font-size-xs); padding: var(--space-xs) var(--space-m); border-radius: var(--border-radius-xs); border: 1px solid var(--pg-border); background: var(--color-neutral-2); color: var(--color-neutral-8); cursor: pointer;">
-              <i data-lucide="edit-3" style="width: 12px; height: 12px; vertical-align: middle;"></i> ${this.translations.signatureModeDrawLabel}
+            <button type="button" id="mode-draw-${fid}" class="signature-mode-tab active" aria-pressed="true" style="font-size: var(--font-size-xs); padding: var(--space-xs) var(--space-m); border-radius: var(--border-radius-xs); border: 1px solid var(--pg-border); background: var(--color-neutral-2); color: var(--color-neutral-8); cursor: pointer;">
+              <i data-lucide="edit-3" style="width: 12px; height: 12px; vertical-align: middle;"></i> ${esc(this.translations.signatureModeDrawLabel)}
             </button>
-            <button type="button" id="mode-type-${field.id}" class="signature-mode-tab" aria-pressed="false" style="font-size: var(--font-size-xs); padding: var(--space-xs) var(--space-m); border-radius: var(--border-radius-xs); border: 1px solid var(--pg-border); background: transparent; color: var(--color-neutral-8); cursor: pointer;">
-              <i data-lucide="keyboard" style="width: 12px; height: 12px; vertical-align: middle;"></i> ${this.translations.signatureModeTypeLabel}
+            <button type="button" id="mode-type-${fid}" class="signature-mode-tab" aria-pressed="false" style="font-size: var(--font-size-xs); padding: var(--space-xs) var(--space-m); border-radius: var(--border-radius-xs); border: 1px solid var(--pg-border); background: transparent; color: var(--color-neutral-8); cursor: pointer;">
+              <i data-lucide="keyboard" style="width: 12px; height: 12px; vertical-align: middle;"></i> ${esc(this.translations.signatureModeTypeLabel)}
             </button>
           </div>
           `}
-          <input type="hidden" id="input-${field.id}" ${field.required ? 'required aria-required="true"' : ''} aria-describedby="error-${field.id}" />
+          <input type="hidden" id="input-${fid}" ${field.required ? 'required aria-required="true"' : ''} aria-describedby="error-${fid}" />
         `;
         break;
 
       case 'file':
         container.innerHTML = `
-          <div id="uploader-${field.id}" class="form-file-uploader" style="display: flex;" role="button" tabindex="0" aria-labelledby="label-${field.id}">
+          <div id="uploader-${fid}" class="form-file-uploader" style="display: flex;" role="button" tabindex="0" aria-labelledby="label-${fid}">
             <i data-lucide="upload-cloud"></i>
             <div style="font-size: var(--font-size-s); font-weight: var(--font-weight-semibold); color: var(--color-neutral-10); margin-bottom: 2px;">
-              ${this.translations.fileClickToUpload}
+              ${esc(this.translations.fileClickToUpload)}
             </div>
             <div style="font-size: var(--font-size-xs); color: var(--color-neutral-7);">${(() => {
             let reqText = this.getTranslatedValue('fields', field.key || field.id, 'fileRequirementsText', null, field.fileRequirementsText || this.translations.fileTypeRequirements);
@@ -1025,12 +1513,12 @@ class OpenFormRenderer {
               const maxLimit = field.maxFileSizeMB !== undefined ? field.maxFileSizeMB : 5;
               reqText = reqText.replace('5MB', `${maxLimit}MB`).replace('5 MB', `${maxLimit} MB`);
             }
-            return reqText;
+            return esc(reqText);
           })()}</div>
-            <input type="file" id="filepicker-${field.id}" style="display: none;" accept="${field.acceptedTypes || '.pdf,.docx,image/*'}" />
+            <input type="file" id="filepicker-${fid}" style="display: none;" accept="${esc(field.acceptedTypes || '.pdf,.docx,image/*')}" />
           </div>
-          <div id="filedetails-${field.id}" style="display: none;"></div>
-          <input type="hidden" id="input-${field.id}" ${field.required ? 'required' : ''} />
+          <div id="filedetails-${fid}" style="display: none;"></div>
+          <input type="hidden" id="input-${fid}" ${field.required ? 'required' : ''} />
         `;
         break;
 
@@ -1042,10 +1530,10 @@ class OpenFormRenderer {
       case 'matrix':
         container.innerHTML = `
           <div class="form-matrix-wrapper">
-            <table class="form-matrix-table" id="matrix-${field.id}"></table>
+            <table class="form-matrix-table" id="matrix-${fid}"></table>
           </div>
         `;
-        this.loadMatrixWidget(field, container.querySelector(`#matrix-${field.id}`));
+        this.loadMatrixWidget(field, container.querySelector('.form-matrix-table'));
         break;
     }
 
@@ -1055,7 +1543,7 @@ class OpenFormRenderer {
       errorEl.className = 'form-error-message';
       errorEl.id = `error-${field.id}`;
       errorEl.setAttribute('role', 'alert');
-      errorEl.innerHTML = `<i data-lucide="alert-circle"></i> ${this.translations.requiredFieldBubble}`;
+      errorEl.innerHTML = `<i data-lucide="alert-circle"></i> ${esc(this.translations.requiredFieldBubble)}`;
       wrapper.appendChild(errorEl);
     }
 
@@ -1066,61 +1554,139 @@ class OpenFormRenderer {
    * Load options feed inside dropdown elements
    */
   loadDropdownOptions(field, selectEl) {
-    const selectedVal = this.answers[field.key] || "";
+    const selectedVal = this.answers[field.key];
+    const isSelected = (value) => selectedVal !== undefined && selectedVal !== null && selectedVal !== ''
+      && (value === selectedVal || String(value) === String(selectedVal));
+
+    const appendOptions = (options, translate) => {
+      options.forEach(opt => {
+        const o = document.createElement('option');
+        o.value = opt.value;
+        o.textContent = translate
+          ? this.getTranslatedValue('fields', field.key, 'options', opt.value, opt.label)
+          : opt.label;
+        selectEl.appendChild(o);
+        if (isSelected(opt.value)) {
+          o.selected = true;
+          selectEl.value = o.value;
+        }
+      });
+    };
 
     if (field.optionsType === 'static') {
-      if (Array.isArray(field.options)) {
-        field.options.forEach(opt => {
-          const o = document.createElement('option');
-          o.value = opt.value;
-          o.textContent = this.getTranslatedValue('fields', field.key, 'options', opt.value, opt.label);
-          if (opt.value === selectedVal) o.selected = true;
-          selectEl.appendChild(o);
-        });
-      }
+      if (Array.isArray(field.options)) appendOptions(field.options, true);
     } else if (field.optionsType === 'api') {
-      const url = (field.optionsUrl || '').trim().toLowerCase();
-
       const optionLoading = document.createElement('option');
       optionLoading.value = "";
       optionLoading.textContent = this.translations.dropdownLoading;
       selectEl.appendChild(optionLoading);
       selectEl.setAttribute('aria-busy', 'true');
 
-      setTimeout(() => {
-        optionLoading.remove();
-        let apiOptions = [];
-
-        if (url.includes('countries') || url.includes('paises')) {
-          apiOptions = [
-            { label: "Portugal", value: "PT" },
-            { label: "Brazil", value: "BR" },
-            { label: "United States", value: "US" },
-            { label: "Spain", value: "ES" }
-          ];
-        } else if (url.includes('departments') || url.includes('departamentos') || url.includes('setores')) {
-          apiOptions = [
-            { label: "General Maintenance", value: "maintenance" },
-            { label: "Work Safety", value: "safety" },
-            { label: "IT / Engineering", value: "it" },
-            { label: "Operations", value: "operations" }
-          ];
-        } else {
-          apiOptions = [
-            { label: "Mock Option 1 (API)", value: "mock1" },
-            { label: "Mock Option 2 (API)", value: "mock2" }
-          ];
+      this.loadApiOptions(field, selectEl, {
+        onLoaded: (options) => {
+          optionLoading.remove();
+          selectEl.removeAttribute('aria-busy');
+          appendOptions(options, false);
+        },
+        onFailed: (messageKey) => {
+          optionLoading.remove();
+          selectEl.removeAttribute('aria-busy');
+          this.showOptionsError(field, selectEl.parentNode, messageKey, selectEl);
         }
+      });
+    }
+  }
 
-        apiOptions.forEach(opt => {
-          const o = document.createElement('option');
-          o.value = opt.value;
-          o.textContent = opt.label;
-          if (opt.value === selectedVal) o.selected = true;
-          selectEl.appendChild(o);
-        });
-        selectEl.removeAttribute('aria-busy');
-      }, 500);
+  /**
+   * Requests the options of an `optionsType: 'api'` field from the host's optionsProvider.
+   * Never fabricates options: without a provider, or when it rejects / returns something
+   * that isn't an array, onFailed(translationKey) is called instead. Results that arrive
+   * after the target element was redrawn, re-rendered or destroyed are ignored.
+   * Successful loads are cached per field + locale until the next render().
+   */
+  loadApiOptions(field, targetEl, { onLoaded, onFailed }) {
+    if (!this.optionsProvider) {
+      onFailed('optionsSourceUnavailable');
+      return;
+    }
+
+    const generation = this._drawGeneration;
+    const cacheKey = `${field.id}|${this.locale}`;
+    let request = this._optionsCache.get(cacheKey);
+
+    if (!request) {
+      try {
+        request = Promise.resolve(this.optionsProvider(field, { locale: this.locale, readOnly: !!this.readOnly }));
+      } catch (err) {
+        request = Promise.reject(err);
+      }
+      request = request.then(result => {
+        if (!Array.isArray(result)) {
+          throw new Error('optionsProvider must resolve to an array of {label, value}');
+        }
+        return result
+          .filter(opt => opt && opt.value !== undefined && opt.value !== null)
+          .map(opt => ({
+            label: opt.label !== undefined && opt.label !== null ? String(opt.label) : String(opt.value),
+            value: opt.value
+          }));
+      });
+      this._optionsCache.set(cacheKey, request);
+      // Failed loads aren't cached: the next draw asks the provider again
+      const cache = this._optionsCache;
+      request.catch(() => {
+        if (cache.get(cacheKey) === request) cache.delete(cacheKey);
+      });
+    }
+
+    const pendingLoads = this._pendingOptionLoads;
+    const settled = request.then(
+      (options) => {
+        if (this.isStaleOptionsTarget(targetEl, generation)) return;
+        onLoaded(options);
+      },
+      (err) => {
+        if (this.isStaleOptionsTarget(targetEl, generation)) return;
+        console.warn(`OpenFormRenderer: optionsProvider failed for field "${field.key}":`, err);
+        onFailed('optionsLoadError');
+      }
+    );
+    pendingLoads.add(settled);
+    settled.then(() => pendingLoads.delete(settled));
+  }
+
+  /** True when an async options result no longer has a live place to go. */
+  isStaleOptionsTarget(targetEl, generation) {
+    if (this._destroyed) return true;
+    if (generation !== this._drawGeneration) return true;
+    return !this.formEl || !this.formEl.contains(targetEl);
+  }
+
+  /**
+   * Shows a translated, screen-reader-announced message in place of an option list that
+   * couldn't be loaded. `describedEl` (e.g. the <select>) gets it added to aria-describedby.
+   */
+  showOptionsError(field, hostEl, messageKey, describedEl = null) {
+    if (!hostEl) return;
+    const msg = document.createElement('span');
+    msg.className = 'form-options-error';
+    msg.id = `options-error-${field.id}`;
+    msg.setAttribute('role', 'status');
+    msg.textContent = this.translations[messageKey] || this.translations.optionsLoadError;
+    if (describedEl) {
+      // The <select> sits inside a flex row: put the message right after that row
+      const row = hostEl.classList && hostEl.classList.contains('form-input-container') ? hostEl : null;
+      if (row && row.parentNode) {
+        row.parentNode.insertBefore(msg, row.nextSibling);
+      } else {
+        hostEl.appendChild(msg);
+      }
+      const describedBy = (describedEl.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+      if (!describedBy.includes(msg.id)) describedBy.push(msg.id);
+      describedEl.setAttribute('aria-describedby', describedBy.join(' '));
+    } else {
+      hostEl.innerHTML = '';
+      hostEl.appendChild(msg);
     }
   }
 
@@ -1128,12 +1694,13 @@ class OpenFormRenderer {
    * Load options for Radio Buttons
    */
   loadRadioOptions(field, groupEl) {
-    const selectedVal = this.answers[field.key] || "";
+    const selectedVal = this.answers[field.key];
+    const esc = OpenFormRenderer.escapeHtml;
 
     const renderRadioItems = (options) => {
       groupEl.innerHTML = '';
       if (!Array.isArray(options) || options.length === 0) {
-        groupEl.innerHTML = `<span class="form-options-empty">${this.translations.radioNoOptions}</span>`;
+        groupEl.innerHTML = `<span class="form-options-empty">${esc(this.translations.radioNoOptions)}</span>`;
         return;
       }
 
@@ -1142,15 +1709,16 @@ class OpenFormRenderer {
         itemEl.className = 'form-radio-item';
 
         const radioId = `radio-${field.id}-${idx}`;
-        const isChecked = opt.value === selectedVal;
+        const isChecked = selectedVal !== undefined && selectedVal !== null && selectedVal !== ''
+          && (opt.value === selectedVal || String(opt.value) === String(selectedVal));
 
         const displayOptLabel = field.optionsType === 'static'
           ? this.getTranslatedValue('fields', field.key, 'options', opt.value, opt.label)
           : opt.label;
 
         itemEl.innerHTML = `
-          <input type="radio" id="${radioId}" name="radio-${field.id}" value="${opt.value}" class="form-radio-input" ${isChecked ? 'checked' : ''} ${this.readOnly ? 'disabled' : ''} aria-describedby="error-${field.id}" />
-          <label for="${radioId}" class="form-radio-label">${displayOptLabel}</label>
+          <input type="radio" id="${esc(radioId)}" name="radio-${esc(field.id)}" value="${esc(opt.value)}" class="form-radio-input" ${isChecked ? 'checked' : ''} ${this.readOnly ? 'disabled' : ''} aria-describedby="error-${esc(field.id)}" />
+          <label for="${esc(radioId)}" class="form-radio-label">${esc(displayOptLabel)}</label>
         `;
 
         const radioInput = itemEl.querySelector('input');
@@ -1173,35 +1741,19 @@ class OpenFormRenderer {
     if (field.optionsType === 'static') {
       renderRadioItems(field.options || []);
     } else if (field.optionsType === 'api') {
-      const url = (field.optionsUrl || '').trim().toLowerCase();
-      groupEl.innerHTML = `<span class="form-options-loading">${this.translations.radioLoading}</span>`;
+      groupEl.innerHTML = `<span class="form-options-loading">${esc(this.translations.radioLoading)}</span>`;
       groupEl.setAttribute('aria-busy', 'true');
 
-      setTimeout(() => {
-        let apiOptions = [];
-        if (url.includes('countries') || url.includes('paises')) {
-          apiOptions = [
-            { label: "Portugal", value: "PT" },
-            { label: "Brazil", value: "BR" },
-            { label: "United States", value: "US" },
-            { label: "Spain", value: "ES" }
-          ];
-        } else if (url.includes('departments') || url.includes('departamentos') || url.includes('setores')) {
-          apiOptions = [
-            { label: "General Maintenance", value: "maintenance" },
-            { label: "Work Safety", value: "safety" },
-            { label: "IT / Engineering", value: "it" },
-            { label: "Operations", value: "operations" }
-          ];
-        } else {
-          apiOptions = [
-            { label: "Mock Option 1 (API)", value: "mock1" },
-            { label: "Mock Option 2 (API)", value: "mock2" }
-          ];
+      this.loadApiOptions(field, groupEl, {
+        onLoaded: (options) => {
+          groupEl.removeAttribute('aria-busy');
+          renderRadioItems(options);
+        },
+        onFailed: (messageKey) => {
+          groupEl.removeAttribute('aria-busy');
+          this.showOptionsError(field, groupEl, messageKey);
         }
-        renderRadioItems(apiOptions);
-        groupEl.removeAttribute('aria-busy');
-      }, 500);
+      });
     }
   }
 
@@ -1210,11 +1762,12 @@ class OpenFormRenderer {
    */
   loadCheckboxOptions(field, groupEl) {
     const selectedVals = Array.isArray(this.answers[field.key]) ? this.answers[field.key] : [];
+    const esc = OpenFormRenderer.escapeHtml;
 
     const renderCheckboxItems = (options) => {
       groupEl.innerHTML = '';
       if (!Array.isArray(options) || options.length === 0) {
-        groupEl.innerHTML = `<span class="form-options-empty">${this.translations.checkboxNoOptions}</span>`;
+        groupEl.innerHTML = `<span class="form-options-empty">${esc(this.translations.checkboxNoOptions)}</span>`;
         return;
       }
 
@@ -1230,8 +1783,8 @@ class OpenFormRenderer {
           : opt.label;
 
         itemEl.innerHTML = `
-          <input type="checkbox" id="${checkboxId}" name="checkbox-${field.id}" value="${opt.value}" class="form-checkbox-input" ${isChecked ? 'checked' : ''} ${this.readOnly ? 'disabled' : ''} aria-describedby="error-${field.id}" />
-          <label for="${checkboxId}" class="form-checkbox-label">${displayOptLabel}</label>
+          <input type="checkbox" id="${esc(checkboxId)}" name="checkbox-${esc(field.id)}" value="${esc(opt.value)}" class="form-checkbox-input" ${isChecked ? 'checked' : ''} ${this.readOnly ? 'disabled' : ''} aria-describedby="error-${esc(field.id)}" />
+          <label for="${esc(checkboxId)}" class="form-checkbox-label">${esc(displayOptLabel)}</label>
         `;
 
         const checkboxInput = itemEl.querySelector('input');
@@ -1262,35 +1815,19 @@ class OpenFormRenderer {
     if (field.optionsType === 'static') {
       renderCheckboxItems(field.options || []);
     } else if (field.optionsType === 'api') {
-      const url = (field.optionsUrl || '').trim().toLowerCase();
-      groupEl.innerHTML = `<span class="form-options-loading">${this.translations.checkboxLoading}</span>`;
+      groupEl.innerHTML = `<span class="form-options-loading">${esc(this.translations.checkboxLoading)}</span>`;
       groupEl.setAttribute('aria-busy', 'true');
 
-      setTimeout(() => {
-        let apiOptions = [];
-        if (url.includes('countries') || url.includes('paises')) {
-          apiOptions = [
-            { label: "Portugal", value: "PT" },
-            { label: "Brazil", value: "BR" },
-            { label: "United States", value: "US" },
-            { label: "Spain", value: "ES" }
-          ];
-        } else if (url.includes('departments') || url.includes('departamentos') || url.includes('setores')) {
-          apiOptions = [
-            { label: "General Maintenance", value: "maintenance" },
-            { label: "Work Safety", value: "safety" },
-            { label: "IT / Engineering", value: "it" },
-            { label: "Operations", value: "operations" }
-          ];
-        } else {
-          apiOptions = [
-            { label: "Mock Option 1 (API)", value: "mock1" },
-            { label: "Mock Option 2 (API)", value: "mock2" }
-          ];
+      this.loadApiOptions(field, groupEl, {
+        onLoaded: (options) => {
+          groupEl.removeAttribute('aria-busy');
+          renderCheckboxItems(options);
+        },
+        onFailed: (messageKey) => {
+          groupEl.removeAttribute('aria-busy');
+          this.showOptionsError(field, groupEl, messageKey);
         }
-        renderCheckboxItems(apiOptions);
-        groupEl.removeAttribute('aria-busy');
-      }, 500);
+      });
     }
   }
 
@@ -1299,12 +1836,13 @@ class OpenFormRenderer {
    */
   loadMatrixWidget(field, tableEl) {
     const selectedVals = this.answers[field.key] || {};
+    const esc = OpenFormRenderer.escapeHtml;
 
     const renderMatrixTable = (options) => {
       tableEl.innerHTML = '';
 
       if (!Array.isArray(options) || options.length === 0) {
-        tableEl.innerHTML = `<tr><td class="form-options-empty">${this.translations.radioNoOptions}</td></tr>`;
+        tableEl.innerHTML = `<tr><td class="form-options-empty">${esc(this.translations.radioNoOptions)}</td></tr>`;
         return;
       }
 
@@ -1366,15 +1904,17 @@ class OpenFormRenderer {
           td.className = 'form-matrix-cell';
 
           const radioId = `matrix-radio-${field.id}-${row.key}-${optIdx}`;
-          const isChecked = selectedVals[row.key] === opt.value;
+          const rowVal = selectedVals[row.key];
+          const isChecked = rowVal !== undefined && rowVal !== null && rowVal !== ''
+            && (rowVal === opt.value || String(rowVal) === String(opt.value));
           const displayOptLabel = field.optionsType === 'static'
             ? this.getTranslatedValue('fields', field.key, 'options', opt.value, opt.label)
             : opt.label;
 
           td.innerHTML = `
-            <label class="form-matrix-radio-label" for="${radioId}">
-              <input type="radio" id="${radioId}" name="matrix-${field.id}-${row.key}" value="${opt.value}" class="form-radio-input" aria-label="${displayRowLabel}: ${displayOptLabel}" ${isChecked ? 'checked' : ''} ${this.readOnly ? 'disabled' : ''} />
-              <span class="matrix-cell-mobile-text">${displayOptLabel}</span>
+            <label class="form-matrix-radio-label" for="${esc(radioId)}">
+              <input type="radio" id="${esc(radioId)}" name="matrix-${esc(field.id)}-${esc(row.key)}" value="${esc(opt.value)}" class="form-radio-input" aria-label="${esc(displayRowLabel)}: ${esc(displayOptLabel)}" ${isChecked ? 'checked' : ''} ${this.readOnly ? 'disabled' : ''} />
+              <span class="matrix-cell-mobile-text">${esc(displayOptLabel)}</span>
             </label>
           `;
 
@@ -1413,35 +1953,24 @@ class OpenFormRenderer {
     if (field.optionsType === 'static') {
       renderMatrixTable(field.options || []);
     } else if (field.optionsType === 'api') {
-      const url = (field.optionsUrl || '').trim().toLowerCase();
-      tableEl.innerHTML = `<tr><td class="form-options-loading">${this.translations.radioLoading}</td></tr>`;
+      tableEl.innerHTML = `<tr><td class="form-options-loading">${esc(this.translations.radioLoading)}</td></tr>`;
       tableEl.setAttribute('aria-busy', 'true');
 
-      setTimeout(() => {
-        let apiOptions = [];
-        if (url.includes('countries') || url.includes('paises')) {
-          apiOptions = [
-            { label: "Portugal", value: "PT" },
-            { label: "Brazil", value: "BR" },
-            { label: "United States", value: "US" },
-            { label: "Spain", value: "ES" }
-          ];
-        } else if (url.includes('departments') || url.includes('departamentos') || url.includes('setores')) {
-          apiOptions = [
-            { label: "General Maintenance", value: "maintenance" },
-            { label: "Work Safety", value: "safety" },
-            { label: "IT / Engineering", value: "it" },
-            { label: "Operations", value: "operations" }
-          ];
-        } else {
-          apiOptions = [
-            { label: "Mock Option 1 (API)", value: "mock1" },
-            { label: "Mock Option 2 (API)", value: "mock2" }
-          ];
+      this.loadApiOptions(field, tableEl, {
+        onLoaded: (options) => {
+          tableEl.removeAttribute('aria-busy');
+          renderMatrixTable(options);
+        },
+        onFailed: (messageKey) => {
+          tableEl.removeAttribute('aria-busy');
+          tableEl.innerHTML = '';
+          const tr = document.createElement('tr');
+          const td = document.createElement('td');
+          tr.appendChild(td);
+          tableEl.appendChild(tr);
+          this.showOptionsError(field, td, messageKey);
         }
-        renderMatrixTable(apiOptions);
-        tableEl.removeAttribute('aria-busy');
-      }, 500);
+      });
     }
   }
 
@@ -1676,14 +2205,7 @@ class OpenFormRenderer {
       if (k.startsWith(scopedIdPrefix)) delete this.uploadedFiles[k];
     });
     Object.keys(this.signaturePads).forEach(k => {
-      if (k.startsWith(scopedIdPrefix)) {
-        const padState = this.signaturePads[k];
-        if (padState && padState.stopDraw) {
-          window.removeEventListener('mouseup', padState.stopDraw);
-          window.removeEventListener('touchend', padState.stopDraw);
-        }
-        delete this.signaturePads[k];
-      }
+      if (k.startsWith(scopedIdPrefix)) this.teardownSignaturePad(k);
     });
   }
 
@@ -1906,22 +2428,26 @@ class OpenFormRenderer {
 
           const fieldWrapper = this.formEl.querySelector(`#wrapper-${field.id}`);
           if (fieldWrapper) {
-            const labelEl = fieldWrapper.querySelector('.prop-label');
+            // The renderer's required indicator is the `.required` class on the field's own
+            // .form-label (CSS draws the " *"). Only direct children: a repeater wrapper also
+            // contains its sub-fields' labels.
+            const labelEl = Array.from(fieldWrapper.children).find(el => el.classList.contains('form-label'));
             if (labelEl) {
-              const asterisk = labelEl.querySelector('.required-asterisk');
-              if (isRequired) {
-                if (!asterisk) {
-                  const astSpan = document.createElement('span');
-                  astSpan.className = 'required-asterisk';
-                  astSpan.style.color = 'var(--color-error)';
-                  astSpan.style.marginLeft = '2px';
-                  astSpan.textContent = '*';
-                  labelEl.appendChild(astSpan);
-                }
-              } else if (asterisk) {
-                asterisk.remove();
-              }
+              labelEl.classList.toggle('required', !!isRequired);
             }
+
+            // Keep aria-required on the element assistive tech treats as the field: the
+            // visible input/select/textarea (never the hidden value holder) or the radiogroup.
+            const primaryInput = Array.from(fieldWrapper.querySelectorAll('input, select, textarea')).find(el => el.id === `input-${field.id}`);
+            const radioGroup = field.type === 'radio' ? fieldWrapper.querySelector('[role="radiogroup"]') : null;
+            [primaryInput && primaryInput.type !== 'hidden' ? primaryInput : null, radioGroup].forEach(el => {
+              if (!el) return;
+              if (isRequired) {
+                el.setAttribute('aria-required', 'true');
+              } else {
+                el.removeAttribute('aria-required');
+              }
+            });
 
             const reqInputs = fieldWrapper.querySelectorAll('input, select, textarea');
             reqInputs.forEach(input => {
@@ -1991,11 +2517,8 @@ class OpenFormRenderer {
 
     // Each call (re-)creates the canvas from scratch, but `window` listeners from a
     // prior init of this same field would otherwise stack up forever across re-renders.
-    const prevPadState = this.signaturePads[field.id];
-    if (prevPadState && prevPadState.stopDraw) {
-      window.removeEventListener('mouseup', prevPadState.stopDraw);
-      window.removeEventListener('touchend', prevPadState.stopDraw);
-    }
+    // Same for its ResizeObserver, which would keep observing the discarded canvas.
+    this.teardownSignaturePad(field.id);
 
     const ctx = canvas.getContext('2d');
 
@@ -2010,7 +2533,7 @@ class OpenFormRenderer {
     this.signaturePads[field.id] = padState;
 
     const existingSignature = this.answers[field.key];
-    if (existingSignature && existingSignature.startsWith('data:image')) {
+    if (typeof existingSignature === 'string' && existingSignature.startsWith('data:image')) {
       hiddenInput.value = this.translations.signatureInputVal;
       padState.hasDrawn = true;
     }
@@ -2031,7 +2554,7 @@ class OpenFormRenderer {
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
 
-            if (currentSignature && currentSignature.startsWith('data:image')) {
+            if (typeof currentSignature === 'string' && currentSignature.startsWith('data:image')) {
               const img = new Image();
               img.onload = () => {
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
@@ -2052,7 +2575,7 @@ class OpenFormRenderer {
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
 
-      if (existingSignature && existingSignature.startsWith('data:image')) {
+      if (typeof existingSignature === 'string' && existingSignature.startsWith('data:image')) {
         const img = new Image();
         img.onload = () => {
           ctx.drawImage(img, 0, 0);
@@ -2240,7 +2763,7 @@ class OpenFormRenderer {
         uploader.className = 'form-file-uploader is-readonly';
         uploader.innerHTML = `
           <i data-lucide="file" style="margin-bottom: var(--space-s);"></i>
-          <div style="font-size: var(--font-size-s); color: var(--color-neutral-6);">No file uploaded</div>
+          <div style="font-size: var(--font-size-s); color: var(--color-neutral-6);">${OpenFormRenderer.escapeHtml(this.translations.fileNoneUploaded)}</div>
         `;
       }
       return;
@@ -2334,6 +2857,8 @@ class OpenFormRenderer {
 
     const reader = new FileReader();
     reader.onload = (e) => {
+      // The form may have been redrawn, re-rendered or destroyed while the file was read
+      if (this._destroyed || !hiddenInput || !this.formEl.contains(hiddenInput)) return;
       const base64Content = e.target.result;
 
       const fileObj = {
@@ -2370,6 +2895,8 @@ class OpenFormRenderer {
   handleAttachmentClick(file) {
     const isImg = file.type?.startsWith('image/') || (typeof file.content === 'string' && file.content.startsWith('data:image'));
     if (isImg) {
+      if (!OpenFormRenderer.isSafeDataUrl(file.content)) return;
+      this.ensureLightbox();
       const lightbox = document.getElementById('lightbox-modal');
       const img = document.getElementById('lightbox-image');
       const caption = document.getElementById('lightbox-caption');
@@ -2388,6 +2915,7 @@ class OpenFormRenderer {
    * Triggers native OS share sheet if plugins are available, otherwise falls back to browser download
    */
   downloadFile(file) {
+    if (!file || !OpenFormRenderer.isSafeDataUrl(file.content)) return;
     const isCordovaShare = !!(window.plugins && window.plugins.socialsharing);
     const isCapacitorShare = !!(window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Share);
 
@@ -2494,10 +3022,14 @@ class OpenFormRenderer {
    * Helper to render premium file attachment details with image thumbnails and download triggers
    */
   renderFileDetailsHTML(file, isReadOnly) {
-    const isImg = file.type?.startsWith('image/') || (typeof file.content === 'string' && file.content.startsWith('data:image'));
+    const esc = OpenFormRenderer.escapeHtml;
+    // File name/content come from the end-user (or stored answers): escape the name
+    // everywhere and only link/preview `data:` content — anything else gets no href/src.
+    const hasSafeContent = OpenFormRenderer.isSafeDataUrl(file.content);
+    const isImg = hasSafeContent && (String(file.type || '').startsWith('image/') || /^data:image\//i.test(file.content));
     const previewHtml = isImg ? `
       <div class="form-file-preview-thumbnail" style="margin-right: var(--space-m); width: 44px; height: 44px; border-radius: var(--border-radius-xs); overflow: hidden; border: 1px solid var(--color-neutral-4); flex-shrink: 0; background: var(--color-neutral-2);">
-        <img src="${file.content}" style="width: 100%; height: 100%; object-fit: cover;" />
+        <img src="${esc(file.content)}" alt="" style="width: 100%; height: 100%; object-fit: cover;" />
       </div>
     ` : '';
 
@@ -2505,17 +3037,19 @@ class OpenFormRenderer {
       <div class="form-file-details-left" style="display: flex; align-items: center; flex: 1; overflow: hidden;">
         ${previewHtml}
         <div style="display: flex; flex-direction: column; overflow: hidden; text-align: left;">
-          <div style="font-weight: var(--font-weight-semibold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px; color: var(--color-neutral-10);" title="${file.name}">${file.name}</div>
-          <div style="font-size: var(--font-size-xs); color: var(--color-neutral-7);">${this.formatFileSize(file.size)}</div>
+          <div style="font-weight: var(--font-weight-semibold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px; color: var(--color-neutral-10);" title="${esc(file.name)}">${esc(file.name)}</div>
+          <div style="font-size: var(--font-size-xs); color: var(--color-neutral-7);">${esc(this.formatFileSize(file.size))}</div>
         </div>
       </div>
       <div class="form-file-details-actions" style="display: flex; align-items: center; gap: var(--space-s); flex-shrink: 0;">
+        ${hasSafeContent ? `
         <!-- Download Button -->
-        <a href="${file.content}" download="${file.name}" class="pg-btn pg-btn-secondary form-file-download-btn" title="Download attachment" style="padding: 6px var(--space-s); display: flex; align-items: center; justify-content: center; height: auto;">
+        <a href="${esc(file.content)}" download="${esc(file.name)}" class="pg-btn pg-btn-secondary form-file-download-btn" title="${esc(this.translations.fileDownloadTitle)}" style="padding: 6px var(--space-s); display: flex; align-items: center; justify-content: center; height: auto;">
           <i data-lucide="download" style="width: 14px; height: 14px;"></i>
         </a>
+        ` : ''}
         ${isReadOnly ? '' : `
-        <button type="button" class="form-file-delete-btn" title="${this.translations.fileDeleteTitle}" style="padding: 6px var(--space-s); display: flex; align-items: center; justify-content: center; height: auto; color: var(--color-error); border-color: rgba(219,60,60,0.15);">
+        <button type="button" class="form-file-delete-btn" title="${esc(this.translations.fileDeleteTitle)}" style="padding: 6px var(--space-s); display: flex; align-items: center; justify-content: center; height: auto; color: var(--color-error); border-color: rgba(219,60,60,0.15);">
           <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
         </button>
         `}
@@ -2523,10 +3057,22 @@ class OpenFormRenderer {
     `;
   }
 
+  /** A required file field is satisfied by a stored file object (or a non-empty reference). */
+  hasFileAnswer(val) {
+    if (val && typeof val === 'object') return !!(val.name || val.content);
+    return typeof val === 'string' && val.trim() !== '';
+  }
+
+  /** A required signature field is satisfied by a non-empty stored signature (data URL). */
+  hasSignatureAnswer(val) {
+    return typeof val === 'string' && val.trim() !== '';
+  }
+
   /**
    * Strictly validates fields on selected page tab indexes
    */
   validatePage(pageIndex) {
+    if (this._destroyed || !this.schema) return false;
     let hasErrors = false;
     const page = this.schema.pages[pageIndex];
 
@@ -2562,9 +3108,9 @@ class OpenFormRenderer {
 
                       if (isRequired) {
                         if (subField.type === 'file') {
-                          if (!this.uploadedFiles[scopedId]) isFieldInvalid = true;
+                          if (!this.hasFileAnswer(val)) isFieldInvalid = true;
                         } else if (subField.type === 'signature') {
-                          if (!this.signaturePads[scopedId] || !this.signaturePads[scopedId].hasDrawn) isFieldInvalid = true;
+                          if (!this.hasSignatureAnswer(val)) isFieldInvalid = true;
                         } else if (subField.type === 'checkbox') {
                           if (!Array.isArray(val) || val.length === 0) isFieldInvalid = true;
                         } else if (subField.type === 'matrix') {
@@ -2577,7 +3123,7 @@ class OpenFormRenderer {
                         } else {
                           if (val === undefined || val === null || String(val).trim() === '') isFieldInvalid = true;
                         }
-                        if (isFieldInvalid) errorMessage = 'Field is required';
+                        if (isFieldInvalid) errorMessage = this.translations.requiredFieldBubble;
                       }
 
                       // Regex validation inside repeater fields
@@ -2607,7 +3153,7 @@ class OpenFormRenderer {
                         if (isFieldInvalid) {
                           wrapper.classList.add('is-invalid');
                           if (inputEl) inputEl.setAttribute('aria-invalid', 'true');
-                          errorEl.innerHTML = `<i data-lucide="alert-circle"></i> ${errorMessage}`;
+                          errorEl.innerHTML = `<i data-lucide="alert-circle"></i> ${OpenFormRenderer.escapeHtml(errorMessage)}`;
                         } else {
                           wrapper.classList.remove('is-invalid');
                           if (inputEl) inputEl.removeAttribute('aria-invalid');
@@ -2633,12 +3179,14 @@ class OpenFormRenderer {
 
             // 1. Validate required toggles
             if (state.required) {
+              // Decided from the data (this.answers), not from DOM-only state, so pages
+              // that were never drawn validate the same as the visible one
               if (field.type === 'file') {
-                if (!this.uploadedFiles[field.id]) {
+                if (!this.hasFileAnswer(val)) {
                   isFieldInvalid = true;
                 }
               } else if (field.type === 'signature') {
-                if (!this.signaturePads[field.id] || !this.signaturePads[field.id].hasDrawn) {
+                if (!this.hasSignatureAnswer(val)) {
                   isFieldInvalid = true;
                 }
               } else if (field.type === 'checkbox') {
@@ -2692,7 +3240,7 @@ class OpenFormRenderer {
               if (isFieldInvalid) {
                 wrapper.classList.add('is-invalid');
                 if (inputEl) inputEl.setAttribute('aria-invalid', 'true');
-                errorEl.innerHTML = `<i data-lucide="alert-circle"></i> ${errorMessage}`;
+                errorEl.innerHTML = `<i data-lucide="alert-circle"></i> ${OpenFormRenderer.escapeHtml(errorMessage)}`;
               } else {
                 wrapper.classList.remove('is-invalid');
                 if (inputEl) inputEl.removeAttribute('aria-invalid');
@@ -2760,7 +3308,7 @@ class OpenFormRenderer {
                 wrapper.classList.add('is-invalid');
                 const inputEl = wrapper.querySelector('input, textarea, select');
                 if (inputEl) inputEl.setAttribute('aria-invalid', 'true');
-                errorEl.innerHTML = `<i data-lucide="alert-circle"></i> ${rule.errorMessage || 'Invalid field combination.'}`;
+                errorEl.innerHTML = `<i data-lucide="alert-circle"></i> ${OpenFormRenderer.escapeHtml(rule.errorMessage || 'Invalid field combination.')}`;
               }
             }
           });
@@ -2780,6 +3328,7 @@ class OpenFormRenderer {
    * Runs validation checks across all pages and formats submissions answers
    */
   validateAndSubmit() {
+    if (this._destroyed || !this.schema) return;
     let allValid = true;
     const totalPages = this.schema.pages.length;
 
@@ -2829,14 +3378,17 @@ class OpenFormRenderer {
    * Helper that triggers high-fidelity modern styled Toasts
    */
   showToast(message, isError = false) {
+    if (this._destroyed) return;
     // Self-sufficient: renderer.js must work as an independent <script> with no host-page
     // markup dependency, but this element used to only exist if the host page happened to
     // define #toast-container (e.g. the portal's index.html) — silently no-op'd otherwise.
+    // A container created here is tagged so destroy() knows it may remove it.
     let container = document.getElementById('toast-container');
     if (!container) {
       container = document.createElement('div');
       container.id = 'toast-container';
       container.className = 'toast-container';
+      container.setAttribute('data-openforms-renderer', 'true');
       document.body.appendChild(container);
     }
 
@@ -2847,22 +3399,28 @@ class OpenFormRenderer {
     // Give screen readers a beat to register the (possibly just-created, or just-updated)
     // live region before its content changes — mutating in the same tick the role/aria-live
     // is (re)assigned is a known way for VoiceOver/NVDA to silently miss the announcement.
-    requestAnimationFrame(() => {
+    this._requestFrame(() => {
       const toast = document.createElement('div');
       toast.className = `toast ${isError ? 'toast-error' : 'toast-success'}`;
-      toast.innerHTML = `
-        <i data-lucide="${isError ? 'x-circle' : 'check-circle'}"></i>
-        <span>${message}</span>
-      `;
+      const icon = document.createElement('i');
+      icon.setAttribute('data-lucide', isError ? 'x-circle' : 'check-circle');
+      const text = document.createElement('span');
+      text.textContent = message === null || message === undefined ? '' : String(message);
+      toast.appendChild(icon);
+      toast.appendChild(text);
       container.appendChild(toast);
+      this._toasts.add(toast);
 
       if (window.lucide) window.lucide.createIcons();
 
-      setTimeout(() => {
+      this._setTimeout(() => {
         toast.style.opacity = '0';
         toast.style.transform = 'translateY(10px)';
         toast.style.transition = 'all 0.3s ease';
-        setTimeout(() => toast.remove(), 300);
+        this._setTimeout(() => {
+          toast.remove();
+          this._toasts.delete(toast);
+        }, 300);
       }, 3500);
     });
   }
@@ -3043,7 +3601,7 @@ class OpenFormRenderer {
       addBtn.type = 'button';
       addBtn.className = 'pg-btn pg-btn-secondary form-repeater-add-btn';
       const displayAddBtnLabel = this.getTranslatedValue('fields', field.key, 'addButtonLabel', null, field.addButtonLabel || 'Add Item');
-      addBtn.innerHTML = `<i data-lucide="plus-circle" style="width: 14px; height: 14px;"></i> ${displayAddBtnLabel}`;
+      addBtn.innerHTML = `<i data-lucide="plus-circle" style="width: 14px; height: 14px;"></i> ${OpenFormRenderer.escapeHtml(displayAddBtnLabel)}`;
 
       checkAddButtonState = () => {
         const currentCount = (this.answers[field.key] || []).length;
@@ -3396,6 +3954,7 @@ class OpenFormRenderer {
    * Processes successfully captured native camera image data
    */
   handleNativeCameraSuccess(field, dataUrl) {
+    if (this._destroyed) return;
     const uploader = this.formEl.querySelector(`#uploader-${field.id}`);
     const details = this.formEl.querySelector(`#filedetails-${field.id}`);
     const hiddenInput = this.formEl.querySelector(`#input-${field.id}`);
@@ -3436,6 +3995,7 @@ class OpenFormRenderer {
    * Shows a premium bottom sheet dialog for choosing file upload source on mobile devices
    */
   showUploadActionSheet(field, onCamera, onFilePicker) {
+    if (this._destroyed) return;
     const backdrop = document.createElement('div');
     backdrop.className = 'openforms-action-sheet-backdrop';
     Object.assign(backdrop.style, {
@@ -3541,20 +4101,23 @@ class OpenFormRenderer {
 
     backdrop.appendChild(sheet);
     document.body.appendChild(backdrop);
+    this._actionSheetEl = backdrop;
 
     if (window.lucide) window.lucide.createIcons({ container: sheet });
 
     // Trigger animations
-    requestAnimationFrame(() => {
+    this._requestFrame(() => {
       backdrop.style.opacity = 1;
       sheet.style.transform = 'translateY(0)';
     });
 
+    const self = this;
     function closeSheet() {
       backdrop.style.opacity = 0;
       sheet.style.transform = 'translateY(100%)';
-      setTimeout(() => {
+      self._setTimeout(() => {
         backdrop.remove();
+        if (self._actionSheetEl === backdrop) self._actionSheetEl = null;
       }, 250);
     }
   }

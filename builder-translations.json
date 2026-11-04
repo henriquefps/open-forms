@@ -59,7 +59,7 @@
   "fieldOptionsStaticHint": "Configure one per line using 'Label:value'.",
   "fieldOptionsApiUrlLabel": "REST API URL",
   "fieldOptionsApiUrlPlaceholder": "e.g. /api/countries",
-  "fieldOptionsApiUrlHint": "Simulated endpoints available: /api/countries or /api/departments",
+  "fieldOptionsApiUrlHint": "Options are supplied at runtime by the host page's optionsProvider; this URL is passed to it as a hint.",
   "fieldHasVisibilityLabel": "Has Visibility Rule?",
   "fieldCondIfField": "If field:",
   "fieldCondNoOtherFields": "-- No other fields available --",

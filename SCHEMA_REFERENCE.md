@@ -90,7 +90,7 @@ There is no `colId` property on Column — that was a documentation error carrie
 | `type` | Widget | Submitted value shape |
 | :--- | :--- | :--- |
 | `header` | Section title / visual divider — no answer key, nothing submitted | — |
-| `paragraph` | Static text block — no answer key, nothing submitted | — |
+| `paragraph` | Static text block — no answer key, nothing submitted. Plain text only: HTML is shown literally, line breaks are kept | — |
 | `text` | Single-line text input | `string` |
 | `textarea` | Multi-line text area | `string` |
 | `number` | Numeric input (can be calculated — see section 6) | `number` |
@@ -113,7 +113,7 @@ There is no `colId` property on Column — that was a documentation error carrie
 | `textarea` | `placeholder` |
 | `number` | `placeholder`, `mask`, `maskCleanValue`, `isCalculated` (`boolean`), `formulaExpression` (`string`, see section 6), `isVisibleOnForm` (`boolean`, default `true` — only meaningful when `isCalculated` is `true`) |
 | `boolean` | `defaultValue` (`boolean`) |
-| `dropdown` / `radio` / `checkbox` | `optionsType` (`"static"` \| `"api"`), `options` (`Array<{label, value}>`, when static), `optionsUrl` (`string`, when `api`) |
+| `dropdown` / `radio` / `checkbox` | `optionsType` (`"static"` \| `"api"`), `options` (`Array<{label, value}>`, when static), `optionsUrl` (`string`, when `api` — an identifier handed to your `optionsProvider`; the renderer never fetches it itself, see section 8) |
 | `matrix` | `matrixRows` (`Array<{key, label}>`), plus the same `optionsType`/`options`/`optionsUrl` as above (shared across every row) |
 | `repeater` | `minItems`, `maxItems` (`integer`), `addButtonLabel` (`string`), `rows` (`Row[]` — the sub-field layout repeated per item; only `text`/`textarea`/`number`/`date`/`boolean`/`dropdown`/`radio`/`checkbox`/`matrix`/`signature`/`file` are supported inside a repeater, **not** another `repeater` or nested `matrix`) |
 | `signature` | *(no extra properties)* |
@@ -293,7 +293,8 @@ const renderer = new OpenFormRenderer({
   onSubmit,             // (answers) => void, fired on successful validated submit
   onFieldChange,        // (answers) => void, fired on every real-time field edit
   translations,         // optional, overrides the built-in UI string dictionary (not form content)
-  locale                // optional, initial locale, default 'default'
+  locale,               // optional, initial locale, default 'default'
+  optionsProvider       // optional, (field, { locale, readOnly }) => Promise<Array<{label, value}>>
 });
 
 renderer.render(schemaJSON, answers, readOnly);
@@ -303,9 +304,30 @@ renderer.render(schemaJSON, answers, readOnly);
 
 renderer.setLocale('pt-BR');   // switches locale reactively, keeps current answers
 renderer.answers;              // current answers object, readable anytime
+renderer.destroy();            // unmounts; removes window listeners, observers, timers, shared nodes
+OpenFormRenderer.escapeHtml(s); // static helper used for every string the renderer puts in HTML
 ```
 
-There is no separate `loadSchema()`/`setAnswers()`/`setReadOnly()` on the renderer — all three are parameters of the single `render()` call. Calling `render()` again with a new schema/answers/readOnly combination re-renders in place.
+There is no separate `loadSchema()`/`setAnswers()`/`setReadOnly()` on the renderer — all three are parameters of the single `render()` call. Calling `render()` again with a new schema/answers/readOnly combination re-renders in place. Each call drops per-record state from the previous one (attachments, signature pads, loaded API options); passing `answers` also returns to the first page, while `render(schema)` with no answers keeps the current answers and page (useful for live preview refreshes).
+
+**API-sourced options.** Fields with `optionsType: "api"` get their options from `optionsProvider`, called once per field per `render()` (and per locale). It receives the field (with `optionsUrl`, `key`, …) and `{ locale, readOnly }` and must resolve to `[{ label, value }]`. The host does the request, so it can add auth headers or call a server action. While it is pending the field shows its loading state; if it rejects, or no provider is configured, the field shows a translated message (`optionsLoadError` / `optionsSourceUnavailable`) and offers **no** options. Results that arrive after a re-render or `destroy()` are ignored.
+
+```js
+const renderer = new OpenFormRenderer({
+  containerEl,
+  onSubmit,
+  optionsProvider: async (field, { locale }) => {
+    const res = await fetch(field.optionsUrl, {
+      headers: { Authorization: `Bearer ${getToken()}`, 'Accept-Language': locale }
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const rows = await res.json();
+    return rows.map(r => ({ label: r.name, value: r.code }));
+  }
+});
+```
+
+**`destroy()`.** Call it when the host view goes away (SPA navigation, OutSystems `OnDestroy`). It removes the window `mouseup`/`touchend` listeners and ResizeObservers of signature pads, cancels pending toast/animation timers, removes this instance's toasts and print snapshot, ignores in-flight `optionsProvider` results and empties the container. Page-level nodes shared by all renderers (`#lightbox-modal`, a `#toast-container` the renderer created, the Caveat font `<link id="form-handwriting-font">`) are removed only when no other renderer is still mounted; a `#toast-container` supplied by the host page is left alone. Calling it twice is safe, and other methods become no-ops afterwards.
 
 ### `OpenFormBuilder`
 

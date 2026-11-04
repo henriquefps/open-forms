@@ -4,10 +4,16 @@
  */
 function debounce(fn, delay) {
   let timeoutId;
-  return function (...args) {
+  const debounced = function (...args) {
     clearTimeout(timeoutId);
     timeoutId = setTimeout(() => fn.apply(this, args), delay);
   };
+  // Lets destroy() drop a pending trailing call so it can't fire on a torn-down instance.
+  debounced.cancel = () => {
+    clearTimeout(timeoutId);
+    timeoutId = undefined;
+  };
+  return debounced;
 }
 
 /**
@@ -20,6 +26,29 @@ function debounce(fn, delay) {
  * License: Apache-2.0
  */
 class OpenFormBuilder {
+  static VERSION = '1.1.0';
+
+  /**
+   * S2: escapes a value for safe interpolation into HTML text or a quoted attribute.
+   * Every schema-, translation- or user-derived string that goes into a template literal
+   * assigned to innerHTML must pass through here. Kept as an identical copy in renderer.js
+   * (no shared module by design) and guarded by a parity test.
+   */
+  static escapeHtml(value) {
+    if (value === null || value === undefined) return '';
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  /** Short instance alias for OpenFormBuilder.escapeHtml, used inside template literals. */
+  esc(value) {
+    return OpenFormBuilder.escapeHtml(value);
+  }
+
   /**
    * @param {Object} options
    * @param {HTMLElement} options.containerEl Container element of the widget
@@ -29,6 +58,15 @@ class OpenFormBuilder {
   constructor({ containerEl, onSchemaChange, translations }) {
     this.containerEl = containerEl;
     this.onSchemaChange = onSchemaChange;
+
+    // A1: everything this instance attaches outside its own container (document listeners,
+    // toast nodes in the host's #toast-container, pending timers) is tracked here so
+    // destroy() can remove it all.
+    this._timers = new Set();
+    this._toasts = new Set();
+    this._documentListeners = [];
+    this._isActive = false;
+    this._destroyed = false;
 
     // Standard English Translation Dictionary
     this.translations = Object.assign({
@@ -93,7 +131,7 @@ class OpenFormBuilder {
       fieldOptionsStaticHint: "Configure one per line using 'Label:value'.",
       fieldOptionsApiUrlLabel: "REST API URL",
       fieldOptionsApiUrlPlaceholder: "e.g. /api/countries",
-      fieldOptionsApiUrlHint: "Simulated endpoints available: /api/countries or /api/departments",
+      fieldOptionsApiUrlHint: "Options are supplied at runtime by the host page's optionsProvider; this URL is passed to it as a hint.",
       fieldHasVisibilityLabel: "Has Visibility Rule?",
       fieldCondIfField: "If field:",
       fieldCondNoOtherFields: "-- No other fields available --",
@@ -207,7 +245,9 @@ class OpenFormBuilder {
     // and `notifyChange()` (undo stack + the live preview sync) are never debounced —
     // those stay perfectly in sync with what was typed, only this canvas's own visual
     // repaint lags slightly behind.
-    this.debouncedRender = debounce(() => this.render(), 200);
+    this.debouncedRender = debounce(() => {
+      if (!this._destroyed) this.render();
+    }, 200);
 
     this.buildHTMLShell();
     this.init();
@@ -372,7 +412,7 @@ class OpenFormBuilder {
     }
 
     const selectOptionsHTML = locales.map(loc =>
-      `<option value="${loc.code}" ${this.editingLocale === loc.code ? 'selected' : ''}>${loc.label}</option>`
+      `<option value="${this.esc(loc.code)}" ${this.editingLocale === loc.code ? 'selected' : ''}>${this.esc(loc.label)}</option>`
     ).join('');
 
     return `
@@ -584,66 +624,66 @@ class OpenFormBuilder {
       <div class="builder-layout">
         <!-- Palette Sidebar -->
         <aside class="builder-palette">
-          <h4 class="section-label">${this.translations.paletteTitle}</h4>
+          <h4 class="section-label">${this.esc(this.translations.paletteTitle)}</h4>
           <div class="palette-grid">
             <!-- Section Title Heading -->
             <div class="palette-item" draggable="true" data-type="header" style="">
               <i data-lucide="heading"></i>
-              <span>${this.translations.sectionHeaderLabel}</span>
+              <span>${this.esc(this.translations.sectionHeaderLabel)}</span>
             </div>
             <!-- Text Block / Paragraph -->
             <div class="palette-item" draggable="true" data-type="paragraph">
               <i data-lucide="align-justify"></i>
-              <span>${this.translations.paragraphLabel || 'Text Block'}</span>
+              <span>${this.esc(this.translations.paragraphLabel || 'Text Block')}</span>
             </div>
             
             <div class="palette-item" draggable="true" data-type="text">
               <i data-lucide="text-cursor-input"></i>
-              <span>${this.translations.textInputLabel}</span>
+              <span>${this.esc(this.translations.textInputLabel)}</span>
             </div>
             <div class="palette-item" draggable="true" data-type="textarea">
               <i data-lucide="align-left"></i>
-              <span>${this.translations.longTextAreaLabel}</span>
+              <span>${this.esc(this.translations.longTextAreaLabel)}</span>
             </div>
             <div class="palette-item" draggable="true" data-type="number">
               <i data-lucide="binary"></i>
-              <span>${this.translations.numericInputLabel}</span>
+              <span>${this.esc(this.translations.numericInputLabel)}</span>
             </div>
             <div class="palette-item" draggable="true" data-type="date">
               <i data-lucide="calendar"></i>
-              <span>${this.translations.dateFieldLabel}</span>
+              <span>${this.esc(this.translations.dateFieldLabel)}</span>
             </div>
             <div class="palette-item" draggable="true" data-type="boolean">
               <i data-lucide="toggle-left"></i>
-              <span>${this.translations.booleanToggleLabel}</span>
+              <span>${this.esc(this.translations.booleanToggleLabel)}</span>
             </div>
             <div class="palette-item" draggable="true" data-type="dropdown">
               <i data-lucide="list-collapse"></i>
-              <span>${this.translations.dropdownLabel}</span>
+              <span>${this.esc(this.translations.dropdownLabel)}</span>
             </div>
             <div class="palette-item" draggable="true" data-type="radio">
               <i data-lucide="circle-dot"></i>
-              <span>${this.translations.radioButtonLabel}</span>
+              <span>${this.esc(this.translations.radioButtonLabel)}</span>
             </div>
             <div class="palette-item" draggable="true" data-type="checkbox">
               <i data-lucide="check-square"></i>
-              <span>${this.translations.checkboxLabel}</span>
+              <span>${this.esc(this.translations.checkboxLabel)}</span>
             </div>
             <div class="palette-item" draggable="true" data-type="file">
               <i data-lucide="upload-cloud"></i>
-              <span>${this.translations.fileUploadLabel}</span>
+              <span>${this.esc(this.translations.fileUploadLabel)}</span>
             </div>
             <div class="palette-item" draggable="true" data-type="signature">
               <i data-lucide="pen-tool"></i>
-              <span>${this.translations.canvasSignatureLabel}</span>
+              <span>${this.esc(this.translations.canvasSignatureLabel)}</span>
             </div>
             <div class="palette-item" draggable="true" data-type="repeater">
               <i data-lucide="layers"></i>
-              <span>${this.translations.repeaterLabel || 'Repeatable List'}</span>
+              <span>${this.esc(this.translations.repeaterLabel || 'Repeatable List')}</span>
             </div>
             <div class="palette-item" draggable="true" data-type="matrix">
               <i data-lucide="grid"></i>
-              <span>${this.translations.matrixLabel || 'Question Matrix'}</span>
+              <span>${this.esc(this.translations.matrixLabel || 'Question Matrix')}</span>
             </div>
           </div>
         </aside>
@@ -655,7 +695,7 @@ class OpenFormBuilder {
         <aside class="builder-properties">
           <div class="properties-empty">
             <i data-lucide="info"></i>
-            <p>${this.translations.propertiesHelpText}</p>
+            <p>${this.esc(this.translations.propertiesHelpText)}</p>
           </div>
         </aside>
       </div>
@@ -886,9 +926,12 @@ class OpenFormBuilder {
     const pageIndex = this.schema.pages.findIndex(p => p.pageId === pageId);
     if (pageIndex !== -1) {
       if (confirm(this.translations.deletePageConfirm)) {
+        const removedFields = [];
+        (this.schema.pages[pageIndex].sections || []).forEach(sec => this._collectFieldsInRows(sec.rows, removedFields));
         this.schema.pages.splice(pageIndex, 1);
         this.activePageIndex = Math.min(this.activePageIndex, this.schema.pages.length - 1);
         this.selectedFieldId = null;
+        this._cleanupAndReportRemovedFields(removedFields);
 
         this.notifyChange();
         this.render();
@@ -959,9 +1002,11 @@ class OpenFormBuilder {
     return null;
   }
 
-  getUniqueDatabaseKey(baseKey) {
+  getUniqueDatabaseKey(baseKey, reservedKeys = null) {
     let key = baseKey;
     const allKeys = new Set(this.getAllFields().map(f => f.key).filter(Boolean));
+    // Keys already handed out in the same batch (e.g. duplicateSection) aren't in the schema yet.
+    if (reservedKeys) reservedKeys.forEach(k => allKeys.add(k));
 
     let match = key.match(/^(.*?)_copy(\d*)$/);
     let prefix = key;
@@ -993,13 +1038,24 @@ class OpenFormBuilder {
     clonedSection.sectionId = `sec-${this.generateUniqueId('s')}`;
     clonedSection.title = clonedSection.title ? `${clonedSection.title} (Copy)` : "Section Copy";
 
+    // B2: old -> new key/id maps so references among the duplicated fields (rules, formulas,
+    // translations) can be pointed at the copies instead of the originals.
+    const keyMap = new Map();
+    const idMap = new Map();
+    const reservedKeys = new Set();
+    const clonedFields = [];
+
     const duplicateField = (field) => {
       if (!field) return null;
       const clonedField = JSON.parse(JSON.stringify(field));
       clonedField.id = this.generateUniqueId(clonedField.type.substring(0, 3));
+      idMap.set(field.id, clonedField.id);
+      clonedFields.push(clonedField);
 
       if (clonedField.key && !['header', 'paragraph'].includes(clonedField.type)) {
-        clonedField.key = this.getUniqueDatabaseKey(clonedField.key);
+        clonedField.key = this.getUniqueDatabaseKey(clonedField.key, reservedKeys);
+        reservedKeys.add(clonedField.key);
+        if (!keyMap.has(field.key)) keyMap.set(field.key, clonedField.key);
       }
 
       if (clonedField.type === 'repeater' && clonedField.rows) {
@@ -1033,6 +1089,40 @@ class OpenFormBuilder {
         rowId: newRowId,
         columns: newColumns
       };
+    });
+
+    // Point rules/formulas inside the copy at the copied fields. References to fields
+    // outside the section are kept as they are (they still point at real fields).
+    const remapCond = (cond) => {
+      if (keyMap.has(cond.dependentFieldKey)) cond.dependentFieldKey = keyMap.get(cond.dependentFieldKey);
+      if (keyMap.has(cond.compareToFieldKey)) cond.compareToFieldKey = keyMap.get(cond.compareToFieldKey);
+    };
+    [clonedSection, ...clonedFields].forEach(owner => {
+      (owner.conditionalRules || []).forEach(rule => this._forEachRuleCondition(rule, remapCond));
+      if (typeof owner.formulaExpression === 'string') {
+        // Single pass so a chain like a -> a_copy, a_copy -> a_copy2 can't cascade.
+        owner.formulaExpression = owner.formulaExpression.replace(/\{([^}]+)\}/g, (token, key) =>
+          keyMap.has(key) ? `{${keyMap.get(key)}}` : token
+        );
+      }
+    });
+
+    // Copy translations: fields are keyed by key (or by id for header/paragraph, which have
+    // no key), sections by sectionId.
+    Object.values(this.schema.translations || {}).forEach(dict => {
+      if (!dict) return;
+      if (dict.fields) {
+        const copyEntry = (from, to) => {
+          if (dict.fields[from] !== undefined && dict.fields[to] === undefined) {
+            dict.fields[to] = JSON.parse(JSON.stringify(dict.fields[from]));
+          }
+        };
+        keyMap.forEach((newKey, oldKey) => copyEntry(oldKey, newKey));
+        idMap.forEach((newId, oldId) => copyEntry(oldId, newId));
+      }
+      if (dict.sections && dict.sections[originalSection.sectionId] !== undefined) {
+        dict.sections[clonedSection.sectionId] = JSON.parse(JSON.stringify(dict.sections[originalSection.sectionId]));
+      }
     });
 
     // Insert cloned section right after original section
@@ -1111,7 +1201,9 @@ class OpenFormBuilder {
         this.selectedSectionId = null;
       }
 
+      const removedFields = this._collectFieldsInRows(section.rows);
       activePage.sections.splice(index, 1);
+      this._cleanupAndReportRemovedFields(removedFields);
       this.notifyChange();
       this.render();
       this.renderProperties();
@@ -1190,10 +1282,12 @@ class OpenFormBuilder {
         }
       });
 
+      const removedFields = this._collectFieldsInRows([row]);
       if (section) {
         const rowIndex = section.rows.findIndex(r => r.rowId === rowId);
         if (rowIndex !== -1) {
           section.rows.splice(rowIndex, 1);
+          this._cleanupAndReportRemovedFields(removedFields);
           this.notifyChange();
           this.render();
           this.renderProperties();
@@ -1202,6 +1296,7 @@ class OpenFormBuilder {
         const rowIndex = repeaterField.rows.findIndex(r => r.rowId === rowId);
         if (rowIndex !== -1) {
           repeaterField.rows.splice(rowIndex, 1);
+          this._cleanupAndReportRemovedFields(removedFields);
           this.notifyChange();
           this.render();
           this.renderProperties();
@@ -1256,8 +1351,10 @@ class OpenFormBuilder {
           this.selectedFieldId = null;
         }
 
+        const removedFields = this._collectFieldTree(col.field);
         row.columns.splice(colIndex, 1);
         this.balanceRowColumns(row);
+        this._cleanupAndReportRemovedFields(removedFields);
         this.notifyChange();
         this.render();
         this.renderProperties();
@@ -1321,7 +1418,9 @@ class OpenFormBuilder {
         if (col.field.id === this.selectedFieldId) {
           this.selectedFieldId = null;
         }
+        const removedFields = this._collectFieldTree(col.field);
         col.field = null;
+        this._cleanupAndReportRemovedFields(removedFields);
         this.notifyChange();
         this.render();
         this.renderProperties();
@@ -1471,6 +1570,240 @@ class OpenFormBuilder {
     }
   }
 
+  // ---------------------------------------------------------------------------------------
+  // B2: reference integrity. Fields are referenced by `key` from conditionalRules (fields
+  // and sections), crossFieldRules (targetFields + conditions), `{key}` tokens in formulas /
+  // legacy cross-field expressions, and translations[locale].fields[key]. These helpers keep
+  // those references in sync when a key is renamed, a field is deleted or a section is
+  // duplicated. Each runs before the single notifyChange() of its action, so one undo
+  // reverts the action and its reference updates together.
+  // ---------------------------------------------------------------------------------------
+
+  /** Every object that can own conditionalRules: all fields (incl. repeater sub-fields) and sections. */
+  _getRuleOwners() {
+    const owners = this.getAllFields();
+    this.schema.pages.forEach(page => {
+      (page.sections || []).forEach(section => owners.push(section));
+    });
+    return owners;
+  }
+
+  /** Calls cb(condition) for every condition inside a rule's andGroups. */
+  _forEachRuleCondition(rule, cb) {
+    (rule && rule.andGroups || []).forEach(group => {
+      (group && group.conditions || []).forEach(cond => {
+        if (cond) cb(cond);
+      });
+    });
+  }
+
+  /** Replaces `{oldKey}` tokens with `{newKey}` in an expression string. */
+  _replaceKeyToken(expression, oldKey, newKey) {
+    if (typeof expression !== 'string' || !expression) return { value: expression, count: 0 };
+    const token = `{${oldKey}}`;
+    const parts = expression.split(token);
+    return { value: parts.join(`{${newKey}}`), count: parts.length - 1 };
+  }
+
+  /** Collects `field` and, for repeaters, all of its nested sub-fields. */
+  _collectFieldTree(field, list = []) {
+    if (field) this._collectFieldsRecursive(field, list);
+    return list;
+  }
+
+  /** All fields (recursively) contained in a list of rows. */
+  _collectFieldsInRows(rows, list = []) {
+    (rows || []).forEach(row => {
+      (row.columns || []).forEach(col => {
+        if (col.field) this._collectFieldsRecursive(col.field, list);
+      });
+    });
+    return list;
+  }
+
+  /**
+   * Rewrites every reference to `oldKey` so it points at `newKey`. Call after the field's
+   * own key has been changed. If another field still uses `oldKey` (a repeater sub-field
+   * and a top-level field may legitimately share a key), references are ambiguous and are
+   * left untouched. Returns the number of references updated.
+   */
+  renameFieldKeyReferences(oldKey, newKey) {
+    if (!oldKey || !newKey || oldKey === newKey) return 0;
+    if (this.getAllFields().some(f => f.key === oldKey)) return 0;
+
+    let count = 0;
+    const remapCond = (cond) => {
+      if (cond.dependentFieldKey === oldKey) { cond.dependentFieldKey = newKey; count++; }
+      if (cond.compareToFieldKey === oldKey) { cond.compareToFieldKey = newKey; count++; }
+    };
+
+    this._getRuleOwners().forEach(owner => {
+      (owner.conditionalRules || []).forEach(rule => this._forEachRuleCondition(rule, remapCond));
+      if (typeof owner.formulaExpression === 'string') {
+        const res = this._replaceKeyToken(owner.formulaExpression, oldKey, newKey);
+        owner.formulaExpression = res.value;
+        count += res.count;
+      }
+    });
+
+    (this.schema.crossFieldRules || []).forEach(rule => {
+      if (Array.isArray(rule.targetFields)) {
+        rule.targetFields = rule.targetFields.map(k => {
+          if (k === oldKey) { count++; return newKey; }
+          return k;
+        });
+      }
+      this._forEachRuleCondition(rule, remapCond);
+      if (typeof rule.expression === 'string') {
+        const res = this._replaceKeyToken(rule.expression, oldKey, newKey);
+        rule.expression = res.value;
+        count += res.count;
+      }
+    });
+
+    Object.values(this.schema.translations || {}).forEach(dict => {
+      if (dict && dict.fields && dict.fields[oldKey] !== undefined && dict.fields[newKey] === undefined) {
+        dict.fields[newKey] = dict.fields[oldKey];
+        delete dict.fields[oldKey];
+        count++;
+      }
+    });
+
+    return count;
+  }
+
+  /**
+   * Cleans references left dangling after `removedFields` were taken out of the schema
+   * (call after the removal). Conditions pointing at a removed key are dropped; an AND
+   * group emptied by that is dropped; a rule left with no groups is dropped (an empty
+   * rule would otherwise evaluate to "never satisfied" and silently hide/lock its owner).
+   * Cross-field rules lose removed target fields, and are dropped when they lose all their
+   * targets or all their groups. Translations of removed keys are deleted. Formula tokens
+   * can't be removed meaningfully, so those are only reported. Returns a summary, or null
+   * when nothing referenced the removed fields.
+   */
+  cleanupRemovedFieldReferences(removedFields) {
+    const remainingKeys = new Set(this.getAllFields().map(f => f.key).filter(Boolean));
+    const removedKeys = new Set(
+      (removedFields || []).map(f => f && f.key).filter(k => k && !remainingKeys.has(k))
+    );
+    if (removedKeys.size === 0) return null;
+
+    const summary = { conditions: 0, groups: 0, rules: 0, crossFieldTargets: 0, crossFieldRules: 0, translations: 0, formulas: [] };
+    const isDangling = (cond) =>
+      removedKeys.has(cond.dependentFieldKey) ||
+      (cond.compareMode === 'field' && removedKeys.has(cond.compareToFieldKey));
+
+    // Drops dangling conditions/groups in place; returns true when the rule lost every group.
+    const pruneRule = (rule) => {
+      if (!Array.isArray(rule.andGroups)) return false;
+      const hadGroups = rule.andGroups.length > 0;
+      rule.andGroups = rule.andGroups.filter(group => {
+        if (!group || !Array.isArray(group.conditions)) return true;
+        const before = group.conditions.length;
+        group.conditions = group.conditions.filter(cond => !(cond && isDangling(cond)));
+        const removed = before - group.conditions.length;
+        summary.conditions += removed;
+        if (removed > 0 && group.conditions.length === 0) {
+          summary.groups++;
+          return false;
+        }
+        return true;
+      });
+      return hadGroups && rule.andGroups.length === 0;
+    };
+
+    const tokenRefs = (expression) => [...removedKeys].filter(k => typeof expression === 'string' && expression.includes(`{${k}}`));
+
+    this._getRuleOwners().forEach(owner => {
+      if (Array.isArray(owner.conditionalRules)) {
+        owner.conditionalRules = owner.conditionalRules.filter(rule => {
+          if (pruneRule(rule)) {
+            summary.rules++;
+            return false;
+          }
+          return true;
+        });
+      }
+      const refs = tokenRefs(owner.formulaExpression);
+      if (refs.length > 0) {
+        summary.formulas.push({ field: owner.label || owner.key, keys: refs });
+      }
+    });
+
+    if (Array.isArray(this.schema.crossFieldRules)) {
+      const droppedRuleIds = [];
+      this.schema.crossFieldRules = this.schema.crossFieldRules.filter(rule => {
+        let lostAllTargets = false;
+        if (Array.isArray(rule.targetFields)) {
+          const before = rule.targetFields.length;
+          rule.targetFields = rule.targetFields.filter(k => !removedKeys.has(k));
+          const removed = before - rule.targetFields.length;
+          summary.crossFieldTargets += removed;
+          lostAllTargets = removed > 0 && rule.targetFields.length === 0;
+        }
+        const lostAllGroups = pruneRule(rule);
+        if (lostAllTargets || lostAllGroups) {
+          summary.crossFieldRules++;
+          if (rule.ruleId) droppedRuleIds.push(rule.ruleId);
+          return false;
+        }
+        const refs = tokenRefs(rule.expression);
+        if (refs.length > 0) {
+          summary.formulas.push({ field: 'Cross-field rule', keys: refs });
+        }
+        return true;
+      });
+
+      Object.values(this.schema.translations || {}).forEach(dict => {
+        if (dict && dict.crossFieldRules) {
+          droppedRuleIds.forEach(id => { delete dict.crossFieldRules[id]; });
+          if (Object.keys(dict.crossFieldRules).length === 0) delete dict.crossFieldRules;
+        }
+      });
+    }
+
+    Object.values(this.schema.translations || {}).forEach(dict => {
+      if (dict && dict.fields) {
+        removedKeys.forEach(k => {
+          if (dict.fields[k] !== undefined) {
+            delete dict.fields[k];
+            summary.translations++;
+          }
+        });
+        if (Object.keys(dict.fields).length === 0) delete dict.fields;
+      }
+    });
+
+    const touched = summary.conditions + summary.groups + summary.rules + summary.crossFieldTargets +
+      summary.crossFieldRules + summary.translations + summary.formulas.length;
+    return touched > 0 ? summary : null;
+  }
+
+  /** Runs cleanupRemovedFieldReferences and shows a toast describing what was cleaned. */
+  _cleanupAndReportRemovedFields(removedFields) {
+    const summary = this.cleanupRemovedFieldReferences(removedFields);
+    if (!summary) return null;
+
+    const parts = [];
+    const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+    if (summary.conditions) parts.push(plural(summary.conditions, 'rule condition'));
+    if (summary.rules) parts.push(plural(summary.rules, 'emptied rule'));
+    if (summary.crossFieldTargets) parts.push(plural(summary.crossFieldTargets, 'cross-field target'));
+    if (summary.crossFieldRules) parts.push(plural(summary.crossFieldRules, 'cross-field rule'));
+    if (summary.translations) parts.push(plural(summary.translations, 'translation entry').replace('entrys', 'entries'));
+
+    let message = parts.length > 0 ? `Removed references to the deleted field: ${parts.join(', ')}.` : '';
+    if (summary.formulas.length > 0) {
+      const formulaText = summary.formulas
+        .map(f => `${f.field} (${f.keys.map(k => `{${k}}`).join(', ')})`)
+        .join('; ');
+      message += `${message ? ' ' : ''}Formula still references a deleted field: ${formulaText}.`;
+    }
+    this.showToast(message, summary.formulas.length > 0);
+    return summary;
+  }
+
   /**
    * Load JSON schema configuration into the visual builder
    */
@@ -1527,19 +1860,24 @@ class OpenFormBuilder {
 
     const toast = document.createElement('div');
     toast.className = `toast ${isError ? 'toast-error' : 'toast-success'}`;
-    toast.innerHTML = `
-      <i data-lucide="${isError ? 'x-circle' : 'check-circle'}"></i>
-      <span>${message}</span>
-    `;
+    toast.innerHTML = `<i data-lucide="${isError ? 'x-circle' : 'check-circle'}"></i>`;
+    // S2: message is often built from field keys/labels — set as text, never parsed as HTML.
+    const messageEl = document.createElement('span');
+    messageEl.textContent = message;
+    toast.appendChild(messageEl);
     container.appendChild(toast);
+    this._toasts.add(toast);
 
     if (window.lucide) window.lucide.createIcons();
 
-    setTimeout(() => {
+    this._setTimer(() => {
       toast.style.opacity = '0';
       toast.style.transform = 'translateY(10px)';
       toast.style.transition = 'all 0.3s ease';
-      setTimeout(() => toast.remove(), 300);
+      this._setTimer(() => {
+        toast.remove();
+        this._toasts.delete(toast);
+      }, 300);
     }, 3500);
   }
 
@@ -1596,10 +1934,10 @@ class OpenFormBuilder {
       <div class="form-input-wrapper" style="margin-bottom: 0;">
         <input type="text" id="canvas-form-title" class="form-input" 
                style="font-size: 18px; font-weight: var(--font-weight-bold); border: none; padding: var(--space-xs) var(--space-s); background: transparent; color: var(--color-neutral-10);"
-               value="${formTitleVal}" placeholder="${this.editingLocale === 'default' ? this.translations.formTitlePlaceholder : this.schema.formTitle}" />
+               value="${this.esc(formTitleVal)}" placeholder="${this.esc(this.editingLocale === 'default' ? this.translations.formTitlePlaceholder : this.schema.formTitle)}" />
         <input type="text" id="canvas-form-desc" class="form-input" 
                style="font-size: var(--font-size-s); color: var(--color-neutral-7); border: none; padding: 2px var(--space-s); background: transparent;"
-               value="${formDescVal}" placeholder="${this.editingLocale === 'default' ? this.translations.formDescPlaceholder : (this.schema.formDescription || '')}" />
+               value="${this.esc(formDescVal)}" placeholder="${this.esc(this.editingLocale === 'default' ? this.translations.formDescPlaceholder : (this.schema.formDescription || ''))}" />
       </div>
     `;
     this.canvasEl.appendChild(canvasHeader);
@@ -1673,7 +2011,7 @@ class OpenFormBuilder {
     // Create New Page Button
     const addPageBtn = document.createElement('button');
     addPageBtn.className = 'canvas-page-add-btn';
-    addPageBtn.innerHTML = `<i data-lucide="plus"></i> ${this.translations.addPageLabel}`;
+    addPageBtn.innerHTML = `<i data-lucide="plus"></i> ${this.esc(this.translations.addPageLabel)}`;
     addPageBtn.addEventListener('click', () => this.addNewPage());
     pagesBar.appendChild(addPageBtn);
 
@@ -1695,8 +2033,8 @@ class OpenFormBuilder {
       emptyState.className = 'canvas-empty-state';
       emptyState.innerHTML = `
         <i data-lucide="plus-square"></i>
-        <h3>${this.translations.pagePrefix} "${activePage.title}" ${this.translations.emptyPageTitle}</h3>
-        <p>${this.translations.emptyPageDesc}</p>
+        <h3>${this.esc(this.translations.pagePrefix)} "${this.esc(activePage.title)}" ${this.esc(this.translations.emptyPageTitle)}</h3>
+        <p>${this.esc(this.translations.emptyPageDesc)}</p>
         <button id="btn-empty-add-section" class="pg-btn" style="margin-top: var(--space-s);">
           <i data-lucide="folder-plus"></i> Add Section
         </button>
@@ -1731,7 +2069,7 @@ class OpenFormBuilder {
           <span style="font-weight: var(--font-weight-bold); font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 0.8px; color: var(--color-primary); display: flex; align-items: center; gap: var(--space-xs);">
             <i data-lucide="folder" style="width: var(--font-size-s); height: var(--font-size-s);"></i> Section:
           </span>
-          <input type="text" class="section-title-input" value="${sectionTitleVal}" placeholder="${this.editingLocale === 'default' ? 'Section Title...' : (section.title || 'Section Title...')}" style="flex: 1; font-weight: var(--font-weight-bold); background: transparent; border: none; ${sectionTitleVal == "" || sectionTitleVal == "Default Section" ? "color: var(--pg-text-secondary);" : ""} font-size: var(--font-size-s); outline: none; margin-left: 6px; color: var(--color-neutral-10);" />
+          <input type="text" class="section-title-input" value="${this.esc(sectionTitleVal)}" placeholder="${this.esc(this.editingLocale === 'default' ? 'Section Title...' : (section.title || 'Section Title...'))}" style="flex: 1; font-weight: var(--font-weight-bold); background: transparent; border: none; ${sectionTitleVal == "" || sectionTitleVal == "Default Section" ? "color: var(--pg-text-secondary);" : ""} font-size: var(--font-size-s); outline: none; margin-left: 6px; color: var(--color-neutral-10);" />
         </div>
         <div class="section-operations" style="display: flex; gap: 6px; align-items: center;">
           <button class="pg-btn pg-btn-secondary btn-sec-add-row" style="padding: var(--space-xs) 10px; font-size: var(--font-size-xs);">
@@ -1884,14 +2222,14 @@ class OpenFormBuilder {
         const rowBar = document.createElement('div');
         rowBar.className = 'row-actions-bar';
         rowBar.innerHTML = `
-          <div class="row-drag-handle" draggable="true" title="${this.translations.gripHorizontalTitle}">
-            <i data-lucide="grip-horizontal"></i> ${this.translations.rowLabel} ${rowIndex + 1}
+          <div class="row-drag-handle" draggable="true" title="${this.esc(this.translations.gripHorizontalTitle)}">
+            <i data-lucide="grip-horizontal"></i> ${this.esc(this.translations.rowLabel)} ${rowIndex + 1}
           </div>
           <div class="row-operations">
-            <button class="row-op-btn add-col" title="${this.translations.addColTitle}">
+            <button class="row-op-btn add-col" title="${this.esc(this.translations.addColTitle)}">
               <i data-lucide="columns"></i>
             </button>
-            <button class="row-op-btn delete" title="${this.translations.deleteRowTitle}">
+            <button class="row-op-btn delete" title="${this.esc(this.translations.deleteRowTitle)}">
               <i data-lucide="trash-2"></i>
             </button>
           </div>
@@ -1930,10 +2268,10 @@ class OpenFormBuilder {
           const colControls = document.createElement('div');
           colControls.className = 'column-controls';
           colControls.innerHTML = `
-            <button class="col-btn col-dec" title="${this.translations.colDecreaseTitle}">-</button>
+            <button class="col-btn col-dec" title="${this.esc(this.translations.colDecreaseTitle)}">-</button>
             <span class="col-badge">${col.width}/12</span>
-            <button class="col-btn col-inc" title="${this.translations.colIncreaseTitle}">+</button>
-            ${row.columns.length > 1 ? `<button class="col-btn col-del" title="${this.translations.colDeleteTitle}" style="color: var(--color-error)">x</button>` : ''}
+            <button class="col-btn col-inc" title="${this.esc(this.translations.colIncreaseTitle)}">+</button>
+            ${row.columns.length > 1 ? `<button class="col-btn col-del" title="${this.esc(this.translations.colDeleteTitle)}" style="color: var(--color-error)">x</button>` : ''}
           `;
           colCell.appendChild(colControls);
 
@@ -1985,12 +2323,12 @@ class OpenFormBuilder {
                 <div class="canvas-field-info" style="width: 100%; padding-left: 6px;">
                   <i data-lucide="heading" class="canvas-field-icon" style="color: var(--color-primary)"></i>
                   <div style="flex: 1; min-width: 0;">
-                    <div class="canvas-field-title" style="font-weight: var(--font-weight-bold); color: var(--color-neutral-10); font-size: var(--font-size-s); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.4; max-height: 2.8em;">${displayLabel}</div>
-                    <span style="font-size: var(--font-size-xs); color: var(--color-neutral-7); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${displaySub || `(${this.translations.sectionHeaderSubtitle})`}</span>
+                    <div class="canvas-field-title" style="font-weight: var(--font-weight-bold); color: var(--color-neutral-10); font-size: var(--font-size-s); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.4; max-height: 2.8em;">${this.esc(displayLabel)}</div>
+                    <span style="font-size: var(--font-size-xs); color: var(--color-neutral-7); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${displaySub ? this.esc(displaySub) : `(${this.esc(this.translations.sectionHeaderSubtitle)})`}</span>
                   </div>
                 </div>
                 <div class="canvas-field-actions">
-                  <button class="canvas-field-btn delete" title="${this.translations.removeFieldTitle}">
+                  <button class="canvas-field-btn delete" title="${this.esc(this.translations.removeFieldTitle)}">
                     <i data-lucide="x"></i>
                   </button>
                 </div>
@@ -2002,12 +2340,12 @@ class OpenFormBuilder {
                 <div class="canvas-field-info" style="width: 100%; border-left: 3px dashed var(--color-neutral-5); padding-left: 6px;">
                   <i data-lucide="align-justify" class="canvas-field-icon" style="color: var(--color-neutral-7)"></i>
                   <div style="flex: 1; min-width: 0;">
-                    <div class="canvas-field-title" style="font-weight: var(--font-weight-normal); color: var(--color-neutral-8); font-size: var(--font-size-s); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.4; max-height: 2.8em;">${displayLabel}</div>
+                    <div class="canvas-field-title" style="font-weight: var(--font-weight-normal); color: var(--color-neutral-8); font-size: var(--font-size-s); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.4; max-height: 2.8em;">${this.esc(displayLabel)}</div>
                     <span style="font-size: 9px; color: var(--color-neutral-6); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Text Block</span>
                   </div>
                 </div>
                 <div class="canvas-field-actions">
-                  <button class="canvas-field-btn delete" title="${this.translations.removeFieldTitle}">
+                  <button class="canvas-field-btn delete" title="${this.esc(this.translations.removeFieldTitle)}">
                     <i data-lucide="x"></i>
                   </button>
                 </div>
@@ -2020,8 +2358,8 @@ class OpenFormBuilder {
                   <div style="display: flex; align-items: center; gap: var(--space-s); width: 100%;">
                     <i data-lucide="layers" class="canvas-field-icon" style="color: var(--color-primary);"></i>
                     <div style="flex: 1;">
-                      <div class="canvas-field-title" style="font-weight: var(--font-weight-bold); color: var(--color-neutral-10); font-size: var(--font-size-s);">${displayLabel}</div>
-                      <span class="canvas-field-key">${field.key}</span>
+                      <div class="canvas-field-title" style="font-weight: var(--font-weight-bold); color: var(--color-neutral-10); font-size: var(--font-size-s);">${this.esc(displayLabel)}</div>
+                      <span class="canvas-field-key">${this.esc(field.key)}</span>
                     </div>
                     <div class="repeater-operations">
                       <button class="repeater-op-btn add-row" title="Add Row" style="background: none; border: none; cursor: pointer; display: flex; align-items: center; color: var(--color-primary); font-size: var(--font-size-xs); gap: var(--space-xs); padding: 2px 6px;">
@@ -2034,7 +2372,7 @@ class OpenFormBuilder {
                   </div>
                 </div>
                 <div class="canvas-field-actions">
-                  <button class="canvas-field-btn delete" title="${this.translations.removeFieldTitle}">
+                  <button class="canvas-field-btn delete" title="${this.esc(this.translations.removeFieldTitle)}">
                     <i data-lucide="x"></i>
                   </button>
                 </div>
@@ -2078,10 +2416,10 @@ class OpenFormBuilder {
                       Row ${subRowIndex + 1}
                     </div>
                     <div class="row-operations">
-                      <button class="row-op-btn add-col" title="${this.translations.addColTitle}">
+                      <button class="row-op-btn add-col" title="${this.esc(this.translations.addColTitle)}">
                         <i data-lucide="columns"></i>
                       </button>
-                      <button class="row-op-btn delete" title="${this.translations.deleteRowTitle}">
+                      <button class="row-op-btn delete" title="${this.esc(this.translations.deleteRowTitle)}">
                         <i data-lucide="trash-2"></i>
                       </button>
                     </div>
@@ -2148,10 +2486,10 @@ class OpenFormBuilder {
                     const colControls = document.createElement('div');
                     colControls.className = 'column-controls';
                     colControls.innerHTML = `
-                      <button class="col-btn col-dec" title="${this.translations.colDecreaseTitle}">-</button>
+                      <button class="col-btn col-dec" title="${this.esc(this.translations.colDecreaseTitle)}">-</button>
                       <span class="col-badge">${subCol.width}/12</span>
-                      <button class="col-btn col-inc" title="${this.translations.colIncreaseTitle}">+</button>
-                      ${subRow.columns.length > 1 ? `<button class="col-btn col-del" title="${this.translations.colDeleteTitle}" style="color: var(--color-error)">x</button>` : ''}
+                      <button class="col-btn col-inc" title="${this.esc(this.translations.colIncreaseTitle)}">+</button>
+                      ${subRow.columns.length > 1 ? `<button class="col-btn col-del" title="${this.esc(this.translations.colDeleteTitle)}" style="color: var(--color-error)">x</button>` : ''}
                     `;
                     colCell.appendChild(colControls);
 
@@ -2196,12 +2534,12 @@ class OpenFormBuilder {
                         <div class="canvas-field-info" style="width: 100%;">
                           <i data-lucide="${this.getFieldIcon(subField.type)}" class="canvas-field-icon"></i>
                           <div style="flex: 1;">
-                            <div class="canvas-field-title" style="font-weight: var(--font-weight-semibold); font-size: var(--font-size-s); color: var(--color-neutral-10);">${displaySubLabel}</div>
-                            <span class="canvas-field-key" style="font-size: 9px;">${subField.key}</span>
+                            <div class="canvas-field-title" style="font-weight: var(--font-weight-semibold); font-size: var(--font-size-s); color: var(--color-neutral-10);">${this.esc(displaySubLabel)}</div>
+                            <span class="canvas-field-key" style="font-size: 9px;">${this.esc(subField.key)}</span>
                           </div>
                         </div>
                         <div class="canvas-field-actions">
-                          <button class="canvas-field-btn delete" title="${this.translations.removeFieldTitle}">
+                          <button class="canvas-field-btn delete" title="${this.esc(this.translations.removeFieldTitle)}">
                             <i data-lucide="x"></i>
                           </button>
                         </div>
@@ -2224,7 +2562,7 @@ class OpenFormBuilder {
                     } else {
                       const emptyIndicator = document.createElement('div');
                       emptyIndicator.className = 'column-empty-indicator';
-                      emptyIndicator.innerHTML = this.translations.dropFieldHere;
+                      emptyIndicator.textContent = this.translations.dropFieldHere;
                       colCell.appendChild(emptyIndicator);
                     }
 
@@ -2247,12 +2585,12 @@ class OpenFormBuilder {
                   return `
                     <div class="canvas-matrix-row-tag">
                       <i data-lucide="align-justify"></i>
-                      <span>${displayRowLabel} (${r.key})</span>
+                      <span>${this.esc(displayRowLabel)} (${this.esc(r.key)})</span>
                     </div>
                   `;
                 }).join('');
               } else {
-                rowsHtml = `<div class="canvas-matrix-empty-rows">${this.translations.matrixEmptyRows || 'Empty Matrix rows. Click to configure rows in properties.'}</div>`;
+                rowsHtml = `<div class="canvas-matrix-empty-rows">${this.esc(this.translations.matrixEmptyRows || 'Empty Matrix rows. Click to configure rows in properties.')}</div>`;
               }
 
               const displayLabel = this.editingLocale === 'default' ? field.label : (this.getTranslationValue('fields', field.key, 'label') || field.label);
@@ -2261,8 +2599,8 @@ class OpenFormBuilder {
                   <div style="display: flex; align-items: center; gap: var(--space-s); width: 100%;">
                     <i data-lucide="grid" class="canvas-field-icon" style="color: var(--color-primary);"></i>
                     <div style="flex: 1;">
-                      <div class="canvas-field-title" style="font-weight: var(--font-weight-bold); color: var(--color-neutral-10); font-size: var(--font-size-s);">${displayLabel}</div>
-                      <span class="canvas-field-key">${field.key}</span>
+                      <div class="canvas-field-title" style="font-weight: var(--font-weight-bold); color: var(--color-neutral-10); font-size: var(--font-size-s);">${this.esc(displayLabel)}</div>
+                      <span class="canvas-field-key">${this.esc(field.key)}</span>
                     </div>
                   </div>
                   <div class="canvas-matrix-rows-container">
@@ -2270,7 +2608,7 @@ class OpenFormBuilder {
                   </div>
                 </div>
                 <div class="canvas-field-actions">
-                  <button class="canvas-field-btn delete" title="${this.translations.removeFieldTitle}">
+                  <button class="canvas-field-btn delete" title="${this.esc(this.translations.removeFieldTitle)}">
                     <i data-lucide="x"></i>
                   </button>
                 </div>
@@ -2283,15 +2621,15 @@ class OpenFormBuilder {
                   <i data-lucide="${this.getFieldIcon(field.type)}" class="canvas-field-icon"></i>
                   <div>
                     <div class="canvas-field-title">
-                      ${displayLabel} ${field.required ? '<span style="color: var(--color-error)">*</span>' : ''}
+                      ${this.esc(displayLabel)} ${field.required ? '<span style="color: var(--color-error)">*</span>' : ''}
                       ${field.isCalculated ? '<span class="canvas-formula-badge" style="font-size: 9px; padding: 2px 6px; border-radius: 10px; background: rgba(var(--color-primary-rgb), 0.1); color: var(--color-primary); margin-left: 6px; font-weight: var(--font-weight-semibold); display: inline-flex; align-items: center; gap: 3px;"><i data-lucide="calculator" style="width: 10px; height: 10px;"></i> fx</span>' : ''}
                       ${field.isCalculated && field.isVisibleOnForm === false ? '<span class="canvas-formula-badge" style="font-size: 9px; padding: 2px 6px; border-radius: 10px; background: var(--color-neutral-3); color: var(--color-neutral-7); margin-left: 6px; font-weight: var(--font-weight-semibold); display: inline-flex; align-items: center; gap: 3px;"><i data-lucide="eye-off" style="width: 10px; height: 10px;"></i> hidden</span>' : ''}
                     </div>
-                    <span class="canvas-field-key">${field.key}</span>
+                    <span class="canvas-field-key">${this.esc(field.key)}</span>
                   </div>
                 </div>
                 <div class="canvas-field-actions">
-                  <button class="canvas-field-btn delete" title="${this.translations.removeFieldTitle}">
+                  <button class="canvas-field-btn delete" title="${this.esc(this.translations.removeFieldTitle)}">
                     <i data-lucide="x"></i>
                   </button>
                 </div>
@@ -2315,7 +2653,7 @@ class OpenFormBuilder {
             // Render visual drop zone inside empty column cells
             const emptyIndicator = document.createElement('div');
             emptyIndicator.className = 'column-empty-indicator';
-            emptyIndicator.innerHTML = this.translations.dropFieldHere;
+            emptyIndicator.textContent = this.translations.dropFieldHere;
             colCell.appendChild(emptyIndicator);
           }
 
@@ -2371,7 +2709,9 @@ class OpenFormBuilder {
             return;
           }
           const newField = this.createDefaultField(this.draggedFieldType);
+          const replacedFields = this._collectFieldTree(row.columns[colIndex].field);
           row.columns[colIndex].field = newField;
+          this._cleanupAndReportRemovedFields(replacedFields);
 
           this.selectedFieldId = newField.id;
           this.notifyChange();
@@ -2467,8 +2807,8 @@ class OpenFormBuilder {
           <div class="prop-group">
             <label class="prop-label">Section Title</label>
             <input type="text" id="prop-section-title" class="prop-input" 
-                   value="${this.editingLocale === 'default' ? (section.title || '') : (this.getTranslationValue('sections', section.sectionId) || '')}" 
-                   placeholder="${this.editingLocale === 'default' ? '' : (section.title || '')}" />
+                   value="${this.esc(this.editingLocale === 'default' ? (section.title || '') : (this.getTranslationValue('sections', section.sectionId) || ''))}" 
+                   placeholder="${this.esc(this.editingLocale === 'default' ? '' : (section.title || ''))}" />
           </div>
 
           <div class="prop-group" style="margin-top: var(--space-m);">
@@ -2529,22 +2869,22 @@ class OpenFormBuilder {
           ${this.renderLocaleSwitcherHTML()}
           <div class="prop-header">
             <i data-lucide="file-text"></i>
-            <span class="prop-title">${this.translations.propertiesPageTitle}</span>
+            <span class="prop-title">${this.esc(this.translations.propertiesPageTitle)}</span>
           </div>
           
           <div class="prop-group">
-            <label class="prop-label">${this.translations.pageTitleLabel}</label>
+            <label class="prop-label">${this.esc(this.translations.pageTitleLabel)}</label>
             <input type="text" id="prop-page-title" class="prop-input" 
-                   value="${this.editingLocale === 'default' ? activePage.title : (this.getTranslationValue('pages', activePage.pageId) || '')}" 
-                   placeholder="${this.editingLocale === 'default' ? '' : activePage.title}" />
-            <span style="font-size: var(--font-size-xs); color: var(--color-neutral-7); margin-top: 2px;">${this.translations.pageTitleHint}</span>
+                   value="${this.esc(this.editingLocale === 'default' ? activePage.title : (this.getTranslationValue('pages', activePage.pageId) || ''))}" 
+                   placeholder="${this.esc(this.editingLocale === 'default' ? '' : activePage.title)}" />
+            <span style="font-size: var(--font-size-xs); color: var(--color-neutral-7); margin-top: 2px;">${this.esc(this.translations.pageTitleHint)}</span>
           </div>
           
           ${this.renderCrossFieldRulesEditorHTML()}
 
           <hr style="border: none; border-top: 1px solid var(--color-neutral-4); margin: var(--space-base) 0;" />
           <div style="font-size: var(--font-size-xs); color: var(--color-neutral-7); text-align: center; line-height: 1.4;">
-            ${this.translations.propertiesHelpText}
+            ${this.esc(this.translations.propertiesHelpText)}
           </div>
         </div>
       `;
@@ -2589,7 +2929,7 @@ class OpenFormBuilder {
           <!-- Text Content -->
           <div class="prop-group">
             <label class="prop-label">Paragraph Content</label>
-            <textarea id="prop-paragraph-label" class="prop-input" rows="6" style="resize: vertical; font-family: inherit; font-size: var(--font-size-s); line-height: 1.5; padding: var(--space-s);">${this.editingLocale === 'default' ? field.label : (this.getTranslationValue('fields', field.key || field.id, 'label') || '')}</textarea>
+            <textarea id="prop-paragraph-label" class="prop-input" rows="6" style="resize: vertical; font-family: inherit; font-size: var(--font-size-s); line-height: 1.5; padding: var(--space-s);">${this.esc(this.editingLocale === 'default' ? field.label : (this.getTranslationValue('fields', field.key || field.id, 'label') || ''))}</textarea>
           </div>
           
           <hr style="border: none; border-top: 1px solid var(--color-neutral-4); margin: var(--space-m) 0;" />
@@ -2633,28 +2973,28 @@ class OpenFormBuilder {
           ${this.renderLocaleSwitcherHTML()}
           <div class="prop-header">
             <i data-lucide="heading"></i>
-            <span class="prop-title">${this.translations.propertiesHeaderTitle}</span>
+            <span class="prop-title">${this.esc(this.translations.propertiesHeaderTitle)}</span>
           </div>
           
           <!-- Primary Heading Label -->
           <div class="prop-group">
-            <label class="prop-label">${this.translations.sectionTitleLabel}</label>
+            <label class="prop-label">${this.esc(this.translations.sectionTitleLabel)}</label>
             <input type="text" id="prop-header-label" class="prop-input" 
-                   value="${this.editingLocale === 'default' ? field.label : (this.getTranslationValue('fields', field.key || field.id, 'label') || '')}" 
-                   placeholder="${this.editingLocale === 'default' ? '' : field.label}" />
+                   value="${this.esc(this.editingLocale === 'default' ? field.label : (this.getTranslationValue('fields', field.key || field.id, 'label') || ''))}" 
+                   placeholder="${this.esc(this.editingLocale === 'default' ? '' : field.label)}" />
           </div>
           
           <!-- Secondary Subtitle -->
           <div class="prop-group">
-            <label class="prop-label">${this.translations.sectionSubtitleLabel}</label>
+            <label class="prop-label">${this.esc(this.translations.sectionSubtitleLabel)}</label>
             <input type="text" id="prop-header-subtitle" class="prop-input" 
-                   value="${this.editingLocale === 'default' ? (field.subtitle || '') : (this.getTranslationValue('fields', field.key || field.id, 'subtitle') || '')}" 
-                   placeholder="${this.editingLocale === 'default' ? '' : (field.subtitle || '')}" />
+                   value="${this.esc(this.editingLocale === 'default' ? (field.subtitle || '') : (this.getTranslationValue('fields', field.key || field.id, 'subtitle') || ''))}" 
+                   placeholder="${this.esc(this.editingLocale === 'default' ? '' : (field.subtitle || ''))}" />
           </div>
           
           <hr style="border: none; border-top: 1px solid var(--color-neutral-4); margin: var(--space-m) 0;" />
           <div style="font-size: var(--font-size-xs); color: var(--color-neutral-7); line-height: 1.4;">
-            ${this.translations.sectionHeadingHint}
+            ${this.esc(this.translations.sectionHeadingHint)}
           </div>
         </div>
       `;
@@ -2713,21 +3053,21 @@ class OpenFormBuilder {
         ${this.renderLocaleSwitcherHTML()}
         <div class="prop-header">
           <i data-lucide="${this.getFieldIcon(field.type)}"></i>
-          <span class="prop-title">${this.translations.propertiesFieldTitle}: ${this.getFieldTypeLabel(field.type)}</span>
+          <span class="prop-title">${this.esc(this.translations.propertiesFieldTitle)}: ${this.esc(this.getFieldTypeLabel(field.type))}</span>
         </div>
         
         <!-- Label Input -->
         <div class="prop-group">
-          <label class="prop-label">${this.translations.fieldLabelLabel}</label>
+          <label class="prop-label">${this.esc(this.translations.fieldLabelLabel)}</label>
           <input type="text" id="prop-field-label" class="prop-input" 
-                 value="${this.editingLocale === 'default' ? field.label : (this.getTranslationValue('fields', field.key, 'label') || '')}" 
-                 placeholder="${this.editingLocale === 'default' ? '' : field.label}" />
+                 value="${this.esc(this.editingLocale === 'default' ? field.label : (this.getTranslationValue('fields', field.key, 'label') || ''))}" 
+                 placeholder="${this.esc(this.editingLocale === 'default' ? '' : field.label)}" />
         </div>
         
         <!-- Alphanumeric Database Key -->
         <div class="prop-group">
-          <label class="prop-label">${this.translations.fieldKeyLabel}</label>
-          <input type="text" id="prop-field-key" class="prop-input" value="${field.key}" 
+          <label class="prop-label">${this.esc(this.translations.fieldKeyLabel)}</label>
+          <input type="text" id="prop-field-key" class="prop-input" value="${this.esc(field.key)}" 
                  ${this.editingLocale !== 'default' ? 'disabled style="background: var(--color-neutral-3); cursor: not-allowed;"' : ''} />
           ${this.editingLocale !== 'default' ? `<span style="font-size: var(--font-size-xs); color: var(--color-neutral-7); margin-top: 2px; display: block;">Switch to Default Language to edit database keys.</span>` : ''}
         </div>
@@ -2735,10 +3075,10 @@ class OpenFormBuilder {
         <!-- Optional Placeholder -->
         ${'placeholder' in field ? `
         <div class="prop-group">
-          <label class="prop-label">${this.translations.fieldPlaceholderLabel}</label>
+          <label class="prop-label">${this.esc(this.translations.fieldPlaceholderLabel)}</label>
           <input type="text" id="prop-field-placeholder" class="prop-input" 
-                 value="${this.editingLocale === 'default' ? field.placeholder : (this.getTranslationValue('fields', field.key, 'placeholder') || '')}" 
-                 placeholder="${this.editingLocale === 'default' ? '' : field.placeholder}" />
+                 value="${this.esc(this.editingLocale === 'default' ? field.placeholder : (this.getTranslationValue('fields', field.key, 'placeholder') || ''))}" 
+                 placeholder="${this.esc(this.editingLocale === 'default' ? '' : field.placeholder)}" />
         </div>` : ''}
 
         <!-- Required Field Toggle Checkbox -->
@@ -2746,7 +3086,7 @@ class OpenFormBuilder {
           <label class="prop-checkbox-label">
             <input type="checkbox" id="prop-field-required" ${field.required ? 'checked' : ''} 
                    ${this.editingLocale !== 'default' ? 'disabled' : ''} />
-            <span>${this.translations.fieldRequiredLabel}</span>
+            <span>${this.esc(this.translations.fieldRequiredLabel)}</span>
           </label>
         </div>
 
@@ -2754,7 +3094,7 @@ class OpenFormBuilder {
         ${['text', 'number'].includes(field.type) ? `
         <div class="prop-group">
           <label class="prop-label">Custom Input Mask</label>
-          <input type="text" id="prop-field-mask" class="prop-input" value="${field.mask || ''}" placeholder="e.g., 999.999.999-99" 
+          <input type="text" id="prop-field-mask" class="prop-input" value="${this.esc(field.mask || '')}" placeholder="e.g., 999.999.999-99" 
                  ${this.editingLocale !== 'default' ? 'disabled style="background: var(--color-neutral-3); cursor: not-allowed;"' : ''} />
           <span style="font-size: var(--font-size-xs); color: var(--color-neutral-7); margin-top: var(--space-xs); display: block; line-height: 1.4;">
             Use <strong>9</strong> for digits, <strong>a</strong> for letters, and <strong>*</strong> for alphanumeric. All other characters are literals.
@@ -2782,14 +3122,14 @@ class OpenFormBuilder {
         
         <div class="prop-group" id="prop-field-formula-group" style="${field.isCalculated ? '' : 'display: none;'}">
           <label class="prop-label">Formula Expression</label>
-          <input type="text" id="prop-field-formula-expression" class="prop-input" value="${field.formulaExpression || ''}" placeholder="e.g., {price} * {quantity}"
+          <input type="text" id="prop-field-formula-expression" class="prop-input" value="${this.esc(field.formulaExpression || '')}" placeholder="e.g., {price} * {quantity}"
                  ${this.editingLocale !== 'default' ? 'disabled style="background: var(--color-neutral-3); cursor: not-allowed;"' : ''} />
 
           <div class="formula-token-chips">
             <span class="formula-chip-row-label">Insert field:</span>
             <div class="formula-chip-row">
               ${this.getAllFields().filter(f => f.type === 'number' && f.key !== field.key).map(f =>
-                `<button type="button" class="formula-token-chip" data-token="{${f.key}}" title="${f.key}" ${this.editingLocale !== 'default' ? 'disabled' : ''}>${f.label}</button>`
+                `<button type="button" class="formula-token-chip" data-token="{${this.esc(f.key)}}" title="${this.esc(f.key)}" ${this.editingLocale !== 'default' ? 'disabled' : ''}>${this.esc(f.label)}</button>`
               ).join('') || '<span class="formula-chip-empty">No other numeric fields available.</span>'}
             </div>
             <span class="formula-chip-row-label">Insert function:</span>
@@ -2818,36 +3158,36 @@ class OpenFormBuilder {
         <!-- Custom Validation Regex (Only applies to text inputs) -->
         ${field.type === 'text' ? `
         <div class="prop-group">
-          <label class="prop-label">${this.translations.fieldRegexLabel}</label>
-          <input type="text" id="prop-field-regex" class="prop-input" value="${field.validationRegex || ''}" placeholder="${this.translations.fieldRegexPlaceholder}" 
+          <label class="prop-label">${this.esc(this.translations.fieldRegexLabel)}</label>
+          <input type="text" id="prop-field-regex" class="prop-input" value="${this.esc(field.validationRegex || '')}" placeholder="${this.esc(this.translations.fieldRegexPlaceholder)}" 
                  ${this.editingLocale !== 'default' ? 'disabled style="background: var(--color-neutral-3); cursor: not-allowed;"' : ''} />
         </div>
         <div class="prop-group">
-          <label class="prop-label">${this.translations.fieldRegexErrorLabel}</label>
+          <label class="prop-label">${this.esc(this.translations.fieldRegexErrorLabel)}</label>
           <input type="text" id="prop-field-err-msg" class="prop-input" 
-                 value="${this.editingLocale === 'default' ? (field.errorMessage || '') : (this.getTranslationValue('fields', field.key, 'errorMessage') || '')}" 
-                 placeholder="${this.editingLocale === 'default' ? '' : (field.errorMessage || '')}" />
+                 value="${this.esc(this.editingLocale === 'default' ? (field.errorMessage || '') : (this.getTranslationValue('fields', field.key, 'errorMessage') || ''))}" 
+                 placeholder="${this.esc(this.editingLocale === 'default' ? '' : (field.errorMessage || ''))}" />
         </div>` : ''}
 
         <!-- Custom Accepted Types (Only applies to file uploaders) -->
         ${field.type === 'file' ? `
         <div class="prop-group">
           <label class="prop-label">Accepted Attachment Types</label>
-          <input type="text" id="prop-field-accepted-types" class="prop-input" value="${field.acceptedTypes || '.pdf,.docx,image/*'}" placeholder="e.g. .pdf,.docx,image/*" 
+          <input type="text" id="prop-field-accepted-types" class="prop-input" value="${this.esc(field.acceptedTypes || '.pdf,.docx,image/*')}" placeholder="e.g. .pdf,.docx,image/*" 
                  ${this.editingLocale !== 'default' ? 'disabled style="background: var(--color-neutral-3); cursor: not-allowed;"' : ''} />
           <span style="font-size: var(--font-size-xs); color: var(--color-neutral-7); margin-top: 2px;">Comma-separated extensions or mime types (e.g. .pdf,image/*,.docx)</span>
         </div>
         <div class="prop-group">
           <label class="prop-label">File Requirements Text</label>
           <input type="text" id="prop-field-requirements-text" class="prop-input" 
-                 value="${this.editingLocale === 'default' ? (field.fileRequirementsText || '') : (this.getTranslationValue('fields', field.key || field.id, 'fileRequirementsText') || '')}" 
-                 placeholder="${this.editingLocale === 'default' ? 'e.g. Maximum size 10MB' : (field.fileRequirementsText || 'e.g. Maximum size 10MB')}" />
+                 value="${this.esc(this.editingLocale === 'default' ? (field.fileRequirementsText || '') : (this.getTranslationValue('fields', field.key || field.id, 'fileRequirementsText') || ''))}" 
+                 placeholder="${this.esc(this.editingLocale === 'default' ? 'e.g. Maximum size 10MB' : (field.fileRequirementsText || 'e.g. Maximum size 10MB'))}" />
           <span style="font-size: var(--font-size-xs); color: var(--color-neutral-7); margin-top: 2px;">Help text indicating format/size limits.</span>
         </div>
         <div class="prop-group">
           <label class="prop-label">Maximum File Size (MB)</label>
           <input type="number" id="prop-field-max-size" class="prop-input" 
-                 value="${field.maxFileSizeMB !== undefined ? field.maxFileSizeMB : 5}" 
+                 value="${this.esc(field.maxFileSizeMB !== undefined ? field.maxFileSizeMB : 5)}" 
                  placeholder="5" 
                  ${this.editingLocale !== 'default' ? 'disabled style="background: var(--color-neutral-3); cursor: not-allowed;"' : ''} />
           <span style="font-size: var(--font-size-xs); color: var(--color-neutral-7); margin-top: 2px;">File size limit in Megabytes.</span>
@@ -2872,18 +3212,18 @@ class OpenFormBuilder {
         <!-- Options Feed Source configurations (dropdown, radios, multi-select checkboxes) -->
         ${['dropdown', 'radio', 'checkbox', 'matrix'].includes(field.type) ? `
         <div class="prop-group">
-          <label class="prop-label">${this.translations.fieldOptionsSourceLabel}</label>
+          <label class="prop-label">${this.esc(this.translations.fieldOptionsSourceLabel)}</label>
           <select id="prop-field-options-type" class="prop-input" style="padding: 6px 10px;" 
                   ${this.editingLocale !== 'default' ? 'disabled style="background: var(--color-neutral-3); cursor: not-allowed;"' : ''}>
-            <option value="static" ${field.optionsType === 'static' ? 'selected' : ''}>${this.translations.fieldOptionsStaticLabel}</option>
-            <option value="api" ${field.optionsType === 'api' ? 'selected' : ''}>${this.translations.fieldOptionsApiLabel}</option>
+            <option value="static" ${field.optionsType === 'static' ? 'selected' : ''}>${this.esc(this.translations.fieldOptionsStaticLabel)}</option>
+            <option value="api" ${field.optionsType === 'api' ? 'selected' : ''}>${this.esc(this.translations.fieldOptionsApiLabel)}</option>
           </select>
         </div>
         
         <div id="prop-box-static-options" class="nested-prop-box" style="display: ${field.optionsType === 'static' ? 'flex' : 'none'}; flex-direction: column;">
           ${this.editingLocale === 'default' ? `
             <label class="prop-label" style="display: flex; justify-content: space-between; align-items: center;">
-              <span>${this.translations.fieldOptionsStaticLabel}</span>
+              <span>${this.esc(this.translations.fieldOptionsStaticLabel)}</span>
               <button type="button" class="pg-btn pg-btn-secondary" id="btn-static-option-add" style="padding: 2px 8px; font-size: var(--font-size-xs); height: auto;">
                 <i data-lucide="plus" style="width: 10px; height: 10px;"></i> Add Option
               </button>
@@ -2893,10 +3233,10 @@ class OpenFormBuilder {
                 <div class="static-option-row" data-option-index="${idx}" style="display: flex; align-items: center; gap: var(--space-s);">
                   <input type="text" class="prop-input static-option-label-input" data-option-index="${idx}"
                          style="flex: 2; font-size: var(--font-size-xs); padding: var(--space-xs) var(--space-s); margin-bottom: 0;"
-                         value="${opt.label}" placeholder="Label" />
+                         value="${this.esc(opt.label)}" placeholder="Label" />
                   <input type="text" class="prop-input static-option-value-input" data-option-index="${idx}"
                          style="flex: 1; font-size: var(--font-size-xs); padding: var(--space-xs) var(--space-s); margin-bottom: 0; font-family: monospace; color: var(--color-neutral-7);"
-                         value="${opt.value}" placeholder="value" />
+                         value="${this.esc(opt.value)}" placeholder="value" />
                   <button type="button" class="pg-btn pg-btn-secondary static-option-delete-btn" data-option-index="${idx}"
                           style="padding: 2px 6px; height: auto; color: var(--color-error); border-color: transparent; background: transparent; flex-shrink: 0;" title="Remove option">
                     <i data-lucide="x" style="width: 12px; height: 12px;"></i>
@@ -2909,10 +3249,10 @@ class OpenFormBuilder {
             <div style="display: flex; flex-direction: column; gap: var(--space-s);">
               ${(field.options || []).map(opt => `
                 <div style="display: flex; align-items: center; gap: var(--space-s);">
-                  <span style="font-size: var(--font-size-xs); flex: 1; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-neutral-7);" title="${opt.label}">${opt.label}:</span>
+                  <span style="font-size: var(--font-size-xs); flex: 1; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-neutral-7);" title="${this.esc(opt.label)}">${this.esc(opt.label)}:</span>
                   <input type="text" class="prop-input option-translation-input" style="flex: 2; font-size: var(--font-size-xs); padding: var(--space-xs) var(--space-s); margin-bottom: 0;"
-                         data-option-value="${opt.value}" 
-                         value="${this.getTranslationValue('fields', field.key, 'options', opt.value) || ''}"
+                         data-option-value="${this.esc(opt.value)}" 
+                         value="${this.esc(this.getTranslationValue('fields', field.key, 'options', opt.value) || '')}"
                          placeholder="Translation..." />
                 </div>
               `).join('')}
@@ -2921,28 +3261,28 @@ class OpenFormBuilder {
         </div>
 
         <div id="prop-box-api-options" class="nested-prop-box" style="display: ${field.optionsType === 'api' ? 'flex' : 'none'};">
-          <label class="prop-label">${this.translations.fieldOptionsApiUrlLabel}</label>
-          <input type="text" id="prop-field-api-url" class="prop-input" value="${field.optionsUrl || ''}" placeholder="${this.translations.fieldOptionsApiUrlPlaceholder}" 
+          <label class="prop-label">${this.esc(this.translations.fieldOptionsApiUrlLabel)}</label>
+          <input type="text" id="prop-field-api-url" class="prop-input" value="${this.esc(field.optionsUrl || '')}" placeholder="${this.esc(this.translations.fieldOptionsApiUrlPlaceholder)}" 
                  ${this.editingLocale !== 'default' ? 'disabled style="background: var(--color-neutral-3); cursor: not-allowed;"' : ''} />
-          <span style="font-size: var(--font-size-xs); color: var(--color-neutral-7);">${this.translations.fieldOptionsApiUrlHint}</span>
+          <span style="font-size: var(--font-size-xs); color: var(--color-neutral-7);">${this.esc(this.translations.fieldOptionsApiUrlHint)}</span>
         </div>` : ''}
         <!-- Custom Repeater Configuration (Only applies to repeaters) -->
         ${field.type === 'repeater' ? `
         <div class="prop-group">
           <label class="prop-label">Minimum Items</label>
-          <input type="number" id="prop-field-min-items" class="prop-input" value="${field.minItems || 1}" min="0" 
+          <input type="number" id="prop-field-min-items" class="prop-input" value="${this.esc(field.minItems || 1)}" min="0" 
                  ${this.editingLocale !== 'default' ? 'disabled style="background: var(--color-neutral-3); cursor: not-allowed;"' : ''} />
         </div>
         <div class="prop-group">
           <label class="prop-label">Maximum Items</label>
-          <input type="number" id="prop-field-max-items" class="prop-input" value="${field.maxItems || 10}" min="1" 
+          <input type="number" id="prop-field-max-items" class="prop-input" value="${this.esc(field.maxItems || 10)}" min="1" 
                  ${this.editingLocale !== 'default' ? 'disabled style="background: var(--color-neutral-3); cursor: not-allowed;"' : ''} />
         </div>
         <div class="prop-group">
           <label class="prop-label">Add Button Label</label>
           <input type="text" id="prop-field-add-btn-label" class="prop-input" 
-                 value="${this.editingLocale === 'default' ? (field.addButtonLabel || 'Add Item') : (this.getTranslationValue('fields', field.key, 'addButtonLabel') || '')}" 
-                 placeholder="${this.editingLocale === 'default' ? '' : (field.addButtonLabel || 'Add Item')}" />
+                 value="${this.esc(this.editingLocale === 'default' ? (field.addButtonLabel || 'Add Item') : (this.getTranslationValue('fields', field.key, 'addButtonLabel') || ''))}" 
+                 placeholder="${this.esc(this.editingLocale === 'default' ? '' : (field.addButtonLabel || 'Add Item'))}" />
         </div>
         
         ` : ''}
@@ -2953,10 +3293,10 @@ class OpenFormBuilder {
         
         <div class="prop-group">
           <label class="prop-label" style="display: flex; justify-content: space-between; align-items: center;">
-            <span>${this.translations.matrixRowsManagerLabel || 'Matrix Rows Manager'}</span>
+            <span>${this.esc(this.translations.matrixRowsManagerLabel || 'Matrix Rows Manager')}</span>
             <button type="button" class="pg-btn pg-btn-secondary" id="btn-matrix-add-row" style="padding: 2px 6px; font-size: var(--font-size-xs); height: auto;" 
                     ${this.editingLocale !== 'default' ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
-              <i data-lucide="plus" style="width: 10px; height: 10px;"></i> ${this.translations.matrixAddRowLabel || 'Add Row'}
+              <i data-lucide="plus" style="width: 10px; height: 10px;"></i> ${this.esc(this.translations.matrixAddRowLabel || 'Add Row')}
             </button>
           </label>
           <div class="matrix-rows-list" style="display: flex; flex-direction: column; gap: var(--space-s); margin-top: 6px;">
@@ -3028,11 +3368,11 @@ class OpenFormBuilder {
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
             <div class="prop-group" style="margin-bottom: 0;">
               <label class="prop-label" style="font-size: var(--font-size-xs); margin-bottom: var(--space-xs);">Label</label>
-              <input type="text" class="prop-input matrix-row-label-input" style="font-size: var(--font-size-xs); padding: var(--space-xs); margin-bottom: 0;" value="${row.label || ''}" />
+              <input type="text" class="prop-input matrix-row-label-input" style="font-size: var(--font-size-xs); padding: var(--space-xs); margin-bottom: 0;" value="${this.esc(row.label || '')}" />
             </div>
             <div class="prop-group" style="margin-bottom: 0;">
               <label class="prop-label" style="font-size: var(--font-size-xs); margin-bottom: var(--space-xs);">Row Key</label>
-              <input type="text" class="prop-input matrix-row-key-input" style="font-size: var(--font-size-xs); padding: var(--space-xs); margin-bottom: 0;" value="${row.key || ''}" />
+              <input type="text" class="prop-input matrix-row-key-input" style="font-size: var(--font-size-xs); padding: var(--space-xs); margin-bottom: 0;" value="${this.esc(row.key || '')}" />
             </div>
           </div>
         </div>
@@ -3042,10 +3382,10 @@ class OpenFormBuilder {
         <div style="display: flex; flex-direction: column; gap: var(--space-s);">
           ${field.matrixRows.map((row, index) => `
             <div style="display: flex; align-items: center; gap: var(--space-s);">
-              <span style="font-size: var(--font-size-xs); flex: 1; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-neutral-7);" title="${row.label}">${row.label}:</span>
+              <span style="font-size: var(--font-size-xs); flex: 1; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-neutral-7);" title="${this.esc(row.label)}">${this.esc(row.label)}:</span>
               <input type="text" class="prop-input matrix-row-translation-input" style="flex: 2; font-size: var(--font-size-xs); padding: var(--space-xs) var(--space-s); margin-bottom: 0;"
-                     data-row-key="${row.key}" 
-                     value="${this.getTranslationValue('fields', field.key, 'matrixRows', row.key) || ''}"
+                     data-row-key="${this.esc(row.key)}" 
+                     value="${this.esc(this.getTranslationValue('fields', field.key, 'matrixRows', row.key) || '')}"
                      placeholder="Translation..." />
             </div>
           `).join('')}
@@ -3062,12 +3402,12 @@ class OpenFormBuilder {
   getConditionalFieldsOptions(currentFieldId, selectedKey) {
     const fields = this.getAllFields().filter(f => f.id !== currentFieldId && f.type !== 'header' && f.type !== 'paragraph');
     if (fields.length === 0) {
-      return `<option value="">${this.translations.fieldCondNoOtherFields}</option>`;
+      return `<option value="">${this.esc(this.translations.fieldCondNoOtherFields)}</option>`;
     }
 
     return fields.map(f => {
       const isSelected = f.key === selectedKey ? 'selected' : '';
-      return `<option value="${f.key}" ${isSelected}>${f.label} (${f.key})</option>`;
+      return `<option value="${this.esc(f.key)}" ${isSelected}>${this.esc(f.label)} (${this.esc(f.key)})</option>`;
     }).join('');
   }
 
@@ -3137,7 +3477,17 @@ class OpenFormBuilder {
         }
 
         e.target.value = sanitized;
-        updateFieldProperty('key', sanitized, true);
+        if (sanitized === field.key) return;
+
+        // B2: rename the field and every reference to it in one step (single undo entry).
+        const oldKey = field.key;
+        field.key = sanitized;
+        const updated = this.renameFieldKeyReferences(oldKey, sanitized);
+        this.notifyChange();
+        this.render();
+        if (updated > 0) {
+          this.showToast(`Key renamed: updated ${updated} reference${updated === 1 ? '' : 's'} from "${oldKey}" to "${sanitized}".`);
+        }
       });
     }
 
@@ -3534,8 +3884,8 @@ class OpenFormBuilder {
               <select class="prop-input rule-cond-operator" ${disabledAttr}>
                 <option value="equals" ${cond.operator === 'equals' ? 'selected' : ''}>==</option>
                 <option value="notEquals" ${cond.operator === 'notEquals' ? 'selected' : ''}>!=</option>
-                <option value="contains" ${cond.operator === 'contains' ? 'selected' : ''}>${this.translations.ruleOperatorContains}</option>
-                <option value="notContains" ${cond.operator === 'notContains' ? 'selected' : ''}>${this.translations.ruleOperatorNotContains}</option>
+                <option value="contains" ${cond.operator === 'contains' ? 'selected' : ''}>${this.esc(this.translations.ruleOperatorContains)}</option>
+                <option value="notContains" ${cond.operator === 'notContains' ? 'selected' : ''}>${this.esc(this.translations.ruleOperatorNotContains)}</option>
                 <option value="greaterThan" ${cond.operator === 'greaterThan' ? 'selected' : ''}>&gt;</option>
                 <option value="greaterThanOrEquals" ${cond.operator === 'greaterThanOrEquals' || cond.operator === 'gte' ? 'selected' : ''}>&gt;=</option>
                 <option value="lessThan" ${cond.operator === 'lessThan' ? 'selected' : ''}>&lt;</option>
@@ -3543,18 +3893,18 @@ class OpenFormBuilder {
               </select>
               <div class="rule-cond-value-wrap">
                 <select class="prop-input rule-cond-compare-mode" ${disabledAttr}>
-                  <option value="value" ${compareMode === 'value' ? 'selected' : ''}>${this.translations.ruleCompareValueOption}</option>
-                  <option value="field" ${compareMode === 'field' ? 'selected' : ''}>${this.translations.ruleCompareFieldOption}</option>
+                  <option value="value" ${compareMode === 'value' ? 'selected' : ''}>${this.esc(this.translations.ruleCompareValueOption)}</option>
+                  <option value="field" ${compareMode === 'field' ? 'selected' : ''}>${this.esc(this.translations.ruleCompareFieldOption)}</option>
                 </select>
                 ${compareMode === 'field' ? `
                   <select class="prop-input rule-cond-compare-field" ${disabledAttr}>
                     ${this.getConditionalFieldsOptions(entity.id || '', cond.compareToFieldKey)}
                   </select>
                 ` : `
-                  <input type="text" class="prop-input rule-cond-value" value="${cond.equalsValue !== undefined ? cond.equalsValue : ''}" placeholder="${this.translations.ruleValueInputPlaceholder}" ${disabledAttr} />
+                  <input type="text" class="prop-input rule-cond-value" value="${this.esc(cond.equalsValue !== undefined ? cond.equalsValue : '')}" placeholder="${this.esc(this.translations.ruleValueInputPlaceholder)}" ${disabledAttr} />
                 `}
               </div>
-              <button type="button" class="pg-btn pg-btn-secondary rule-delete-cond" title="${this.translations.ruleDeleteConditionTitle}" ${disabledAttr}>
+              <button type="button" class="pg-btn pg-btn-secondary rule-delete-cond" title="${this.esc(this.translations.ruleDeleteConditionTitle)}" ${disabledAttr}>
                 <i data-lucide="x"></i>
               </button>
             </div>
@@ -3562,29 +3912,29 @@ class OpenFormBuilder {
         });
 
         if (conditionsHtml === '') {
-          conditionsHtml = `<div class="rules-empty-state">${this.translations.ruleNoOrConditionsText}</div>`;
+          conditionsHtml = `<div class="rules-empty-state">${this.esc(this.translations.ruleNoOrConditionsText)}</div>`;
         }
 
         andGroupsHtml += `
           <div class="prop-box-condition and-group-card" data-rule="${ruleIndex}" data-group="${groupIndex}">
             <div class="and-group-header">
-              <span class="and-group-title">${this.translations.ruleOrGroupTitle}</span>
-              <button type="button" class="pg-btn pg-btn-secondary rule-delete-group" title="${this.translations.ruleDeleteGroupTitle}" ${disabledAttr}>
-                <i data-lucide="trash-2"></i> ${this.translations.ruleDeleteGroupLabel}
+              <span class="and-group-title">${this.esc(this.translations.ruleOrGroupTitle)}</span>
+              <button type="button" class="pg-btn pg-btn-secondary rule-delete-group" title="${this.esc(this.translations.ruleDeleteGroupTitle)}" ${disabledAttr}>
+                <i data-lucide="trash-2"></i> ${this.esc(this.translations.ruleDeleteGroupLabel)}
               </button>
             </div>
             <div class="conditions-list-container">
               ${conditionsHtml}
             </div>
             <button type="button" class="pg-btn pg-btn-secondary rule-add-cond" ${disabledAttr}>
-              <i data-lucide="plus"></i> ${this.translations.ruleAddOrConditionLabel}
+              <i data-lucide="plus"></i> ${this.esc(this.translations.ruleAddOrConditionLabel)}
             </button>
           </div>
         `;
       });
 
       if (andGroupsHtml === '') {
-        andGroupsHtml = `<div class="rules-empty-state">${this.translations.ruleNoAndConditionsText}</div>`;
+        andGroupsHtml = `<div class="rules-empty-state">${this.esc(this.translations.ruleNoAndConditionsText)}</div>`;
       }
 
       // Render the rule card
@@ -3593,22 +3943,22 @@ class OpenFormBuilder {
           <div class="rule-card-header">
             ${isField ? `
               <select class="prop-input rule-target-prop" ${disabledAttr}>
-                <option value="visibility" ${rule.targetProperty === 'visibility' ? 'selected' : ''}>${this.translations.ruleTargetVisibilityOption}</option>
-                <option value="required" ${rule.targetProperty === 'required' ? 'selected' : ''}>${this.translations.ruleTargetRequiredOption}</option>
-                <option value="disabled" ${rule.targetProperty === 'disabled' ? 'selected' : ''}>${this.translations.ruleTargetDisabledOption}</option>
+                <option value="visibility" ${rule.targetProperty === 'visibility' ? 'selected' : ''}>${this.esc(this.translations.ruleTargetVisibilityOption)}</option>
+                <option value="required" ${rule.targetProperty === 'required' ? 'selected' : ''}>${this.esc(this.translations.ruleTargetRequiredOption)}</option>
+                <option value="disabled" ${rule.targetProperty === 'disabled' ? 'selected' : ''}>${this.esc(this.translations.ruleTargetDisabledOption)}</option>
               </select>
             ` : `
-              <span class="rule-section-title">${this.translations.ruleShowSectionIfLabel}</span>
+              <span class="rule-section-title">${this.esc(this.translations.ruleShowSectionIfLabel)}</span>
             `}
-            <button type="button" class="pg-btn pg-btn-secondary rule-delete-rule" title="${this.translations.ruleDeleteRuleTitle}" ${disabledAttr}>
-              <i data-lucide="trash-2"></i> ${this.translations.ruleRemoveRuleLabel}
+            <button type="button" class="pg-btn pg-btn-secondary rule-delete-rule" title="${this.esc(this.translations.ruleDeleteRuleTitle)}" ${disabledAttr}>
+              <i data-lucide="trash-2"></i> ${this.esc(this.translations.ruleRemoveRuleLabel)}
             </button>
           </div>
           <div class="and-groups-list-container">
             ${andGroupsHtml}
           </div>
           <button type="button" class="pg-btn pg-btn-secondary rule-add-group" ${disabledAttr}>
-            <i data-lucide="plus"></i> ${this.translations.ruleAddAndGroupLabel}
+            <i data-lucide="plus"></i> ${this.esc(this.translations.ruleAddAndGroupLabel)}
           </button>
         </div>
       `;
@@ -3617,7 +3967,7 @@ class OpenFormBuilder {
     if (rulesHtml === '') {
       rulesHtml = `
         <div class="rules-empty-state rules-empty-panel">
-          ${this.translations.noBusinessRulesText}
+          ${this.esc(this.translations.noBusinessRulesText)}
         </div>
       `;
     }
@@ -3625,14 +3975,14 @@ class OpenFormBuilder {
     return `
       <div class="business-rules-panel">
         <h4 class="business-rules-title">
-          <i data-lucide="shield"></i> ${this.translations.businessRulesTitle}
+          <i data-lucide="shield"></i> ${this.esc(this.translations.businessRulesTitle)}
         </h4>
-        ${!isDefaultLocale ? `<div class="rules-locale-notice">${this.translations.businessRulesLocaleNotice}</div>` : ''}
+        ${!isDefaultLocale ? `<div class="rules-locale-notice">${this.esc(this.translations.businessRulesLocaleNotice)}</div>` : ''}
         <div class="rules-list-container">
           ${rulesHtml}
         </div>
         <button type="button" id="btn-add-business-rule" class="pg-btn pg-btn-secondary btn-add-rule" ${disabledAttr}>
-          <i data-lucide="plus-circle"></i> ${this.translations.addBusinessRuleLabel}
+          <i data-lucide="plus-circle"></i> ${this.esc(this.translations.addBusinessRuleLabel)}
         </button>
       </div>
     `;
@@ -3861,10 +4211,33 @@ class OpenFormBuilder {
   }
 
   /**
-   * Binds global keyboard shortcut events for Ctrl/Cmd + Z (Undo) and Ctrl/Cmd + Y / Ctrl/Cmd + Shift + Z (Redo)
+   * Binds Ctrl/Cmd + Z (Undo) and Ctrl/Cmd + Y / Ctrl/Cmd + Shift + Z (Redo), scoped to this
+   * builder (A1). The listener lives on `document` so shortcuts still work after clicking a
+   * non-focusable canvas card (focus then falls back to <body>), but it only acts when:
+   *   - the event target is inside this builder's container, or
+   *   - focus is on <body> and the user's last pointer/focus interaction was inside this
+   *     container (so two builders on one page don't both undo, and Ctrl+Z elsewhere on the
+   *     host page is left alone).
+   * Native text undo inside inputs/textareas/selects/contenteditable is never intercepted.
    */
   bindKeyboardShortcuts() {
-    window.addEventListener('keydown', (e) => {
+    const trackActivity = (e) => {
+      this._isActive = !!(e.target && this.containerEl.contains(e.target));
+    };
+    this._addDocumentListener('pointerdown', trackActivity, true);
+    this._addDocumentListener('mousedown', trackActivity, true);
+    this._addDocumentListener('focusin', trackActivity, true);
+
+    this._addDocumentListener('keydown', (e) => {
+      if (this._destroyed) return;
+
+      const target = e.target;
+      const targetInside = !!(target && target.nodeType === 1 && this.containerEl.contains(target));
+      const targetIsPageRoot = !target || target === document.body || target === document.documentElement || target === document;
+      if (!targetInside && !(targetIsPageRoot && this._isActive)) {
+        return; // Not ours — leave the host page's shortcuts alone
+      }
+
       // Avoid intercepting browser native undo/redo inside active focus inputs/textareas
       const activeEl = document.activeElement;
       const isInputFocused = activeEl && (
@@ -3880,7 +4253,7 @@ class OpenFormBuilder {
 
       const isCmdOrCtrl = e.metaKey || e.ctrlKey;
 
-      if (isCmdOrCtrl) {
+      if (isCmdOrCtrl && typeof e.key === 'string') {
         const key = e.key.toLowerCase();
         if (key === 'z') {
           e.preventDefault();
@@ -3899,17 +4272,64 @@ class OpenFormBuilder {
     });
   }
 
+  /** Adds a listener on `document` and records it so destroy() can remove it. */
+  _addDocumentListener(type, handler, capture = false) {
+    document.addEventListener(type, handler, capture);
+    this._documentListeners.push({ type, handler, capture });
+  }
+
+  /** setTimeout that destroy() can cancel. */
+  _setTimer(fn, delay) {
+    const id = setTimeout(() => {
+      this._timers.delete(id);
+      fn();
+    }, delay);
+    this._timers.add(id);
+    return id;
+  }
+
+  /**
+   * Tears the builder down (A1): removes every listener it added outside its container,
+   * cancels the debounced render and any pending timers, removes its toasts from the host's
+   * toast container and empties the container. Safe to call more than once.
+   */
+  destroy() {
+    if (this._destroyed) return;
+    this._destroyed = true;
+
+    this._documentListeners.forEach(({ type, handler, capture }) => {
+      document.removeEventListener(type, handler, capture);
+    });
+    this._documentListeners = [];
+
+    if (this.debouncedRender && this.debouncedRender.cancel) {
+      this.debouncedRender.cancel();
+    }
+    this._timers.forEach(id => clearTimeout(id));
+    this._timers.clear();
+
+    this._toasts.forEach(toast => toast.remove());
+    this._toasts.clear();
+
+    this.resetDragState();
+    if (this.containerEl) {
+      this.containerEl.innerHTML = '';
+    }
+    this.canvasEl = null;
+    this.propertiesEl = null;
+  }
+
   /**
    * Returns all fields available for use in cross-field conditions (all pages, all types except header/paragraph)
    */
   getCrossFieldOptions(selectedKey = '') {
     const fields = this.getAllFields().filter(f => f.type !== 'header' && f.type !== 'paragraph');
     if (fields.length === 0) {
-      return `<option value="">${this.translations.fieldCondNoOtherFields}</option>`;
+      return `<option value="">${this.esc(this.translations.fieldCondNoOtherFields)}</option>`;
     }
     return fields.map(f => {
       const isSelected = f.key === selectedKey ? 'selected' : '';
-      return `<option value="${f.key}" ${isSelected}>${f.label} (${f.key})</option>`;
+      return `<option value="${this.esc(f.key)}" ${isSelected}>${this.esc(f.label)} (${this.esc(f.key)})</option>`;
     }).join('');
   }
 
@@ -3940,24 +4360,24 @@ class OpenFormBuilder {
             <option value="greaterThanOrEquals" ${cond.operator === 'greaterThanOrEquals' ? 'selected' : ''}>&gt;=</option>
             <option value="lessThan" ${cond.operator === 'lessThan' ? 'selected' : ''}>&lt;</option>
             <option value="lessThanOrEquals" ${cond.operator === 'lessThanOrEquals' ? 'selected' : ''}>&lt;=</option>
-            <option value="contains" ${cond.operator === 'contains' ? 'selected' : ''}>${this.translations.cfrOperatorContains}</option>
-            <option value="notContains" ${cond.operator === 'notContains' ? 'selected' : ''}>${this.translations.cfrOperatorNotContains}</option>
+            <option value="contains" ${cond.operator === 'contains' ? 'selected' : ''}>${this.esc(this.translations.cfrOperatorContains)}</option>
+            <option value="notContains" ${cond.operator === 'notContains' ? 'selected' : ''}>${this.esc(this.translations.cfrOperatorNotContains)}</option>
           </select>
           <div style="display: flex; align-items: center; gap: var(--space-xs); flex: 3; min-width: 120px;">
             <select class="prop-input cfr-cond-compare-mode" style="font-size: var(--font-size-xs); padding: 4px 6px; width: 70px; flex-shrink: 0;" ${disabledAttr}>
-              <option value="value" ${compareMode === 'value' ? 'selected' : ''}>${this.translations.ruleCompareValueOption}</option>
-              <option value="field" ${compareMode === 'field' ? 'selected' : ''}>${this.translations.ruleCompareFieldOption}</option>
+              <option value="value" ${compareMode === 'value' ? 'selected' : ''}>${this.esc(this.translations.ruleCompareValueOption)}</option>
+              <option value="field" ${compareMode === 'field' ? 'selected' : ''}>${this.esc(this.translations.ruleCompareFieldOption)}</option>
             </select>
             ${compareMode === 'field' ? `
               <select class="prop-input cfr-cond-compare-field" style="flex: 1; font-size: var(--font-size-xs); padding: 4px 6px;" ${disabledAttr}>
                 ${this.getCrossFieldOptions(cond.compareToFieldKey)}
               </select>
             ` : `
-              <input type="text" class="prop-input cfr-cond-value" value="${cond.equalsValue !== undefined ? cond.equalsValue : ''}" placeholder="${this.translations.cfrValueInputPlaceholder}"
+              <input type="text" class="prop-input cfr-cond-value" value="${this.esc(cond.equalsValue !== undefined ? cond.equalsValue : '')}" placeholder="${this.esc(this.translations.cfrValueInputPlaceholder)}"
                      style="flex: 1; font-size: var(--font-size-xs); padding: 4px 6px; margin-bottom: 0;" ${disabledAttr} />
             `}
           </div>
-          <button type="button" class="cfr-delete-cond" title="${this.translations.cfrRemoveConditionTitle}" ${disabledAttr}
+          <button type="button" class="cfr-delete-cond" title="${this.esc(this.translations.cfrRemoveConditionTitle)}" ${disabledAttr}
                   style="background: none; border: none; color: var(--color-neutral-5); cursor: pointer; padding: 2px; display: flex; align-items: center; flex-shrink: 0;">
             <i data-lucide="x" style="width: 12px; height: 12px;"></i>
           </button>
@@ -3974,17 +4394,17 @@ class OpenFormBuilder {
         <div class="cfr-and-group" data-rule="${ruleIdx}" data-group="${groupIdx}"
              style="background: var(--color-neutral-2); border: 1px solid var(--color-neutral-4); border-radius: var(--border-radius-xs); padding: 8px; display: flex; flex-direction: column; gap: var(--space-xs);">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
-            <span style="font-size: 9px; font-weight: var(--font-weight-bold); text-transform: uppercase; color: var(--color-neutral-6); letter-spacing: 0.5px;">${this.translations.cfrOrGroupLabel}</span>
-            <button type="button" class="cfr-delete-group" title="${this.translations.cfrRemoveGroupTitle}" ${disabledAttr}
+            <span style="font-size: 9px; font-weight: var(--font-weight-bold); text-transform: uppercase; color: var(--color-neutral-6); letter-spacing: 0.5px;">${this.esc(this.translations.cfrOrGroupLabel)}</span>
+            <button type="button" class="cfr-delete-group" title="${this.esc(this.translations.cfrRemoveGroupTitle)}" ${disabledAttr}
                     style="background: none; border: none; color: var(--color-error); cursor: pointer; padding: 2px; display: flex; align-items: center; font-size: var(--font-size-xs); gap: 3px;">
-              <i data-lucide="trash-2" style="width: 10px; height: 10px;"></i> ${this.translations.cfrRemoveGroupLabel}
+              <i data-lucide="trash-2" style="width: 10px; height: 10px;"></i> ${this.esc(this.translations.cfrRemoveGroupLabel)}
             </button>
           </div>
           <div class="cfr-conditions-list" style="display: flex; flex-direction: column; gap: var(--space-xs);">
-            ${conditions || `<div style="font-size: var(--font-size-xs); color: var(--color-neutral-5); font-style: italic; padding: 4px;">${this.translations.cfrNoConditionsText}</div>`}
+            ${conditions || `<div style="font-size: var(--font-size-xs); color: var(--color-neutral-5); font-style: italic; padding: 4px;">${this.esc(this.translations.cfrNoConditionsText)}</div>`}
           </div>
           <button type="button" class="pg-btn pg-btn-secondary cfr-add-cond" style="justify-content: center; font-size: var(--font-size-xs); padding: 3px 8px; height: auto; margin-top: 2px;" ${disabledAttr}>
-            <i data-lucide="plus" style="width: 10px; height: 10px;"></i> ${this.translations.ruleAddOrConditionLabel}
+            <i data-lucide="plus" style="width: 10px; height: 10px;"></i> ${this.esc(this.translations.ruleAddOrConditionLabel)}
           </button>
         </div>
       `;
@@ -3996,17 +4416,17 @@ class OpenFormBuilder {
         return `
           <div class="cfr-rule-card" data-rule="${ruleIdx}"
                style="padding: 10px; background: var(--color-neutral-2); border: 1px solid rgba(219,60,60,0.3); border-radius: var(--border-radius-soft); position: relative;">
-            <button class="cfr-delete-rule" data-index="${ruleIdx}" title="${this.translations.cfrDeleteRuleTitle}" ${disabledAttr}
+            <button class="cfr-delete-rule" data-index="${ruleIdx}" title="${this.esc(this.translations.cfrDeleteRuleTitle)}" ${disabledAttr}
                     style="position: absolute; top: 8px; right: 8px; border: none; background: transparent; color: var(--color-neutral-6); cursor: pointer; display: flex; align-items: center;">
               <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
             </button>
             <div style="font-size: var(--font-size-xs); color: var(--color-error); margin-bottom: 6px; display: flex; align-items: center; gap: 4px; padding-right: 20px;">
               <i data-lucide="alert-triangle" style="width: 12px; height: 12px;"></i>
-              ${this.translations.cfrLegacyNoticeText}
+              ${this.esc(this.translations.cfrLegacyNoticeText)}
             </div>
-            <code style="font-size: 9px; color: var(--color-neutral-7); display: block; margin-bottom: 8px; word-break: break-all;">${rule.expression}</code>
+            <code style="font-size: 9px; color: var(--color-neutral-7); display: block; margin-bottom: 8px; word-break: break-all;">${this.esc(rule.expression)}</code>
             <button type="button" class="pg-btn pg-btn-secondary cfr-migrate-rule" data-index="${ruleIdx}" style="font-size: var(--font-size-xs); padding: 4px 10px; height: auto;" ${disabledAttr}>
-              <i data-lucide="refresh-cw" style="width: 10px; height: 10px;"></i> ${this.translations.cfrMigrateButtonLabel}
+              <i data-lucide="refresh-cw" style="width: 10px; height: 10px;"></i> ${this.esc(this.translations.cfrMigrateButtonLabel)}
             </button>
           </div>
         `;
@@ -4019,13 +4439,13 @@ class OpenFormBuilder {
       const targetChips = (this.getAllFields().filter(f => f.type !== 'header' && f.type !== 'paragraph')).map(f => {
         const isSelected = (rule.targetFields || []).includes(f.key);
         return `
-          <button type="button" class="cfr-target-chip" data-field-key="${f.key}" data-rule="${ruleIdx}" ${disabledAttr}
+          <button type="button" class="cfr-target-chip" data-field-key="${this.esc(f.key)}" data-rule="${ruleIdx}" ${disabledAttr}
                   style="font-size: 9px; padding: 2px 8px; border-radius: 10px; cursor: pointer; transition: all 0.15s ease;
                          background: ${isSelected ? 'var(--color-primary)' : 'var(--color-neutral-3)'};
                          color: ${isSelected ? 'var(--color-neutral-0)' : 'var(--color-neutral-7)'};
                          border: 1px solid ${isSelected ? 'var(--color-primary)' : 'var(--color-neutral-4)'};
                          font-weight: ${isSelected ? 'var(--font-weight-semibold)' : 'var(--font-weight-normal)'}">
-            ${f.label}
+            ${this.esc(f.label)}
           </button>
         `;
       }).join('');
@@ -4034,36 +4454,36 @@ class OpenFormBuilder {
       const errorMessagePlaceholder = isDefaultLocale ? this.translations.cfrErrorMessagePlaceholder : (rule.errorMessage || '');
 
       return `
-        <div class="cfr-rule-card" data-rule="${ruleIdx}" data-rule-id="${rule.ruleId}"
+        <div class="cfr-rule-card" data-rule="${ruleIdx}" data-rule-id="${this.esc(rule.ruleId)}"
              style="padding: 10px; background: var(--color-neutral-2); border: 1px solid var(--color-neutral-4); border-radius: var(--border-radius-soft);">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-s);">
-            <span style="font-size: var(--font-size-xs); font-weight: var(--font-weight-bold); color: var(--color-neutral-8);">${this.translations.cfrValidationRulePrefix}${ruleIdx + 1}</span>
-            <button class="cfr-delete-rule" data-index="${ruleIdx}" title="${this.translations.cfrDeleteRuleTitle}" ${disabledAttr}
+            <span style="font-size: var(--font-size-xs); font-weight: var(--font-weight-bold); color: var(--color-neutral-8);">${this.esc(this.translations.cfrValidationRulePrefix)}${ruleIdx + 1}</span>
+            <button class="cfr-delete-rule" data-index="${ruleIdx}" title="${this.esc(this.translations.cfrDeleteRuleTitle)}" ${disabledAttr}
                     style="border: none; background: transparent; color: var(--color-neutral-5); cursor: pointer; display: flex; align-items: center;">
               <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
             </button>
           </div>
 
-          <div style="font-size: 9px; font-weight: var(--font-weight-bold); text-transform: uppercase; color: var(--color-neutral-6); letter-spacing: 0.5px; margin-bottom: var(--space-xs);">${this.translations.cfrRuleInvalidWhenText}</div>
+          <div style="font-size: 9px; font-weight: var(--font-weight-bold); text-transform: uppercase; color: var(--color-neutral-6); letter-spacing: 0.5px; margin-bottom: var(--space-xs);">${this.esc(this.translations.cfrRuleInvalidWhenText)}</div>
           <div class="cfr-and-groups-list" style="display: flex; flex-direction: column; gap: var(--space-s); margin-bottom: var(--space-s);">
-            ${andGroups || `<div style="font-size: var(--font-size-xs); color: var(--color-neutral-5); font-style: italic; padding: 4px;">${this.translations.cfrNoAndGroupsText}</div>`}
+            ${andGroups || `<div style="font-size: var(--font-size-xs); color: var(--color-neutral-5); font-style: italic; padding: 4px;">${this.esc(this.translations.cfrNoAndGroupsText)}</div>`}
           </div>
           <button type="button" class="pg-btn pg-btn-secondary cfr-add-group" style="font-size: var(--font-size-xs); padding: 3px 8px; height: auto; width: 100%; justify-content: center; margin-bottom: var(--space-s);" ${disabledAttr}>
-            <i data-lucide="plus" style="width: 10px; height: 10px;"></i> ${this.translations.ruleAddAndGroupLabel}
+            <i data-lucide="plus" style="width: 10px; height: 10px;"></i> ${this.esc(this.translations.ruleAddAndGroupLabel)}
           </button>
 
           <hr style="border: none; border-top: 1px solid var(--color-neutral-3); margin: var(--space-s) 0;" />
 
           <div class="prop-group" style="margin-bottom: var(--space-s);">
-            <label class="prop-label" style="font-size: 9px; text-transform: uppercase;">${this.translations.cfrErrorMessageLabel}</label>
-            <input type="text" class="prop-input cfr-rule-message" value="${errorMessageVal}" placeholder="${errorMessagePlaceholder}"
+            <label class="prop-label" style="font-size: 9px; text-transform: uppercase;">${this.esc(this.translations.cfrErrorMessageLabel)}</label>
+            <input type="text" class="prop-input cfr-rule-message" value="${this.esc(errorMessageVal)}" placeholder="${this.esc(errorMessagePlaceholder)}"
                    style="font-size: var(--font-size-xs); padding: 4px 6px; margin-bottom: 0;" />
           </div>
 
           <div class="prop-group" style="margin-bottom: 0;">
-            <label class="prop-label" style="font-size: 9px; text-transform: uppercase; margin-bottom: var(--space-xs);">${this.translations.cfrMarkAsInvalidLabel}</label>
+            <label class="prop-label" style="font-size: 9px; text-transform: uppercase; margin-bottom: var(--space-xs);">${this.esc(this.translations.cfrMarkAsInvalidLabel)}</label>
             <div class="cfr-target-chips" style="display: flex; flex-wrap: wrap; gap: var(--space-xs);">
-              ${targetChips || `<span style="font-size: var(--font-size-xs); color: var(--color-neutral-5); font-style: italic;">${this.translations.cfrNoFieldsAvailableText}</span>`}
+              ${targetChips || `<span style="font-size: var(--font-size-xs); color: var(--color-neutral-5); font-style: italic;">${this.esc(this.translations.cfrNoFieldsAvailableText)}</span>`}
             </div>
           </div>
         </div>
@@ -4077,19 +4497,19 @@ class OpenFormBuilder {
       <div class="cross-field-rules-section" style="margin-top: var(--space-s);">
         <div style="font-weight: var(--font-weight-bold); font-size: var(--font-size-s); color: var(--color-neutral-9); margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
           <i data-lucide="shield-alert" style="width: 14px; height: 14px; color: var(--color-primary);"></i>
-          ${this.translations.crossFieldValidationsTitle}
+          ${this.esc(this.translations.crossFieldValidationsTitle)}
         </div>
         <div style="font-size: var(--font-size-xs); color: var(--color-neutral-7); margin-bottom: var(--space-m); line-height: 1.3;">
-          ${this.translations.crossFieldValidationsDesc}
+          ${this.esc(this.translations.crossFieldValidationsDesc)}
         </div>
-        ${!isDefaultLocale ? `<div class="rules-locale-notice">${this.translations.crossFieldLocaleNotice}</div>` : ''}
+        ${!isDefaultLocale ? `<div class="rules-locale-notice">${this.esc(this.translations.crossFieldLocaleNotice)}</div>` : ''}
 
         <div id="cfr-rules-list" style="display: flex; flex-direction: column; gap: var(--space-m); margin-bottom: var(--space-m);">
-          ${rulesHtml || `<div style="font-size: var(--font-size-xs); color: var(--color-neutral-5); font-style: italic; text-align: center; padding: var(--space-m);">${this.translations.cfrNoRulesYetText}</div>`}
+          ${rulesHtml || `<div style="font-size: var(--font-size-xs); color: var(--color-neutral-5); font-style: italic; text-align: center; padding: var(--space-m);">${this.esc(this.translations.cfrNoRulesYetText)}</div>`}
         </div>
 
         <button id="btn-add-cross-rule" class="pg-btn pg-btn-secondary" style="width: 100%; font-size: var(--font-size-xs); padding: 6px var(--space-m); display: flex; align-items: center; justify-content: center; gap: 6px;" ${disabledAttr}>
-          <i data-lucide="plus-circle" style="width: 12px; height: 12px;"></i> ${this.translations.cfrAddValidationRuleLabel}
+          <i data-lucide="plus-circle" style="width: 12px; height: 12px;"></i> ${this.esc(this.translations.cfrAddValidationRuleLabel)}
         </button>
       </div>
     `;
