@@ -27,7 +27,7 @@ function debounce(fn, delay) {
  * License: Apache-2.0
  */
 class OpenFormBuilder {
-  static VERSION = '1.5.2';
+  static VERSION = '1.5.3';
 
   /** Current schema format version written by the builder (schemas without it are version 1). */
   static SCHEMA_VERSION = 2;
@@ -2463,8 +2463,13 @@ class OpenFormBuilder {
     }
 
     if (this.onSchemaChange) {
-      // A4: hand out a deep clone, never the live internal object.
-      this.onSchemaChange(currentStateString ? JSON.parse(currentStateString) : this.getSchema());
+      // A4: hand out a deep clone, never the live internal object. A host callback that throws
+      // must not stop the builder from redrawing, so the error is logged and swallowed.
+      try {
+        this.onSchemaChange(currentStateString ? JSON.parse(currentStateString) : this.getSchema());
+      } catch (err) {
+        console.error('OpenFormBuilder: onSchemaChange threw:', err);
+      }
     }
   }
 

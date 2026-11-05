@@ -209,7 +209,7 @@ const BUILT_IN_TRANSLATIONS = {
 };
 
 class OpenFormRenderer {
-  static VERSION = '1.5.2';
+  static VERSION = '1.5.3';
 
   /** Current schema format version written by the builder (schemas without it are version 1). */
   static SCHEMA_VERSION = 2;
@@ -4845,13 +4845,21 @@ class OpenFormRenderer {
     this.drawActivePage();
     this._scheduleDraft();
     if (this.onPageChange && !this._destroyed) {
-      this.onPageChange(index, OpenFormRenderer._deepClone(this.schema.pages[index]));
+      try {
+        this.onPageChange(index, OpenFormRenderer._deepClone(this.schema.pages[index]));
+      } catch (err) {
+        console.error('OpenFormRenderer: onPageChange threw:', err);
+      }
     }
   }
 
   notifyValidationError(errors) {
     if (this.onValidationError && !this._destroyed && errors.length > 0) {
-      this.onValidationError(errors.map(err => Object.assign({}, err)));
+      try {
+        this.onValidationError(errors.map(err => Object.assign({}, err)));
+      } catch (err) {
+        console.error('OpenFormRenderer: onValidationError threw:', err);
+      }
     }
   }
 
@@ -5208,7 +5216,12 @@ class OpenFormRenderer {
     this._scheduleDraft();
     if (this._destroyed || typeof this.onFieldChange !== 'function') return;
     const publicKey = this._scopedKeyOwners.get(changedKey) || changedKey;
-    this.onFieldChange(OpenFormRenderer._deepClone(this.answers), publicKey);
+    // A host callback that throws must not break the form (rules, formulas and drafts run after this).
+    try {
+      this.onFieldChange(OpenFormRenderer._deepClone(this.answers), publicKey);
+    } catch (err) {
+      console.error('OpenFormRenderer: onFieldChange threw:', err);
+    }
   }
 
   /**

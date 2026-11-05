@@ -4,6 +4,11 @@ All notable changes to OpenForms. Versions follow [semantic versioning](https://
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.5.3] - 2026-11-05
+
+### Fixed
+- A callback that throws no longer breaks the component: the builder keeps redrawing after an `onSchemaChange` error, and the renderer keeps working after an error in `onFieldChange`, `onPageChange` or `onValidationError`. The error is logged to the console.
+
 ## [1.5.2] - 2026-11-04
 
 ### Fixed
@@ -125,6 +130,7 @@ First published release of the builder and renderer (see the [1.0.0 release](htt
 
 Initial tag.
 
+[1.5.3]: https://github.com/henriquefps/open-forms/releases/tag/1.5.3
 [1.5.2]: https://github.com/henriquefps/open-forms/releases/tag/1.5.2
 [1.5.1]: https://github.com/henriquefps/open-forms/releases/tag/1.5.1
 [1.5.0]: https://github.com/henriquefps/open-forms/releases/tag/1.5.0
