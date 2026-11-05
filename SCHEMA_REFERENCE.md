@@ -27,7 +27,7 @@ This is the complete reference for `FormSchemaJSON`, the plain JSON object that 
 | `crossFieldRules` | `CrossFieldRule[]` | optional | Validation rules that compare two or more fields (see section 6) |
 | `translations` | `object` | optional | Locale-keyed dictionary for multi-language forms (see section 7) |
 
-> You don't have to hand-build this structure — `OpenFormBuilder.normalizeSchema()` fills in every missing/legacy piece (default page, default section, generated IDs, etc.) the moment you call `loadSchema()`. Passing `{}` or `null` is valid and produces a single empty page.
+> You don't have to hand-build this structure — the builder's `normalizeSchema()` (an instance method, called for you by the constructor and `loadSchema()`) fills in every missing/legacy piece (default page, default section, generated IDs, etc.) the moment the schema is loaded; the renderer runs its own copy on `render()`. Passing `{}` or `null` is valid and produces a single empty page.
 
 ### Schema version and migrations
 
@@ -154,7 +154,7 @@ There is no `colId` property on Column — that was a documentation error carrie
 | `boolean` | `defaultValue` (`boolean`) |
 | `dropdown` / `radio` / `checkbox` | `optionsType` (`"static"` \| `"api"`), `options` (`Array<{label, value}>`, when static), `optionsUrl` (`string`, when `api` — an identifier handed to your `optionsProvider`; the renderer never fetches it itself, see section 8) |
 | `matrix` | `matrixRows` (`Array<{key, label}>`), plus the same `optionsType`/`options`/`optionsUrl` as above (shared across every row) |
-| `repeater` | `minItems`, `maxItems` (`integer`), `addButtonLabel` (`string`), `rows` (`Row[]` — the sub-field layout repeated per item; only `text`/`textarea`/`number`/`date`/`boolean`/`dropdown`/`radio`/`checkbox`/`matrix`/`signature`/`file` are supported inside a repeater, **not** another `repeater` or nested `matrix`) |
+| `repeater` | `minItems`, `maxItems` (`integer`), `addButtonLabel` (`string`), `rows` (`Row[]` — the sub-field layout repeated per item; only `text`/`textarea`/`number`/`date`/`boolean`/`dropdown`/`radio`/`checkbox`/`signature`/`file` (and the static `header`/`paragraph`) are supported inside a repeater; a `repeater` or a `matrix` inside a repeater is **not** supported, and the builder blocks dropping one there) |
 | `signature` | *(no extra properties)* |
 | `file` | `acceptedTypes` (`string`, comma-separated extensions/MIME patterns such as `.pdf,image/*`, default `.pdf,.docx,image/*`; enforced by the file picker and also for dragged-and-dropped files), `useNativeCamera` (`boolean`, Cordova/Capacitor), `nativeCameraSource` (`"camera"` \| `"photos"` \| `"prompt"`: camera only, photo library only, or ask each time; default `"camera"`), `maxFileSizeMB` (`number`, default `5`), `fileRequirementsText` (`string`, optional override of the default hint text) |
 
@@ -256,12 +256,12 @@ Used on **Field** objects (any `targetProperty`), **Section** objects and **Page
 | Property | Type | Notes |
 | :--- | :--- | :--- |
 | `dependentFieldKey` | `string` | The field whose current answer is checked |
-| `operator` | `string` | `equals` \| `notEquals` \| `contains` \| `notContains` \| `greaterThan` \| `greaterThanOrEquals` \| `lessThan` \| `lessThanOrEquals` |
+| `operator` | `string` | `equals` \| `notEquals` \| `contains` \| `notContains` \| `greaterThan` \| `greaterThanOrEquals` \| `lessThan` \| `lessThanOrEquals`. `gte` and `lte` are accepted as aliases of `greaterThanOrEquals` / `lessThanOrEquals` |
 | `compareMode` | `string` | `"value"` (default) \| `"field"` |
 | `equalsValue` | `any` | The static value to compare against — used when `compareMode` is `"value"` or omitted |
 | `compareToFieldKey` | `string` | Another field's key to compare against live — used when `compareMode` is `"field"` |
 
-**Rules on repeater sub-fields.** A sub-field inside a repeater can carry `conditionalRules` too. They are evaluated **per item**: `dependentFieldKey` (and `compareToFieldKey`) naming another sub-field of the same repeater reads that item's value; any other key reads the form's top-level answer. So in one item a field can be shown while in the next it is hidden. A hidden sub-field is reset and left out of `getAnswers()` / `onSubmit` (same as a hidden top-level field), its required asterisk and `aria-required` follow `"required"` rules, and a hidden or disabled sub-field is not required when validating. Rules are re-evaluated on every change and when items are added or removed.
+**Rules on repeater sub-fields.** A sub-field inside a repeater can carry `conditionalRules` too. They are evaluated **per item**: `dependentFieldKey` (and `compareToFieldKey`) naming another sub-field of the same repeater reads that item's value; any other key reads the form's top-level answer. So in one item a field can be shown while in the next it is hidden. A hidden sub-field is reset and left out of `getAnswers()` / `onSubmit` (same as a hidden top-level field), its required asterisk and `aria-required` follow `"required"` rules, and a hidden or disabled sub-field is not required when validating. Rules are re-evaluated on every change and when items are added or removed. These rules are written in the JSON only: the builder hides the rules panel for a sub-field of a repeater, but keeps any rules already in the schema.
 
 ### Page branching (rules on a page)
 
@@ -376,7 +376,15 @@ const renderer = new OpenFormRenderer({
   translations,         // optional, overrides the built-in UI string dictionary (not form content)
   locale,               // optional, initial locale, default 'default'
   optionsProvider,      // optional, (field, { locale, readOnly }) => Promise<Array<{label, value}>>
-  idPrefix              // optional, prefix for every generated DOM id (default: unique 'ofr<N>-')
+  uploadProvider,       // optional, (file, { field, locale, signal, onProgress }) => Promise<FileReference>
+  onFileRemoved,        // optional, (reference, { field }) => void, a provider-uploaded file was deleted
+  handwritingFontUrl,   // optional, stylesheet URL for typed signatures (no external request without it)
+  idPrefix,             // optional, prefix for every generated DOM id (default: unique 'ofr<N>-')
+  onDraftChange,        // optional, (draft) => void, debounced after a real change
+  draftDebounceMs,      // optional, default 800
+  draftStorage,         // optional, 'local' | 'session' | { get(key), set(key, value), remove(key) }
+  draftKey,             // optional, storage key (default derived from formId or formTitle + schemaVersion)
+  resumeDraft           // optional, 'ask' (default) | 'auto' | 'never'
 });
 
 renderer.render(schemaJSON, answers, readOnly);
@@ -391,6 +399,10 @@ renderer.setValue(key, value); // sets an answer as if typed: DOM, formulas, rul
 renderer.goToPage(index);      // true if shown; forward moves need the pages in between to be valid; false for a page hidden by a page rule
 renderer.getVisiblePages();    // absolute indices of the pages not hidden by a page rule
 renderer.setLocale('pt-BR');   // switches locale reactively, keeps current answers
+renderer.print({ title });     // client-side printout / "Save as PDF" through the browser's Print dialog
+renderer.getDraft();           // { answers, pageIndex, ... } or null before render()
+renderer.restoreDraft(draft);  // puts a draft (object or JSON string) back; false if unusable
+renderer.clearDraft();         // Promise; deletes the stored draft (no-op without draftStorage)
 renderer.answers;              // the live internal answers object (prefer getAnswers())
 OpenFormRenderer.validateSchema(schema); // static: { valid, errors: [{ path, code, message }], warnings } (section 1)
 renderer.destroy();            // unmounts; removes window listeners, observers, timers, shared nodes

@@ -27,7 +27,7 @@ function debounce(fn, delay) {
  * License: Apache-2.0
  */
 class OpenFormBuilder {
-  static VERSION = '1.5.0';
+  static VERSION = '1.5.1';
 
   /** Current schema format version written by the builder (schemas without it are version 1). */
   static SCHEMA_VERSION = 2;

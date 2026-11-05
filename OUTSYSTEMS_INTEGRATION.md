@@ -1,7 +1,7 @@
 # OpenForms — OutSystems Integration Guide
 
 > **Compatible with:** OutSystems 11 (Reactive Web) and OutSystems Developer Cloud (ODC)  
-> **Component version:** the examples pin `open-forms@1.5.0` on jsDelivr; use the version you are deploying.  
+> **Component version:** the examples pin `open-forms@1.5.1` on jsDelivr; use the version you are deploying.  
 > **Author:** Henrique Silva (contact@hfps.dev) — [hfps.dev](https://hfps.dev)
 
 This guide shows how to run the OpenForms **renderer** (and, optionally, the **builder**) inside an OutSystems Reactive app, in both O11 and ODC. For the generic API see [INTEGRATION_GUIDE.md](./INTEGRATION_GUIDE.md); for the schema see [SCHEMA_REFERENCE.md](./SCHEMA_REFERENCE.md); for theming see [customization.md](./customization.md).
@@ -45,7 +45,8 @@ Files shipped in the repository:
 src/
 ├── renderer.js      # OpenFormRenderer
 ├── builder.js       # OpenFormBuilder
-└── openforms.css    # styles for both
+├── openforms.css    # styles for both
+└── openforms.d.ts   # TypeScript declarations (optional, for editors and type checks)
 ```
 
 Typical flow in an OutSystems app:
@@ -78,9 +79,9 @@ Every action used in this guide lists its input parameters in call order.
 **Option A — Scripts resource (recommended, works offline).**
 
 1. Download the files pinned to the version you use:
-   - `https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.0/src/renderer.js`
-   - `https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.0/src/builder.js` (only for designer screens)
-   - `https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.0/src/openforms.css`
+   - `https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.1/src/renderer.js`
+   - `https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.1/src/builder.js` (only for designer screens)
+   - `https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.1/src/openforms.css`
 2. O11 Reactive: **Interface → Scripts → Import Script…**. ODC: **Interface → Scripts → Import script**. Import `renderer.js` (and `builder.js`).
 3. Select your Block (or Screen) and add the script to its **Required Scripts**.
    Adding the same script to both a Block and a Screen is safe: loading it twice keeps the first definition and only logs a warning if the versions differ.
@@ -93,12 +94,12 @@ Every action used in this guide lists its input parameters in call order.
 - CSS: first line of the Theme style sheet:
 
   ```css
-  @import url("https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.0/src/openforms.css");
+  @import url("https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.1/src/openforms.css");
   ```
 
-- JS: in the Block's `OnInitialize`, use the OutSystems UI **RequireScript** action with `URL = "https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.0/src/renderer.js"`. Make sure the script has finished loading before the `OnReady` JavaScript node runs.
+- JS: in the Block's `OnInitialize`, use the OutSystems UI **RequireScript** action with `URL = "https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.1/src/renderer.js"`. Make sure the script has finished loading before the `OnReady` JavaScript node runs.
 
-> Use the CDN only if your environment allows external scripts (CSP, offline use). Pin the version (`@1.1.0`), never `@latest`.
+> Use the CDN only if your environment allows external scripts (CSP, offline use). Pin an exact version (`open-forms@1.5.1`, as in the URLs above), never `@latest`.
 
 ---
 
@@ -135,9 +136,9 @@ window._openForms = window._openForms || {};
 window._openForms[$parameters.ContainerId] = renderer;
 ```
 
-Constructor options: `containerEl`, `onSubmit(answers)` (required), `onFieldChange(answers, changedKey)` (optional, fired on every answer change, including signatures and uploads), `onPageChange(index, page)`, `onValidationError(errors)`, `locale`, `translations`, `optionsProvider`, `idPrefix`. `OpenFormRenderer.VERSION` returns the library version at runtime.
+Constructor options: `containerEl`, `onSubmit(answers)` (required), `onFieldChange(answers, changedKey)` (optional, fired on every answer change, including signatures and uploads), `onPageChange(index, page)`, `onValidationError(errors)`, `locale`, `translations`, `optionsProvider`, `uploadProvider` and `onFileRemoved` (see [Uploading files](#uploading-files-uploadprovider)), `handwritingFontUrl`, `idPrefix`, and the draft options `onDraftChange`, `draftDebounceMs`, `draftStorage`, `draftKey`, `resumeDraft` (see [Drafts and resume](#drafts-and-resume)). `OpenFormRenderer.VERSION` returns the library version at runtime.
 
-The renderer also has methods you can call from other JavaScript nodes through `window._openForms[ContainerId]`: `validate()`, `submit()`, `getAnswers()`, `setValue(key, value)`, `goToPage(index)` and `getVisiblePages()`. Pages can be skipped with page-level `conditionalRules` (see the [Schema Reference](SCHEMA_REFERENCE.md#page-branching-rules-on-a-page)); `goToPage` returns `false` for a skipped page. See the [Integration Guide](INTEGRATION_GUIDE.md#methods).
+The renderer also has methods you can call from other JavaScript nodes through `window._openForms[ContainerId]`: `validate()`, `submit()`, `getAnswers()`, `setValue(key, value)`, `goToPage(index)`, `getVisiblePages()`, `setLocale(locale)`, `print({ title })`, `getDraft()`, `restoreDraft(draft)`, `clearDraft()` and `destroy()`. Pages can be skipped with page-level `conditionalRules` (see the [Schema Reference](SCHEMA_REFERENCE.md#page-branching-rules-on-a-page)); `goToPage` returns `false` for a skipped page. See the [Integration Guide](INTEGRATION_GUIDE.md#methods).
 
 On the parent screen, handle the Block's `OnSubmitted` event with a Client Action `OnFormSubmitted` (input `AnswersJSON`, Text) — see [Handle the submitted answers](#handle-the-submitted-answers).
 
@@ -185,7 +186,7 @@ The provider is called once per field each time `render()` runs (and again if th
 
 ## Handle the submitted answers
 
-`onSubmit` receives a plain object `{ fieldKey: value, ... }`. Fields hidden by conditional rules, and disabled fields, are not included. `number` answers are numbers, or `null` when left empty.
+`onSubmit` receives a plain object `{ fieldKey: value, ... }`. Fields hidden by conditional rules, and disabled fields, are not included. `number` answers are numbers, or `null` when left empty. In OutSystems, `JSON Deserialize` turns that `null` into the Decimal (or Integer) attribute's default value, `0`; if an empty answer must stay different from `0`, read the raw `AnswersJSON` or keep the attribute as Text.
 
 `onSubmit` may return a promise, and `$actions` calls return one. When it does, the renderer disables the submit button until the promise settles, shows its success message only if it resolves, and shows an error message (the `submitErrorToast` translation) if it rejects, so the user can try again. The renderer waits for exactly the promise you return, so return the call to the Client Action that does the saving:
 
@@ -305,8 +306,13 @@ Save button (Client Action with a JavaScript node):
 
 ```javascript
 // SaveSchema inputs, in order: SchemaJSON
-$actions.SaveSchema(JSON.stringify(window._osDynBuilder.schema));
+var b = window._osDynBuilder;
+return $actions.SaveSchema(JSON.stringify(b.getSchema())).then(function () {
+  b.markSaved(); // isDirty() is false again until the next change
+});
 ```
+
+`getSchema()` returns a deep copy of the current schema (with `schemaVersion`). `isDirty()` tells you whether the design changed since it was loaded or last marked saved, which is handy for a "you have unsaved changes" warning before leaving the screen.
 
 **OnDestroy:** the builder has a `destroy()` too. Call it, and clear the debounce timer, when the screen goes away:
 
@@ -697,7 +703,7 @@ Keep drafts small: files and signatures are Base64 inside the draft unless you u
 **The form is not rendering / the container is empty**
 
 - Make sure `renderer.js` (and `builder.js`) and `openforms.css` are loaded **before** the JavaScript node runs. Use the Block's `OnReady` event, not `OnInitialize`, because the container must be in the DOM.
-- Check the browser console. `OpenFormRenderer is not defined` means the script is not loaded yet (see *Required Scripts*).
+- Check the browser console. `OpenFormRenderer is not defined` means the script is not loaded yet (see [Add the scripts and styles](#add-the-scripts-and-styles), step 3, *Required Scripts*).
 
 **Options do not appear in a dropdown / radio / checkbox**
 

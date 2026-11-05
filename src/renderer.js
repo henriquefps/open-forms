@@ -209,7 +209,7 @@ const BUILT_IN_TRANSLATIONS = {
 };
 
 class OpenFormRenderer {
-  static VERSION = '1.5.0';
+  static VERSION = '1.5.1';
 
   /** Current schema format version written by the builder (schemas without it are version 1). */
   static SCHEMA_VERSION = 2;
