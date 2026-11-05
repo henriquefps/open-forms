@@ -209,7 +209,7 @@ const BUILT_IN_TRANSLATIONS = {
 };
 
 class OpenFormRenderer {
-  static VERSION = '1.5.1';
+  static VERSION = '1.5.2';
 
   /** Current schema format version written by the builder (schemas without it are version 1). */
   static SCHEMA_VERSION = 2;
@@ -5150,7 +5150,8 @@ class OpenFormRenderer {
               }
             });
 
-            grid.appendChild(rowEl);
+            // Like top level: a row with nothing rendered in it leaves no gap behind
+            if (rowEl.children.length > 0) grid.appendChild(rowEl);
           });
         }
 

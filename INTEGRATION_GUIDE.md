@@ -13,13 +13,13 @@ You can load OpenForms assets directly using **jsDelivr**:
 
 ```html
 <!-- Stylesheet -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.1/src/openforms.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.2/src/openforms.css">
 
 <!-- Visual Builder (OpenFormBuilder) -->
-<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.1/src/builder.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.2/src/builder.js"></script>
 
 <!-- Form Player / Renderer (OpenFormRenderer) -->
-<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.1/src/renderer.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.2/src/renderer.js"></script>
 ```
 
 Both scripts are plain classic `<script>` tags — no bundler, no ES module imports required. Each one is fully self-contained; load only `renderer.js` if you just need to play back forms, without ever loading `builder.js`.
@@ -37,7 +37,7 @@ Importing never touches `window` or `document`, so it is safe in Node or during 
 **TypeScript.** `src/openforms.d.ts` declares both classes, their options and callbacks, and the schema and answer types (`FormSchema`, `Field`, `FormAnswers`, …). Reference it from your project, for example by copying it next to your sources, or straight from the CDN:
 
 ```ts
-/// <reference path="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.1/src/openforms.d.ts" />
+/// <reference path="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.2/src/openforms.d.ts" />
 ```
 
 and `import type { FormSchema } from './openforms'` when you use a local copy.

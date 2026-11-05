@@ -1,7 +1,7 @@
 # OpenForms — OutSystems Integration Guide
 
 > **Compatible with:** OutSystems 11 (Reactive Web) and OutSystems Developer Cloud (ODC)  
-> **Component version:** the examples pin `open-forms@1.5.1` on jsDelivr; use the version you are deploying.  
+> **Component version:** the examples pin `open-forms@1.5.2` on jsDelivr; use the version you are deploying.  
 > **Author:** Henrique Silva (contact@hfps.dev) — [hfps.dev](https://hfps.dev)
 
 This guide shows how to run the OpenForms **renderer** (and, optionally, the **builder**) inside an OutSystems Reactive app, in both O11 and ODC. For the generic API see [INTEGRATION_GUIDE.md](./INTEGRATION_GUIDE.md); for the schema see [SCHEMA_REFERENCE.md](./SCHEMA_REFERENCE.md); for theming see [customization.md](./customization.md).
@@ -79,9 +79,9 @@ Every action used in this guide lists its input parameters in call order.
 **Option A — Scripts resource (recommended, works offline).**
 
 1. Download the files pinned to the version you use:
-   - `https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.1/src/renderer.js`
-   - `https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.1/src/builder.js` (only for designer screens)
-   - `https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.1/src/openforms.css`
+   - `https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.2/src/renderer.js`
+   - `https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.2/src/builder.js` (only for designer screens)
+   - `https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.2/src/openforms.css`
 2. O11 Reactive: **Interface → Scripts → Import Script…**. ODC: **Interface → Scripts → Import script**. Import `renderer.js` (and `builder.js`).
 3. Select your Block (or Screen) and add the script to its **Required Scripts**.
    Adding the same script to both a Block and a Screen is safe: loading it twice keeps the first definition and only logs a warning if the versions differ.
@@ -94,12 +94,12 @@ Every action used in this guide lists its input parameters in call order.
 - CSS: first line of the Theme style sheet:
 
   ```css
-  @import url("https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.1/src/openforms.css");
+  @import url("https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.2/src/openforms.css");
   ```
 
-- JS: in the Block's `OnInitialize`, use the OutSystems UI **RequireScript** action with `URL = "https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.1/src/renderer.js"`. Make sure the script has finished loading before the `OnReady` JavaScript node runs.
+- JS: in the Block's `OnInitialize`, use the OutSystems UI **RequireScript** action with `URL = "https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.2/src/renderer.js"`. Make sure the script has finished loading before the `OnReady` JavaScript node runs.
 
-> Use the CDN only if your environment allows external scripts (CSP, offline use). Pin an exact version (`open-forms@1.5.1`, as in the URLs above), never `@latest`.
+> Use the CDN only if your environment allows external scripts (CSP, offline use). Pin an exact version (`open-forms@1.5.2`, as in the URLs above), never `@latest`.
 
 ---
 

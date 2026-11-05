@@ -14,9 +14,9 @@ OpenForms is a visual form builder (`OpenFormBuilder`) and a form renderer (`Ope
 Load the stylesheet and the scripts from jsDelivr, pinned to a version (`builder.js` is only needed on pages that design forms):
 
 ```html
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.1/src/openforms.css">
-<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.1/src/builder.js"></script>
-<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.1/src/renderer.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.2/src/openforms.css">
+<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.2/src/builder.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.2/src/renderer.js"></script>
 ```
 
 Design a form:

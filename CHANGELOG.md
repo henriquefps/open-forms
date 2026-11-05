@@ -4,6 +4,11 @@ All notable changes to OpenForms. Versions follow [semantic versioning](https://
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.5.2] - 2026-11-04
+
+### Fixed
+- Repeater item rows that render nothing no longer leave an empty gap; item rows collapse and keep their columns in place exactly like top-level rows, also in read-only view and `print()`.
+
 ## [1.5.1] - 2026-11-04
 
 ### Documentation
@@ -120,6 +125,7 @@ First published release of the builder and renderer (see the [1.0.0 release](htt
 
 Initial tag.
 
+[1.5.2]: https://github.com/henriquefps/open-forms/releases/tag/1.5.2
 [1.5.1]: https://github.com/henriquefps/open-forms/releases/tag/1.5.1
 [1.5.0]: https://github.com/henriquefps/open-forms/releases/tag/1.5.0
 [1.4.0]: https://github.com/henriquefps/open-forms/releases/tag/1.4.0

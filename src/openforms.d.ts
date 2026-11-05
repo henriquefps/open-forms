@@ -5,7 +5,7 @@
  * from a bundler. Reference this file from TypeScript with, for example:
  *
  *   /// <reference types="./openforms" />          (local copy next to your sources)
- *   /// <reference path="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.1/src/openforms.d.ts" />
+ *   /// <reference path="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.2/src/openforms.d.ts" />
  *
  * Hand-written to match src/builder.js and src/renderer.js; SCHEMA_REFERENCE.md is the
  * prose reference for the schema.
