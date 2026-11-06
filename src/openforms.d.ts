@@ -5,7 +5,7 @@
  * from a bundler. Reference this file from TypeScript with, for example:
  *
  *   /// <reference types="./openforms" />          (local copy next to your sources)
- *   /// <reference path="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.3/src/openforms.d.ts" />
+ *   /// <reference path="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.6.0/src/openforms.d.ts" />
  *
  * Hand-written to match src/builder.js and src/renderer.js; SCHEMA_REFERENCE.md is the
  * prose reference for the schema.
@@ -105,6 +105,12 @@ export interface Field {
   /** file */
   acceptedTypes?: string;
   useNativeCamera?: boolean;
+  /**
+   * How the file is obtained: `"picker"` (default, the file picker), `"camera"` (browser camera,
+   * `capture="environment"` on the input) or `"host"` (the host app captures it through the
+   * renderer's `captureProvider`; without one the picker is used).
+   */
+  capture?: FileCaptureMode;
   nativeCameraSource?: 'camera' | 'photos' | 'prompt';
   maxFileSizeMB?: number;
   fileRequirementsText?: string;
@@ -178,6 +184,9 @@ export interface FileAnswer {
   /** base64 data URL */
   content: string;
 }
+
+/** The `capture` option of a `file` field. */
+export type FileCaptureMode = 'picker' | 'camera' | 'host';
 
 /**
  * What a file field holds when the renderer has an `uploadProvider`: the reference the host
@@ -274,6 +283,15 @@ export interface UploadProviderContext {
 /** Uploads one file outside the form's memory; resolves to the reference to store as the answer. */
 export type UploadProvider = (file: File | Blob, context: UploadProviderContext) => Promise<FileReference>;
 
+/** Context handed to `captureProvider`: same as the upload context, minus the file (the host obtains it). */
+export type CaptureProviderContext = UploadProviderContext;
+
+/**
+ * Lets the host app capture the file of a `capture: "host"` field (e.g. with a Cordova/Capacitor
+ * camera plugin) and resolve to its reference; the content never passes through JavaScript.
+ */
+export type CaptureProvider = (field: UploadProviderContext['field'], context: CaptureProviderContext) => Promise<FileReference>;
+
 export interface OpenFormRendererOptions {
   containerEl: HTMLElement;
   /** Fired on a successful validated submit. May return a promise. */
@@ -294,6 +312,11 @@ export interface OpenFormRendererOptions {
    * The answer then holds only the resolved `FileReference`.
    */
   uploadProvider?: UploadProvider;
+  /**
+   * Captures the file of `file` fields with `capture: "host"`. Resolves to the same reference an
+   * `uploadProvider` returns (`name` falls back to the field label). Without it those fields use the picker.
+   */
+  captureProvider?: CaptureProvider;
   /**
    * Fired when an uploaded file leaves the form, so the host can delete it server-side. Errors are logged.
    * Never fired for Base64 (no `uploadProvider`) answers.

@@ -13,13 +13,13 @@ You can load OpenForms assets directly using **jsDelivr**:
 
 ```html
 <!-- Stylesheet -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.3/src/openforms.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.6.0/src/openforms.css">
 
 <!-- Visual Builder (OpenFormBuilder) -->
-<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.3/src/builder.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.6.0/src/builder.js"></script>
 
 <!-- Form Player / Renderer (OpenFormRenderer) -->
-<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.3/src/renderer.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.6.0/src/renderer.js"></script>
 ```
 
 Both scripts are plain classic `<script>` tags — no bundler, no ES module imports required. Each one is fully self-contained; load only `renderer.js` if you just need to play back forms, without ever loading `builder.js`.
@@ -37,7 +37,7 @@ Importing never touches `window` or `document`, so it is safe in Node or during 
 **TypeScript.** `src/openforms.d.ts` declares both classes, their options and callbacks, and the schema and answer types (`FormSchema`, `Field`, `FormAnswers`, …). Reference it from your project, for example by copying it next to your sources, or straight from the CDN:
 
 ```ts
-/// <reference path="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.5.3/src/openforms.d.ts" />
+/// <reference path="https://cdn.jsdelivr.net/gh/henriquefps/open-forms@1.6.0/src/openforms.d.ts" />
 ```
 
 and `import type { FormSchema } from './openforms'` when you use a local copy.
@@ -290,6 +290,31 @@ With `fetch` the same provider is shorter but has no progress bar (the bar stays
 - Images uploaded in the session are previewed from an object URL, revoked when the file is deleted, the form re-rendered or `destroy()` is called. A stored reference is previewed and linked from its `url` only if it starts with `https:`, `http:`, `blob:` or `data:`; anything else (`javascript:`, ...) is ignored and the file is shown by name and size. `print()` shows images from safe URLs and lists the other files by name.
 - Pre-filled answers can be references too: `render(schema, { photo: { name: 'a.jpg', size: 1234, type: 'image/jpeg', id: '9f2c' } })`.
 - Without an `uploadProvider` nothing changes: Base64 in the answers, with the memory cost described above.
+
+### Capturing files in the host app (`captureProvider`)
+
+Some hosts, such as an OutSystems or Cordova/Capacitor mobile app, already have a camera plugin that writes the photo straight to local storage or to a server. Set `capture: "host"` on a `file` field in the schema and pass a `captureProvider`: when the user activates the field, the renderer does **not** open the file picker. It calls your provider, and the answer holds only the reference you return, so a large photo never passes through JavaScript as Base64.
+
+```javascript
+const renderer = new OpenFormRenderer({
+  containerEl: document.getElementById('form-renderer-container'),
+  onSubmit: (answers) => { /* answers.photo = { name, size, type, id } — no content */ },
+
+  // (field, { locale, signal, onProgress }) => Promise<FileReference>
+  captureProvider: async (field, { signal }) => {
+    const shot = await myCameraPlugin.takePhoto({ fieldKey: field.key });   // saved by the app, not by the webview
+    return { name: shot.name, size: shot.size, type: 'image/jpeg', id: shot.localId };
+  },
+  onFileRemoved: (reference) => myCameraPlugin.delete(reference.id)
+});
+```
+
+- **Schema:** `{ "type": "file", "key": "photo", "label": "Photo", "capture": "host" }`. The other values are `"picker"` (default) and `"camera"` (browser camera: the input gets `capture="environment"`; the rest works as for a picked file, with or without an `uploadProvider`).
+- **Provider arguments:** `field` is the schema field (for a repeater sub-field its own `key`/`id`, plus `repeater: { key, itemIndex }`); the second argument carries `field`, `locale`, `signal` (aborted by Cancel, `render()` and `destroy()`) and an optional `onProgress(fraction)`.
+- **Resolves to:** a `FileReference` (`{ name, size, type, url?, id?, ...extra }`), the same shape as an `uploadProvider` result. If `name` is missing the field label is used. Required, `maxFileSizeMB` (when the reference carries `size`), `onFieldChange`, drafts, `print()` and read-only mode treat it like an uploaded reference.
+- **Same UI and bookkeeping as an upload:** in-flight state with **Cancel**, failure message with **Retry** (a rejection or a synchronous throw; the error's `message` is shown, otherwise the translated `uploadFailedDefault`), `validate()` reporting `uploadPending` while it runs, and `onFileRemoved(reference, { field, reason })` when the file is removed, replaced, hidden or discarded.
+- Dragging a file onto a `capture: "host"` field is ignored. In read-only mode nothing is captured and the stored reference is shown.
+- Without a `captureProvider` the field falls back to the normal file picker (a warning is logged once per renderer). `capture: "host"` takes precedence over `useNativeCamera` for that field.
 
 ### Drafts and resume
 

@@ -27,7 +27,7 @@ function debounce(fn, delay) {
  * License: Apache-2.0
  */
 class OpenFormBuilder {
-  static VERSION = '1.5.3';
+  static VERSION = '1.6.0';
 
   /** Current schema format version written by the builder (schemas without it are version 1). */
   static SCHEMA_VERSION = 2;
@@ -397,6 +397,10 @@ class OpenFormBuilder {
       nativeCameraOptionCamera: "Camera Only",
       nativeCameraOptionPhotos: "Photo Library Only",
       nativeCameraOptionPrompt: "Prompt (Camera or Library)",
+      fileCaptureLabel: "Capture",
+      fileCapturePicker: "File picker (default)",
+      fileCaptureCamera: "Camera (browser)",
+      fileCaptureHost: "Host app (e.g. camera plugin)",
       addOptionLabel: "Add Option",
       optionLabelPlaceholder: "Label",
       optionValuePlaceholder: "value",
@@ -837,6 +841,13 @@ class OpenFormBuilder {
           allKeys.add(field.key);
           if (scope === '') keyPage.set(field.key, currentPageIndex);
           registerKey(scope, field.key, path);
+        }
+      }
+      if (field.capture !== undefined) {
+        if (type !== 'file') {
+          err(`${path}.capture`, 'invalid-capture', `capture is only supported on file fields, got it on a ${JSON.stringify(type)} field.`);
+        } else if (!['picker', 'camera', 'host'].includes(field.capture)) {
+          err(`${path}.capture`, 'invalid-capture', `Unknown capture ${JSON.stringify(field.capture)}; use "picker", "camera" or "host".`);
         }
       }
       if (optionTypes.includes(type) && field.optionsType === 'api' && !field.optionsUrl) {
@@ -3877,6 +3888,16 @@ class OpenFormBuilder {
             <option value="prompt" ${field.nativeCameraSource === 'prompt' ? 'selected' : ''}>${this.esc(this.translations.nativeCameraOptionPrompt)}</option>
           </select>
         </div>` : ''}
+        ${field.type === 'file' ? `
+        <div class="prop-group">
+          <label class="prop-label" for="prop-field-capture">${this.esc(this.translations.fileCaptureLabel)}</label>
+          <select id="prop-field-capture" class="prop-input" style="padding: 6px 10px;"
+                  ${this.editingLocale !== 'default' || this.readOnly ? 'disabled' : ''}>
+            <option value="picker" ${!field.capture || field.capture === 'picker' ? 'selected' : ''}>${this.esc(this.translations.fileCapturePicker)}</option>
+            <option value="camera" ${field.capture === 'camera' ? 'selected' : ''}>${this.esc(this.translations.fileCaptureCamera)}</option>
+            <option value="host" ${field.capture === 'host' ? 'selected' : ''}>${this.esc(this.translations.fileCaptureHost)}</option>
+          </select>
+        </div>` : ''}
 
         <!-- Options Feed Source configurations (dropdown, radios, multi-select checkboxes) -->
         ${['dropdown', 'radio', 'checkbox', 'matrix'].includes(field.type) ? `
@@ -4345,6 +4366,16 @@ class OpenFormBuilder {
     if (nativeCameraSourceSelect && this.editingLocale === 'default') {
       nativeCameraSourceSelect.addEventListener('change', (e) => {
         updateFieldProperty('nativeCameraSource', e.target.value, true);
+      });
+    }
+
+    // File capture mode (omitted from the schema for the default picker)
+    const captureSelect = this.propertiesEl.querySelector('#prop-field-capture');
+    if (captureSelect && this.editingLocale === 'default') {
+      captureSelect.addEventListener('change', (e) => {
+        if (e.target.value === 'picker') delete field.capture;
+        else field.capture = e.target.value;
+        this.notifyChange();
       });
     }
 

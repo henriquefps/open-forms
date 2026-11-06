@@ -156,7 +156,7 @@ There is no `colId` property on Column — that was a documentation error carrie
 | `matrix` | `matrixRows` (`Array<{key, label}>`), plus the same `optionsType`/`options`/`optionsUrl` as above (shared across every row) |
 | `repeater` | `minItems`, `maxItems` (`integer`), `addButtonLabel` (`string`), `rows` (`Row[]` — the sub-field layout repeated per item; only `text`/`textarea`/`number`/`date`/`boolean`/`dropdown`/`radio`/`checkbox`/`signature`/`file` (and the static `header`/`paragraph`) are supported inside a repeater; a `repeater` or a `matrix` inside a repeater is **not** supported, and the builder blocks dropping one there) |
 | `signature` | *(no extra properties)* |
-| `file` | `acceptedTypes` (`string`, comma-separated extensions/MIME patterns such as `.pdf,image/*`, default `.pdf,.docx,image/*`; enforced by the file picker and also for dragged-and-dropped files), `useNativeCamera` (`boolean`, Cordova/Capacitor), `nativeCameraSource` (`"camera"` \| `"photos"` \| `"prompt"`: camera only, photo library only, or ask each time; default `"camera"`), `maxFileSizeMB` (`number`, default `5`), `fileRequirementsText` (`string`, optional override of the default hint text) |
+| `file` | `acceptedTypes` (`string`, comma-separated extensions/MIME patterns such as `.pdf,image/*`, default `.pdf,.docx,image/*`; enforced by the file picker and also for dragged-and-dropped files), `useNativeCamera` (`boolean`, Cordova/Capacitor), `nativeCameraSource` (`"camera"` \| `"photos"` \| `"prompt"`: camera only, photo library only, or ask each time; default `"camera"`), `capture` (`"picker"` \| `"camera"` \| `"host"`; default `"picker"`: the file picker. `"camera"` adds the standard `capture="environment"` attribute to the input so mobile browsers open the camera; `"host"` has the host app capture the file through the renderer's `captureProvider` (see the Integration Guide) and keeps only the returned reference in the answer; without a `captureProvider` the picker is used. Any other value, or `capture` on a non-`file` field, is a `validateSchema` error `invalid-capture`), `maxFileSizeMB` (`number`, default `5`), `fileRequirementsText` (`string`, optional override of the default hint text) |
 
 ---
 
@@ -377,6 +377,7 @@ const renderer = new OpenFormRenderer({
   locale,               // optional, initial locale, default 'default'
   optionsProvider,      // optional, (field, { locale, readOnly }) => Promise<Array<{label, value}>>
   uploadProvider,       // optional, (file, { field, locale, signal, onProgress }) => Promise<FileReference>
+  captureProvider,      // optional, (field, { locale, signal, onProgress }) => Promise<FileReference>, for file fields with capture: 'host'
   onFileRemoved,        // optional, (reference, { field }) => void, a provider-uploaded file was deleted
   handwritingFontUrl,   // optional, stylesheet URL for typed signatures (no external request without it)
   idPrefix,             // optional, prefix for every generated DOM id (default: unique 'ofr<N>-')

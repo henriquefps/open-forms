@@ -4,6 +4,13 @@ All notable changes to OpenForms. Versions follow [semantic versioning](https://
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.6.0] - 2026-11-06
+
+### Added
+- `capture` on `file` fields: `"picker"` (default), `"camera"` (browser camera through the standard `capture` attribute) or `"host"` (the host app captures the file, for example with a Cordova or Capacitor camera plugin, so it never passes through JavaScript). New renderer option `captureProvider(field, { locale, signal, onProgress })`; it resolves to the same reference as `uploadProvider`. Without a provider a `"host"` field falls back to the file picker.
+- Builder: a "Capture" select in the properties of a file field.
+- `validateSchema` checks `capture` (`invalid-capture`).
+
 ## [1.5.3] - 2026-11-05
 
 ### Fixed

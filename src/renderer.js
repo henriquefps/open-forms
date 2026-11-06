@@ -209,7 +209,7 @@ const BUILT_IN_TRANSLATIONS = {
 };
 
 class OpenFormRenderer {
-  static VERSION = '1.5.3';
+  static VERSION = '1.6.0';
 
   /** Current schema format version written by the builder (schemas without it are version 1). */
   static SCHEMA_VERSION = 2;
@@ -300,6 +300,10 @@ class OpenFormRenderer {
    *   re-render and destroy()), `onProgress(fraction 0..1)` is optional to call. The answer then holds
    *   only the resolved reference `{ name, size, type, url?, id?, ...extra }` — never the file's
    *   content. Without a provider, files are read into Base64 data URLs and kept in the answers.
+   * @param {Function} [options.captureProvider] `(field, { locale, signal, onProgress }) => Promise<FileReference>`
+   *   for `file` fields with `capture: "host"`: the host app (e.g. a Cordova/Capacitor camera plugin)
+   *   obtains the file itself and resolves to the same reference an `uploadProvider` returns, so the
+   *   content never passes through JavaScript. Without it such fields fall back to the file picker.
    * @param {Function} [options.onFileRemoved] `(reference, { field })` fired when the user deletes a
    *   file that was uploaded through `uploadProvider` (or a stored reference), so the host can delete
    *   it server-side. Errors thrown here are logged, never shown.
@@ -319,7 +323,7 @@ class OpenFormRenderer {
    *   the renderer makes no external request; typed signatures use the font stack
    *   'Caveat', 'Segoe Script', 'Bradley Hand', cursive.
    */
-  constructor({ containerEl, onSubmit, onFieldChange, onPageChange, onValidationError, translations, locale, optionsProvider, uploadProvider, onFileRemoved, idPrefix, handwritingFontUrl, onDraftChange, draftDebounceMs, draftStorage, draftKey, resumeDraft }) {
+  constructor({ containerEl, onSubmit, onFieldChange, onPageChange, onValidationError, translations, locale, optionsProvider, uploadProvider, captureProvider, onFileRemoved, idPrefix, handwritingFontUrl, onDraftChange, draftDebounceMs, draftStorage, draftKey, resumeDraft }) {
     this.containerEl = containerEl;
     this.onSubmit = onSubmit;
     this.onFieldChange = onFieldChange;
@@ -334,6 +338,7 @@ class OpenFormRenderer {
     this.handwritingFontUrl = typeof handwritingFontUrl === 'string' && handwritingFontUrl.trim() !== '' ? handwritingFontUrl.trim() : null;
     this.optionsProvider = typeof optionsProvider === 'function' ? optionsProvider : null;
     this.uploadProvider = typeof uploadProvider === 'function' ? uploadProvider : null;
+    this.captureProvider = typeof captureProvider === 'function' ? captureProvider : null;
     this.onFileRemoved = typeof onFileRemoved === 'function' ? onFileRemoved : null;
     this.onDraftChange = typeof onDraftChange === 'function' ? onDraftChange : null;
     this.draftDebounceMs = Number.isFinite(draftDebounceMs) && draftDebounceMs >= 0 ? draftDebounceMs : 800;
@@ -957,6 +962,13 @@ class OpenFormRenderer {
           allKeys.add(field.key);
           if (scope === '') keyPage.set(field.key, currentPageIndex);
           registerKey(scope, field.key, path);
+        }
+      }
+      if (field.capture !== undefined) {
+        if (type !== 'file') {
+          err(`${path}.capture`, 'invalid-capture', `capture is only supported on file fields, got it on a ${JSON.stringify(type)} field.`);
+        } else if (!['picker', 'camera', 'host'].includes(field.capture)) {
+          err(`${path}.capture`, 'invalid-capture', `Unknown capture ${JSON.stringify(field.capture)}; use "picker", "camera" or "host".`);
         }
       }
       if (optionTypes.includes(type) && field.optionsType === 'api' && !field.optionsUrl) {
@@ -2053,7 +2065,7 @@ class OpenFormRenderer {
             }
             return esc(reqText);
           })()}</div>
-            <input type="file" id="${did('filepicker')}" style="display: none;" accept="${esc(field.acceptedTypes || OpenFormRenderer.DEFAULT_ACCEPTED_TYPES)}" />
+            <input type="file" id="${did('filepicker')}" style="display: none;" accept="${esc(field.acceptedTypes || OpenFormRenderer.DEFAULT_ACCEPTED_TYPES)}"${field.capture === 'camera' ? ' capture="environment"' : ''} />
           </div>
           <div id="${did('filedetails')}" style="display: none;"></div>
           <input type="hidden" id="${did('input')}" ${field.required ? 'required' : ''} />
@@ -3527,6 +3539,11 @@ class OpenFormRenderer {
     });
 
     uploader.addEventListener('click', () => {
+      // capture: "host" — the host app captures the file; the file picker is never opened
+      if (this._usesHostCapture(field)) {
+        this._startCapture(field);
+        return;
+      }
       const isCapacitorCamera = !!(window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Camera);
       const isCordovaCamera = !!(navigator.camera && navigator.camera.getPicture);
       const isMobilePluginAvailable = isCapacitorCamera || isCordovaCamera;
@@ -3564,6 +3581,8 @@ class OpenFormRenderer {
     uploader.addEventListener('drop', (e) => {
       e.preventDefault();
       uploader.classList.remove('drag-over');
+      // Nothing to drop on a host-captured field: the host obtains the file
+      if (this._usesHostCapture(field)) return;
       if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
         const dropped = e.dataTransfer.files[0];
         // The picker filters through its `accept` attribute; a drop bypasses that, so apply the same rule
@@ -3702,13 +3721,29 @@ class OpenFormRenderer {
     return new Blob([bytes], { type });
   }
 
+  /** True when the field's file is captured by the host app (`capture: "host"` with a captureProvider). Warns once without one. */
+  _usesHostCapture(field) {
+    if (field.capture !== 'host' || this.readOnly) return false;
+    if (this.captureProvider) return true;
+    if (!this._warnedNoCaptureProvider) {
+      this._warnedNoCaptureProvider = true;
+      console.warn('OpenFormRenderer: a file field uses capture "host" but no captureProvider was given; falling back to the file picker.');
+    }
+    return false;
+  }
+
+  /** Asks the host app to capture the file for a `capture: "host"` field. */
+  _startCapture(field) {
+    this._startUpload(field, null, true);
+  }
+
   /** Starts (or restarts, on Retry) the upload of `file` for a file field. Nothing here touches the answers until it succeeds. */
-  _startUpload(field, file) {
-    if (this._destroyed || !this.uploadProvider) return;
+  _startUpload(field, file, capture = false) {
+    if (this._destroyed || !(capture ? this.captureProvider : this.uploadProvider)) return;
     this._abortUploads(field.id, true);
 
     const controller = typeof AbortController === 'function' ? new AbortController() : { signal: { aborted: false }, abort() { this.signal.aborted = true; } };
-    const state = { file, controller, status: 'uploading', progress: 0, error: '' };
+    const state = { file, capture, controller, status: 'uploading', progress: 0, error: '' };
     this._uploads[field.id] = state;
 
     const context = {
@@ -3728,7 +3763,7 @@ class OpenFormRenderer {
 
     let request;
     try {
-      request = Promise.resolve(this.uploadProvider(file, context));
+      request = Promise.resolve(capture ? this.captureProvider(context.field, context) : this.uploadProvider(file, context));
     } catch (err) {
       request = Promise.reject(err);
     }
@@ -3736,7 +3771,7 @@ class OpenFormRenderer {
     const isCurrent = () => !this._destroyed && this._uploads[field.id] === state && !controller.signal.aborted;
     const fail = (err) => {
       if (!isCurrent()) return;
-      console.warn(`OpenFormRenderer: uploadProvider failed for "${file && file.name}":`, err);
+      console.warn(capture ? `OpenFormRenderer: captureProvider failed for "${field.key}":` : `OpenFormRenderer: uploadProvider failed for "${file && file.name}":`, err);
       state.status = 'error';
       state.error = (err && typeof err.message === 'string' && err.message.trim()) || (typeof err === 'string' && err.trim()) || this.translations.uploadFailedDefault;
       this._paintUploadState(field);
@@ -3762,13 +3797,16 @@ class OpenFormRenderer {
   _completeUpload(field, state, reference) {
     delete this._uploads[field.id];
     const file = state.file;
-    const stored = Object.assign({ name: file.name, size: file.size, type: file.type }, reference);
+    const stored = file
+      ? Object.assign({ name: file.name, size: file.size, type: file.type }, reference)
+      : Object.assign({}, reference);
+    if (!file && (typeof stored.name !== 'string' || !stored.name)) stored.name = String(field.label || field.key || '');
 
     const previous = this.uploadedFiles[field.id];
     if (previous && previous !== stored) this._notifyFileRemoved(previous, field, 'replaced');
 
     this._revokePreviewUrls(field.id, true);
-    if (String(file.type || '').startsWith('image/') && typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+    if (file && String(file.type || '').startsWith('image/') && typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
       try { this._objectUrls[field.id] = URL.createObjectURL(file); } catch (e) { /* the preview is optional */ }
     }
 
@@ -3816,7 +3854,7 @@ class OpenFormRenderer {
     const esc = OpenFormRenderer.escapeHtml;
     const t = this.translations;
     const isError = state.status === 'error';
-    const name = state.file && state.file.name ? state.file.name : '';
+    const name = state.file && state.file.name ? state.file.name : (state.capture ? String(field.label || field.key || '') : '');
     const percent = Math.round(state.progress * 100);
     const label = t.uploadProgressLabel.replace('{name}', name);
 
@@ -3833,7 +3871,7 @@ class OpenFormRenderer {
           <div class="form-file-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}" aria-label="${esc(label)}">
             <div class="form-file-progress-bar" style="width: ${percent}%;"></div>
           </div>
-          <div class="form-file-upload-meta"><span class="form-file-upload-size">${esc(this.formatFileSize(state.file && state.file.size))}</span> <span class="form-file-upload-percent">${percent}%</span></div>
+          <div class="form-file-upload-meta">${state.file ? `<span class="form-file-upload-size">${esc(this.formatFileSize(state.file.size))}</span> ` : ''}<span class="form-file-upload-percent">${percent}%</span></div>
           `}
         </div>
       </div>
@@ -3857,7 +3895,7 @@ class OpenFormRenderer {
       });
     }
     const retryBtn = details.querySelector('.form-file-retry-btn');
-    if (retryBtn) retryBtn.addEventListener('click', () => this._startUpload(field, state.file));
+    if (retryBtn) retryBtn.addEventListener('click', () => this._startUpload(field, state.file, state.capture));
     const dismissBtn = details.querySelector('.form-file-dismiss-btn');
     if (dismissBtn) {
       dismissBtn.addEventListener('click', () => {

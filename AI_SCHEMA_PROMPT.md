@@ -39,7 +39,7 @@ FIELDS: {id,key,type,label,required?,disabled?,conditionalRules?} plus:
 - radio: Same properties as dropdown (single choice, few options).
 - checkbox: Same properties as dropdown; the answer is an array of values (multi choice).
 - signature: Signature pad, no extra properties.
-- file: {acceptedTypes?: ".pdf,image/*", maxFileSizeMB?: 5, useNativeCamera?: true, nativeCameraSource?: "camera"|"photos"|"prompt"}. One file; use acceptedTypes "image/*" for photos.
+- file: {acceptedTypes?: ".pdf,image/*", maxFileSizeMB?: 5, useNativeCamera?: true, nativeCameraSource?: "camera"|"photos"|"prompt", capture?: "camera"|"host"}. One file; use acceptedTypes "image/*" for photos; capture "camera" opens the device camera in the browser, "host" lets the host app (e.g. a camera plugin) take the file; omit capture otherwise.
 - repeater: {minItems?, maxItems?, addButtonLabel?, rows:[Row]}. A list of items, each laid out by "rows" (same Row shape, fields inside are sub-fields with their own key scope; they may repeat top-level keys). Sub-fields: text, textarea, number, date, boolean, dropdown, radio, checkbox, signature, file (never a repeater or a matrix).
 - matrix: {matrixRows:[{key,label}], optionsType:"static", options:[{label,value}]}. One choice per row (shared columns); the answer is {rowKey: value}.
 
